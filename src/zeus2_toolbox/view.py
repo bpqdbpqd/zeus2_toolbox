@@ -10,7 +10,7 @@ from matplotlib import cm, colors, font_manager
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 
-from zeus2_io import *
+from .zeus2_io import *
 
 
 class FigFlux(Figure):
@@ -1563,7 +1563,7 @@ class FigSpec(FigFlux):
             axp = self.add_axes(
                     (x, y - (spat - extent_round[2]) * self.y_size_ / figsize[1],
                      dx, dy), zorder=10)
-            axp.patch.set_alpha(0.5)
+            axp.patch.set_alpha(0.7)
             axp.tick_params(axis="both", direction="in",
                             bottom=True, top=True, left=True, right=True,
                             labelbottom=False, labeltop=False)

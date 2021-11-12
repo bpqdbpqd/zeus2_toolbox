@@ -17,8 +17,9 @@ from astropy import units
 from astropy.time import Time
 from astropy.table import vstack, hstack, unique
 from astropy.table import Table as Tb
-from mce_data import *
-from tools import *
+
+from .mce_data import *
+from .tools import *
 
 
 class BaseObj(object):
@@ -870,7 +871,8 @@ class DataObj(BaseObj):
                                                chunk_edge_idxs[1:])):
             if keep_shape:
                 chunk_arr[..., idx_i:idx_e] = \
-                    func(self.data_[..., idx_i:idx_e], axis=-1).reshape(-1, 1)
+                    func(self.data_[..., idx_i:idx_e], axis=-1).reshape(
+                    *self.shape_[:-1], 1)
             else:
                 chunk_arr[..., i] = func(self.data_[..., idx_i:idx_e], axis=-1)
 
@@ -3133,6 +3135,7 @@ class Obs(DataObj):
         self.obs_info_.expand(entries)
 
 
+# TODO: to_table
 # TODO: def bin(self, method):
 
 

@@ -10,7 +10,7 @@ seems to frozen with parallel=True, try running it against with parallel=False
 import os, multiprocessing, inspect
 import gc
 
-from view import *
+from .view import *
 from sklearn.decomposition import FastICA, PCA, FactorAnalysis, \
     DictionaryLearning, SparsePCA, MiniBatchSparsePCA, \
     MiniBatchDictionaryLearning
@@ -49,6 +49,10 @@ MAX_THREAD_NUM = multiprocessing.cpu_count() - 1
 
 NOD_PHASE = -1  # -1 means source is in on chop when beam is right, otherwise 1
 NOD_COLNAME = "beam_is_R"  # column name in obs_info recording nodding phase
+
+ZPOLD_SHAPE = (3, 3)  # default zpold shape, (az_len, alt_len) or (x_len, y_len)
+ZPOLDBIG_SHAPE = (5, 5)  # default zpoldbig raster shape, (az_len, alt_len)
+RASTER_THRE = 2  # default SNR requirement for not flagging a pixel
 
 warnings.filterwarnings("ignore", message="invalid value encountered in greater")
 warnings.filterwarnings("ignore", message="invalid value encountered in less")
@@ -814,6 +818,9 @@ def auto_flag_pix_by_flux(obs_flux, obs_err, pix_flag_list=[], is_flat=False,
                    (abs(obs_flux_array.data_) < snr_thre * obs_err_array.data_)
     else:
         pix_flag = obs_err_array.get_nanmad_flag(thre=MAD_THRE_BEAM_ERR, axis=None)
+    if pix_flag.ndim > 1:
+        pix_flag = np.any(
+                pix_flag, axis=tuple(np.arange(pix_flag.ndim, dtype=int)[1:]))
     pix_flag_list = pix_flag_list.copy() + array_map.take_by_flag(
             pix_flag).array_idxs_.tolist()
 
@@ -1221,12 +1228,15 @@ def read_beam(file_header, array_map=None, obs_log=None, flag_ts=True,
         beam = beam.to_obs_array(array_map=array_map)
     if flag_ts:
         beam = auto_flag_ts(beam, is_flat=is_flat)
-    beam.match_obs_log(obs_log)  # find entry in obs_log
+    with warnings.catch_warnings():
+        if is_flat:
+            warnings.filterwarnings("ignore", message=
+            "No entry is found in obs log.")
+        beam.match_obs_log(obs_log)  # find entry in obs_log
 
     return beam
 
-
-# TODO: read_beam return an empty object if failed
+# TODO: make empty beam .to_obs_array(array_map=array_map) if fail to read file
 
 def read_beam_pair(file_header1, file_header2, array_map=None, obs_log=None,
                    flag_ts=True, is_flat=False, match_same_phase=MATCH_SAME_PHASE,
@@ -1600,7 +1610,9 @@ def reduce_skychop(flat_header, data_dir=None, write_dir=None, array_map=None,
 
     beam_num_list = [idxs[1] - idxs[0] + 1 for header in flat_header
                      for idxs in flat_header[header]]
-    flat_flux, flat_err, flat_wt = ObsArray(), ObsArray(), ObsArray()
+
+    type_result = Obs if array_map is None else ObsArray
+    flat_flux, flat_err, flat_wt = type_result(), type_result(), type_result()
     for idx_i, idx_e in zip(np.cumsum([0] + beam_num_list[:-1]),
                             np.cumsum(beam_num_list)):
         group_flux, group_err_ex, group_wt = weighted_proc_along_axis(
@@ -1726,10 +1738,11 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                 write_suffix=write_suffix, array_map=array_map, obs_log=obs_log,
                 is_flat=False, pix_flag_list=pix_flag_list, flat_flux=flat_flux,
                 flat_err=flat_err, parallel=parallel, do_desnake=do_desnake,
-                ref_pix=ref_pix, do_ica=do_ica, spat_excl=spat_excl,
-                return_ts=return_ts, return_pix_flag_list=True,
-                plot=plot, plot_ts=plot_ts, reg_interest=reg_interest,
-                plot_flux=plot_flux, plot_show=plot_show, plot_save=plot_save)
+                ref_pix=ref_pix, do_smooth=do_smooth, do_ica=do_ica,
+                spat_excl=spat_excl, return_ts=return_ts,
+                return_pix_flag_list=True, plot=plot, plot_ts=plot_ts,
+                reg_interest=reg_interest, plot_flux=plot_flux,
+                plot_show=plot_show, plot_save=plot_save)
         beam_pairs_flux, beam_pairs_err, beam_pairs_wt = result[:3]
         beam_pairs_flux *= NOD_PHASE
     plot_dict["beam pair flux"] = (beam_pairs_flux, beam_pairs_err, {"c": "k"})
@@ -1776,6 +1789,8 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                 plot_save=plot_save, write_header=os.path.join(
                         write_dir, "%s_err" % data_file_header)))
 
+        zobs_flux_array = ObsArray(zobs_flux)
+        array_map = zobs_flux_array.array_map_
         fig = FigSpec.plot_spec(zobs_flux, yerr=zobs_err,
                                 pix_flag_list=pix_flag_list, color="k")
         fig.imshow_flag(pix_flag_list=pix_flag_list)
@@ -1821,6 +1836,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
 
     return result
 
+
 # TODO: return intermediate result
 # TODO: add write suffix automatically
 
@@ -1839,7 +1855,6 @@ def proc_calibration(data_header, data_dir=None, write_dir=None, write_suffix=""
 
     if write_dir is None:
         write_dir = os.getcwd()
-    plot_dict = {}
     result = reduce_beams(
             data_header=data_header, data_dir=data_dir, write_dir=write_dir,
             write_suffix=write_suffix, array_map=array_map, obs_log=obs_log,
@@ -1889,7 +1904,7 @@ def proc_calibration(data_header, data_dir=None, write_dir=None, write_suffix=""
                 pix_flag_list=pix_flag_list, reg_interest=reg_interest,
                 plot_show=plot_show, plot_save=plot_save,
                 write_header=os.path.join(
-                        write_dir, "%s_beams_flux" % (data_file_header)),
+                        write_dir, "%s_beams_flux" % data_file_header),
                 orientation=ORIENTATION))
 
     result = (beams_flux, beams_err, beams_wt)
@@ -1901,10 +1916,134 @@ def proc_calibration(data_header, data_dir=None, write_dir=None, write_suffix=""
     return result
 
 
-# def proc_zpold
+def proc_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
+               array_map=None, obs_log=None, pix_flag_list=[], flat_flux=1,
+               flat_err=0, parallel=False, do_desnake=False, ref_pix=None,
+               do_smooth=False, do_ica=False, spat_excl=None,
+               return_ts=False, return_pix_flag_list=False,
+               table_save=True, plot=True, plot_ts=True,
+               reg_interest=None, plot_flux=True, plot_show=False,
+               plot_save=True, zpold_shape=ZPOLD_SHAPE):
+    """
+    plot raster of zpold
+    """
+
+    if write_dir is None:
+        write_dir = os.getcwd()
+    result = proc_calibration(
+            data_header=data_header, data_dir=data_dir, write_dir=write_dir,
+            write_suffix=write_suffix, array_map=array_map, obs_log=obs_log,
+            pix_flag_list=pix_flag_list, flat_flux=flat_flux, flat_err=flat_err,
+            parallel=parallel, do_desnake=do_desnake, ref_pix=ref_pix,
+            do_smooth=do_smooth, do_ica=do_ica, spat_excl=spat_excl,
+            return_ts=return_ts, return_pix_flag_list=True,
+            table_save=table_save, plot=plot, plot_ts=plot_ts,
+            reg_interest=reg_interest, plot_flux=plot_flux, plot_show=plot_show,
+            plot_save=plot_save)
+    beams_flux, beams_err, beams_wt = result[:3]
+    if return_ts:
+        beams_ts = result[3]
+    pix_flag_list = result[-1]
+    zpold_len = np.prod(zpold_shape, dtype=int)
+    if beams_flux.len_ < zpold_len:
+        num_fill = zpold_len - beams_flux.len_
+        for beam in (beams_flux, beams_err, beams_wt):
+            beam.append(beam.replace(
+                    arr_in=np.tile(beam.data_[..., -1:], num_fill) * np.nan,
+                    ts=(None if beam.ts_.empty_flag_ else np.tile(
+                            beam.ts_.data_[-1:], num_fill)),
+                    chop=(None if beam.chop_.empty_flag_ else np.tile(
+                            beam.chop_.data_[-1:], num_fill)),
+                    obs_id_arr=np.tile(
+                            beam.obs_id_arr_.data_[-1:], num_fill)))
+    elif beams_flux.len_ > zpold_len:
+        warnings.warn("beam number grater than raster size.", UserWarning)
+# TODO: unique info for empty beam
+
+    # auto flag pixels without anything at SNR > 3
+    beam_flux_array, beam_err_array = ObsArray(beams_flux), ObsArray(beams_err)
+    array_map = beam_flux_array.array_map_
+    beam_flux_array_med = weighted_proc_along_axis(
+            beam_flux_array, method="nanmedian", weight=1/beam_err_array**2,
+            axis=-1)[0]
+    pix_flag = np.all(~((abs(beam_flux_array - beam_flux_array_med).data_ >
+                         RASTER_THRE * beam_err_array.data_) &
+                        (abs(beam_flux_array - beam_flux_array_med).data_ >
+                         RASTER_THRE *
+                         beam_err_array.proc_along_time("nanmedian").data_)),
+                      axis=-1)
+    pix_flag_list = pix_flag_list.copy() + beam_flux_array.array_map_.take_by_flag(
+            pix_flag).array_idxs_.tolist()
+    pix_flag_list = np.unique(pix_flag_list, axis=0).tolist()
+
+    zpold_flux = beams_flux.replace(arr_in=np.where(
+            np.arange(zpold_shape[1])[:, None] % 2,
+            beams_flux.data_.reshape(
+                    *beams_flux.shape_[:-1], *zpold_shape[::-1])[..., ::-1],
+            beams_flux.data_.reshape(
+                    *beams_flux.shape_[:-1], *zpold_shape[::-1])))
+    zpold_err = beams_err.replace(arr_in=np.where(
+            np.arange(zpold_shape[1])[:, None] % 2,
+            beams_err.data_.reshape(
+                    *beams_err.shape_[:-1], *zpold_shape[::-1])[..., ::-1],
+            beams_err.data_.reshape(
+                    *beams_err.shape_[:-1], *zpold_shape[::-1])))
+    zpold_wt = beams_wt.replace(arr_in=np.where(
+            np.arange(zpold_shape[1])[:, None] % 2,
+            beams_wt.data_.reshape(
+                    *beams_wt.shape_[:-1], *zpold_shape[::-1])[..., ::-1],
+            beams_wt.data_.reshape(
+                    *beams_wt.shape_[:-1], *zpold_shape[::-1])))
+
+    data_file_header = build_header(data_header)
+    if plot:
+        fig = FigArray.init_by_array_map(
+                array_map if reg_interest is None else array_map.take_where(
+                        **reg_interest), orientation=ORIENTATION,
+                x_size=0.5, y_size=.5, axs_fontsize=2)
+        fig.imshow(zpold_flux, origin="lower")
+        fig.imshow_flag(pix_flag_list=pix_flag_list)
+        fig.set_xlabel("azimuth")
+        fig.set_ylabel("altitude")
+        fig.set_labels(zpold_flux, orientation=ORIENTATION)
+        fig.set_title(title="%s raster" % data_file_header)
+        if plot_show:
+            plt.show()
+        if plot_save:
+            fig.savefig(os.path.join(write_dir, "%s_raster.png" % data_file_header))
+        plt.close(fig)
+
+    result = (zpold_flux, zpold_err, zpold_wt)
+    if return_ts:
+        result += (beams_ts,)
+    if return_pix_flag_list:
+        result += (pix_flag_list,)
+
+    return result
 
 
-# def proc_zpoldbig
+def proc_zpoldbig(data_header, data_dir=None, write_dir=None, write_suffix="",
+               array_map=None, obs_log=None, pix_flag_list=[], flat_flux=1,
+               flat_err=0, parallel=False, do_desnake=False, ref_pix=None,
+               do_smooth=False, do_ica=False, spat_excl=None,
+               return_ts=False, return_pix_flag_list=False,
+               table_save=True, plot=True, plot_ts=True,
+               reg_interest=None, plot_flux=True, plot_show=False,
+               plot_save=True, zpold_shape=ZPOLDBIG_SHAPE):
+    """
+    raster shape according to zpoldbig
+    """
+
+    return proc_zpold(
+            data_header=data_header, data_dir=data_dir, write_dir=write_dir,
+            write_suffix=write_suffix, array_map=array_map, obs_log=obs_log,
+            pix_flag_list=pix_flag_list, flat_flux=flat_flux, flat_err=flat_err,
+            parallel=parallel, do_desnake=do_desnake, ref_pix=ref_pix,
+            do_smooth=do_smooth, do_ica=do_ica, spat_excl=spat_excl,
+            return_ts=return_ts, return_pix_flag_list=return_pix_flag_list,
+            table_save=table_save, plot=plot, plot_ts=plot_ts,
+            reg_interest=reg_interest, plot_flux=plot_flux, plot_show=plot_show,
+            plot_save=plot_save, zpold_shape=zpold_shape)
 
 
 # check_pixel

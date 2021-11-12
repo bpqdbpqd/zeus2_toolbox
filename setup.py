@@ -7,7 +7,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 if __name__ == "__main__":
-    setup(
+    setuptools.setup(
         name=NAME,
         version=VERSION,
         author="Bo Peng",
@@ -25,5 +25,9 @@ if __name__ == "__main__":
         packages=setuptools.find_packages(where="src"),
         python_requires=">=3.6",
         install_requires=[
-            "numpy>=1.13", "astropy", "matplotlib", "scikit-learn"]
+            "numpy>=1.13",
+            "astropy",
+            "matplotlib",
+            "scikit-learn"
+        ]
     )
