@@ -66,8 +66,9 @@ def check_parallel():
     :return: bool flag indicating if parallelization is supported
     :rtype: bool
     """
-    pool, flag = multiprocessing.Pool(), False
-    if not hasattr(pool, "starmap"):
+
+    flag = False
+    if not hasattr(multiprocessing.pool.Pool, "starmap"):
         warnings.warn("Parallelization is not supported on this machine: " +
                       "multiprocessing.Pool.starmap() is not found, " +
                       "need Python >= 3.3.", UserWarning)
@@ -76,8 +77,6 @@ def check_parallel():
                       "MAX_THREAD_NUM <= 1.", UserWarning)
     else:
         flag = True
-    pool.close()
-    pool.join()
 
     return flag
 
@@ -1418,7 +1417,8 @@ def reduce_beams(data_header, data_dir=None, write_dir=None, write_suffix="",
                 args_list.append(args)
 
     if parallel and check_parallel():
-        pool = multiprocessing.Pool(min(MAX_THREAD_NUM, len(args_list)))
+        pool = multiprocessing.get_context("fork").Pool(
+                min(MAX_THREAD_NUM, len(args_list)))
         try:
             gc.collect()
             results = pool.starmap(reduce_beam, args_list)
@@ -1532,7 +1532,8 @@ def reduce_beam_pairs(data_header, data_dir=None, write_dir=None,
                 args_list.append(args)
 
     if parallel and check_parallel():
-        pool = multiprocessing.Pool(min(MAX_THREAD_NUM, len(args_list)))
+        pool = multiprocessing.get_context("fork").Pool(
+                min(MAX_THREAD_NUM, len(args_list)))
         try:
             gc.collect()
             results = pool.starmap(reduce_beam_pair, args_list)
@@ -1841,7 +1842,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
 # TODO: add write suffix automatically
 
 def proc_calibration(data_header, data_dir=None, write_dir=None, write_suffix="",
-                     array_map=None, obs_log=None, pix_flag_list=[], flat_flux=1,
+                     array_map=None, obs_log=None, is_flat=False, pix_flag_list=[], flat_flux=1,
                      flat_err=0, parallel=False, do_desnake=False, ref_pix=None,
                      do_smooth=False, do_ica=False, spat_excl=None,
                      return_ts=False, return_pix_flag_list=False,
@@ -1858,7 +1859,7 @@ def proc_calibration(data_header, data_dir=None, write_dir=None, write_suffix=""
     result = reduce_beams(
             data_header=data_header, data_dir=data_dir, write_dir=write_dir,
             write_suffix=write_suffix, array_map=array_map, obs_log=obs_log,
-            is_flat=False, pix_flag_list=pix_flag_list, flat_flux=flat_flux,
+            is_flat=is_flat, pix_flag_list=pix_flag_list, flat_flux=flat_flux,
             flat_err=flat_err, parallel=parallel, do_desnake=do_desnake,
             ref_pix=ref_pix, do_smooth=do_smooth, do_ica=do_ica,
             spat_excl=spat_excl, return_ts=return_ts,
@@ -1917,13 +1918,12 @@ def proc_calibration(data_header, data_dir=None, write_dir=None, write_suffix=""
 
 
 def proc_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
-               array_map=None, obs_log=None, pix_flag_list=[], flat_flux=1,
-               flat_err=0, parallel=False, do_desnake=False, ref_pix=None,
-               do_smooth=False, do_ica=False, spat_excl=None,
-               return_ts=False, return_pix_flag_list=False,
-               table_save=True, plot=True, plot_ts=True,
-               reg_interest=None, plot_flux=True, plot_show=False,
-               plot_save=True, zpold_shape=ZPOLD_SHAPE):
+               array_map=None, obs_log=None, is_flat=False, pix_flag_list=[],
+               flat_flux=1, flat_err=0, parallel=False, do_desnake=False,
+               ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
+               return_ts=False, return_pix_flag_list=False, table_save=True,
+               plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
+               plot_show=False, plot_save=True, zpold_shape=ZPOLD_SHAPE):
     """
     plot raster of zpold
     """
@@ -1933,6 +1933,7 @@ def proc_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
     result = proc_calibration(
             data_header=data_header, data_dir=data_dir, write_dir=write_dir,
             write_suffix=write_suffix, array_map=array_map, obs_log=obs_log,
+            is_flat=is_flat,
             pix_flag_list=pix_flag_list, flat_flux=flat_flux, flat_err=flat_err,
             parallel=parallel, do_desnake=do_desnake, ref_pix=ref_pix,
             do_smooth=do_smooth, do_ica=do_ica, spat_excl=spat_excl,
@@ -2021,15 +2022,15 @@ def proc_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
 
     return result
 
+# TODO: throw away extra pixels
 
 def proc_zpoldbig(data_header, data_dir=None, write_dir=None, write_suffix="",
-               array_map=None, obs_log=None, pix_flag_list=[], flat_flux=1,
-               flat_err=0, parallel=False, do_desnake=False, ref_pix=None,
-               do_smooth=False, do_ica=False, spat_excl=None,
-               return_ts=False, return_pix_flag_list=False,
-               table_save=True, plot=True, plot_ts=True,
-               reg_interest=None, plot_flux=True, plot_show=False,
-               plot_save=True, zpold_shape=ZPOLDBIG_SHAPE):
+                  array_map=None, obs_log=None, is_flat=False, pix_flag_list=[],
+                  flat_flux=1,flat_err=0, parallel=False, do_desnake=False,
+                  ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
+                  return_ts=False, return_pix_flag_list=False, table_save=True,
+                  plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
+                  plot_show=False, plot_save=True, zpold_shape=ZPOLDBIG_SHAPE):
     """
     raster shape according to zpoldbig
     """
@@ -2037,13 +2038,17 @@ def proc_zpoldbig(data_header, data_dir=None, write_dir=None, write_suffix="",
     return proc_zpold(
             data_header=data_header, data_dir=data_dir, write_dir=write_dir,
             write_suffix=write_suffix, array_map=array_map, obs_log=obs_log,
-            pix_flag_list=pix_flag_list, flat_flux=flat_flux, flat_err=flat_err,
-            parallel=parallel, do_desnake=do_desnake, ref_pix=ref_pix,
-            do_smooth=do_smooth, do_ica=do_ica, spat_excl=spat_excl,
-            return_ts=return_ts, return_pix_flag_list=return_pix_flag_list,
-            table_save=table_save, plot=plot, plot_ts=plot_ts,
-            reg_interest=reg_interest, plot_flux=plot_flux, plot_show=plot_show,
-            plot_save=plot_save, zpold_shape=zpold_shape)
+            is_flat=is_flat, pix_flag_list=pix_flag_list, flat_flux=flat_flux,
+            flat_err=flat_err, parallel=parallel, do_desnake=do_desnake,
+            ref_pix=ref_pix, do_smooth=do_smooth, do_ica=do_ica,
+            spat_excl=spat_excl, return_ts=return_ts,
+            return_pix_flag_list=return_pix_flag_list, table_save=table_save,
+            plot=plot, plot_ts=plot_ts, reg_interest=reg_interest,
+            plot_flux=plot_flux, plot_show=plot_show, plot_save=plot_save,
+            zpold_shape=zpold_shape)
 
 
-# check_pixel
+# def raster_map
+
+
+# def check_pixel
