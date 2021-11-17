@@ -14,7 +14,7 @@ PLOT_FLUX = True
 PLOT_SHOW = False
 PLOT_SAVE = True
 
-ARRAY_MAP_PATH = "../../ref/array_200_excel.csv"
+ARRAY_MAP_PATH = "../example_data/array_200_excel.csv"
 BAND = 200
 FLAT_HEADER = {"skychop_191127": [(34, 35)]}
 DATA_HEADER = {"orion_191127": [(95, 102)]}
@@ -45,7 +45,7 @@ zobs_result = reduce_zobs(
         reg_interest=REG_INTEREST, plot_flux=True, plot_show=False,
         plot_save=True)
 
-# ARRAY_MAP_PATH = "../../ref/array_map_excel_alternative_20211101.csv"
+# ARRAY_MAP_PATH = "../example_data/array_map_excel_alternative_20211101.csv"
 # BAND = 400
 # FLAT_HEADER = {"skychop_191128": [(64, 64)]}
 # DATA_HEADER = {"irc10216_191128": [(27, 51)]}
@@ -57,7 +57,7 @@ zobs_result = reduce_zobs(
 #         flat_header=FLAT_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
 #         array_map=array_map, obs_log=obs_log, pix_flag_list=[],
 #         parallel=True, return_ts=False, return_pix_flag_list=True,
-#         table_save=False, plot=False, plot_ts=True, reg_interest=REG_INTEREST,
+#         table_save=False, plot=False, plot_ts=False, reg_interest=REG_INTEREST,
 #         plot_flux=True, plot_show=False, plot_save=True)
 # flat_flux, flat_err, flat_wt, pix_flag_list = flat_result
 #
@@ -68,6 +68,6 @@ zobs_result = reduce_zobs(
 #         parallel=True, do_desnake=False, ref_pix=None, do_smooth=False,
 #         do_ica=False, spat_excl=(0, 5), return_ts=False,
 #         return_pix_flag_list=True, table_save=True, plot=True, plot_ts=False,
-#         reg_interest=None, plot_flux=False, plot_show=False, plot_save=True)
+#         reg_interest=None, plot_flux=True, plot_show=False, plot_save=True)
 
 # TODO: change to flag flux - flux_median < SNR

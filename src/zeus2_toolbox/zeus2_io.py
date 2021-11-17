@@ -2071,7 +2071,7 @@ class TimeStamps(DataObj):
         :rtype: TimeStamps
         """
 
-        ts_flag = (not np.isfinite(self.data_)) | (self.data_ == 0)
+        ts_flag = (~np.isfinite(self.data_)) | (self.data_ == 0)
         interv_diff = abs(np.diff(self.data_[~ts_flag]))
         if len(interv_diff) <= 2:  # find the correct interval and chunk interval
             interv, chunk_interv = 0, 0
@@ -2090,7 +2090,7 @@ class TimeStamps(DataObj):
                 thre_min=interv * 2, thre_max=self.t_mid_ / 2)
         chunk_edge_num = min(len(chop_chunk_edge_idxs), len(ts_chunk_edge_idxs))
         idx_chunk_i = np.nonzero(chop_chunk_edge_idxs[:chunk_edge_num] -
-                                 ts_chunk_edge_idxs[:chunk_edge_num])[0][0]
+                                 ts_chunk_edge_idxs[:chunk_edge_num])[0][0] - 1
         idx_i = chop_chunk_edge_idxs[idx_chunk_i]
         if idx_i == 0:  # estimate the starting time
             if ts_flag.sum() == self.len_:
@@ -2584,6 +2584,7 @@ class Obs(DataObj):
         """
         Check the consistency of length of data_, chop_ and ts_ and update
             obs_id_arr_ according to the length of non-empty instance variable
+        :raises ValueError: chop len disagree with data
         """
 
         if not self.empty_flag_:  # if data_ is not empty
@@ -2591,10 +2592,13 @@ class Obs(DataObj):
                 self.obs_id_arr_ = IdArr(arr_in=[self.obs_id_] * self.len_)
             if not self.chop_.empty_flag_:
                 if self.len_ != self.chop_.len_:
-                    warnings.warn("data_ and self.chop__ length disagree!")
+                    warnings.warn("data_ and chop__ length disagree!")
+                    if (self.len_ > 1) and (self.chop_.len_ > 1):
+                        raise ValueError("data_ and chop_ length disagree " +
+                                         "with both length > 1!")
             elif not self.ts_.empty_flag_:
                 if self.len_ != self.ts_.len_:
-                    warnings.warn("data_ and self.ts__ length disagree!")
+                    warnings.warn("data_ and ts_ length disagree!")
         elif not self.chop_.empty_flag_:
             if self.obs_id_arr_.len_ != self.chop_.len_:
                 self.obs_id_arr_ = IdArr([self.obs_id_] * self.chop_.len_)
@@ -3902,14 +3906,15 @@ def nfft_obs(obs, nfft=5., noverlap=4.):
     nblock = 1 + int((obs_interp.len_ - nfft) / (nfft - noverlap))
     freq_arr = np.fft.fftfreq(n=nfft, d=interv)
     ts_arr = np.empty(nblock, dtype=np.double)
-    nfft_arr = np.empty(obs_interp.shape_[:-1] + (nfft, nblock),
-                        dtype="complex128")
+    nfft_arr = np.full(obs_interp.shape_[:-1] + (nfft, nblock),
+                       dtype="complex128", fill_value=np.nan)
     for i in range(nblock):
         idx_i = i * (nfft - noverlap)
         idx_e = idx_i + nfft
-        ts_arr[i] = ts_new.data_[idx_i:idx_e].min()
+        ts_arr[i] = ts_new.data_[idx_i:idx_e].mean()
         nfft_arr[..., i] = np.fft.fft(obs_interp.data_[..., idx_i:idx_e],
                                       axis=-1)
+
     obs_nfft = obs.replace(
             arr_in=nfft_arr, ts=ts_arr, chop=None, obs_id_arr=None)
     freq_ts = TimeStamps(arr_in=freq_arr)

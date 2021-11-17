@@ -970,10 +970,11 @@ def plot_beam_ts(obs, title=None, pix_flag_list=[], reg_interest=None,
     :param obs: Obs or ObsArray or list or tuple or dict, can be the object
         containing the data to plot, or list/tuple of objects, or dict in the
         form of {key: obs} or {key: (obs, kwargs)} or {key: (obs, obs_yerr)} or
-        {key: (obs, obs_yerr, kwargs)}, in which case the dict key
-        will be the label in legend, obs and obs_yerr is Obs or ObsArray object
-        and kwargs is passed to FigArray.scatter(), the items in the tuple/list
-        is determined based on type, and if obs_yerr is present,
+        {key: (obs, obs_yerr, kwargs)} or {key: [obs, kwargs]}, in which case
+        the dict key will be the label in legend, obs and obs_yerr is Obs or
+        ObsArray objects, and kwargs is passed to FigArray.scatter() if the dict
+        iterm is tuple or FigArray.plot() if it's list, the items in the
+        tuple/list determined based on type, and if obs_yerr is present,
         FigArray.errorbar() will also be called with kwargs
     :type obs: Union[Obs, ObsArray, list, tuple, dict]
     :param str title: str, title of the figure, will use the first available
@@ -1016,16 +1017,18 @@ def plot_beam_ts(obs, title=None, pix_flag_list=[], reg_interest=None,
     elif isinstance(obs, dict):
         for key in obs:
             if isinstance(obs[key], (list, tuple)):
+                plot_func = fig.scatter if isinstance(obs[key], tuple) else \
+                    fig.plot
                 if len(obs[key]) > 1:
                     if isinstance(obs[key][1], (Obs, ObsArray)):
                         kwargs = obs[key][2] if len(obs[key]) > 2 else {}
-                        fig.scatter(obs[key][0], **kwargs)
+                        plot_func(obs[key][0], **kwargs)
                         fig.errorbar(obs[key][0], yerr=obs[key][1], label=key,
                                      **kwargs)
                     else:
-                        fig.scatter(obs[key][0], label=key, **obs[key][1])
+                        plot_func(obs[key][0], label=key, **obs[key][1])
                 else:
-                    fig.scatter(obs[key][0], label=key)
+                    plot_func(obs[key][0], label=key)
             else:
                 fig.scatter(obs[key], label=key)
         fig.legend()
@@ -1222,9 +1225,16 @@ def read_beam(file_header, array_map=None, obs_log=None, flag_ts=True,
     :rtype: Union[Obs, ObsArray]
     """
 
-    beam = Obs.read_header(filename=file_header)  # read in data
+    try:
+        beam = Obs.read_header(filename=file_header)  # read in data
+    except Exception:
+        warnings.warn("fail to read in %s." % file_header, UserWarning)
+        beam = Obs()
     if array_map is not None:  # transform into ObsArray
-        beam = beam.to_obs_array(array_map=array_map)
+        if beam.empty_flag_:
+            beam = beam.to_obs_array(array_map=None)
+        else:
+            beam = beam.to_obs_array(array_map=array_map)
     if flag_ts:
         beam = auto_flag_ts(beam, is_flat=is_flat)
     with warnings.catch_warnings():
@@ -1235,7 +1245,6 @@ def read_beam(file_header, array_map=None, obs_log=None, flag_ts=True,
 
     return beam
 
-# TODO: make empty beam .to_obs_array(array_map=array_map) if fail to read file
 
 def read_beam_pair(file_header1, file_header2, array_map=None, obs_log=None,
                    flag_ts=True, is_flat=False, match_same_phase=MATCH_SAME_PHASE,
@@ -1443,7 +1452,7 @@ def reduce_beams(data_header, data_dir=None, write_dir=None, write_suffix="",
                 else "failed to read"
             nan_beam = beams_flux.replace(
                     arr_in=np.full(beams_flux.shape_[:-1] + (1,),
-                                   fill_value=np.nan), ts=result[0].ts_.t_mid_,
+                                   fill_value=np.nan), ts=[result[0].ts_.t_mid_],
                     chop=[False], obs_id=nan_beam_obs_id,
                     obs_id_list=[nan_beam_obs_id],
                     obs_id_arr=np.array([nan_beam_obs_id]),
@@ -1691,8 +1700,8 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                 plot_ts=plot_ts, reg_interest=reg_interest, plot_flux=plot_flux,
                 plot_show=plot_show, plot_save=plot_save)
         beams_flux, beams_err, beams_wt = result[:3]
-        plot_dict["beam flux"] = (beams_flux, beams_err)
-
+        plot_dict["beam flux"] = [beams_flux, beams_err,
+                                  {"c": "y", "ls": ":", "lw": 0.5}]
         beam_num_list = [idxs[1] - idxs[0] + 1 for header in data_header
                          for idxs in data_header[header]]
         nod = np.empty(0, dtype=Chop.dtype_)
@@ -1751,7 +1760,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
         zobs_ts = result[3]
     pix_flag_list = result[-1]
 
-    zobs_flux, zobs_err_ex, zobs_wt = weighted_proc_along_axis(
+    zobs_flux, zobs_err_ex, zobs_wt = weighted_proc_along_axis(  # flux of zobs
             beam_pairs_flux, weight=1 / beam_pairs_err ** 2)
     zobs_err_in = (beam_pairs_err ** 2).proc_along_time("nanmean").sqrt() / \
                   beam_pairs_flux.proc_along_time("num_is_finite").sqrt()
@@ -1819,8 +1828,21 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
             obs_pwv = beam_pairs_flux.replace(
                     arr_in=np.tile(pwv_arr, beam_pairs_flux.shape_[:-1] + (1,)),
                     ts=t_arr, chop=None)
-            plot_dict["PWV"] = (obs_pwv, obs_pwv * 0,
-                                {"ls": "--", "twin_axes": True, "c": "c"})
+            plot_dict["PWV"] = [obs_pwv,
+                                {"ls": "--", "twin_axes": True, "c": "c"}]
+        if beam_pairs_flux.len_ > 1:  # cumulative flux measurement
+            type_result = type(beam_pairs_flux)
+            cum_flux, cum_err, cum_wt = type_result(), type_result(), type_result()
+            for idx in range(beam_pairs_flux.len_):
+                flux, err, wt = weighted_proc_along_axis(
+                        beam_pairs_flux.take_by_idx_along_time(range(idx + 1)),
+                        weight=1 / beam_pairs_err.take_by_idx_along_time(
+                                range(idx + 1)) ** 2)
+                cum_flux.append(flux)
+                cum_err.append(err)
+                cum_wt.append(wt)
+            cum_flux.ts_ += cum_flux.ts_.interv_ / 4
+            plot_dict["cum flux"] = [cum_flux, cum_err, {"c": ""}]
         plt.close(plot_beam_ts(
                 plot_dict, title=(data_file_header + " beam pair flux"),
                 pix_flag_list=pix_flag_list, reg_interest=reg_interest,
@@ -1842,13 +1864,13 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
 # TODO: add write suffix automatically
 
 def proc_calibration(data_header, data_dir=None, write_dir=None, write_suffix="",
-                     array_map=None, obs_log=None, is_flat=False, pix_flag_list=[], flat_flux=1,
-                     flat_err=0, parallel=False, do_desnake=False, ref_pix=None,
-                     do_smooth=False, do_ica=False, spat_excl=None,
-                     return_ts=False, return_pix_flag_list=False,
-                     table_save=True, plot=True, plot_ts=True,
-                     reg_interest=None, plot_flux=True, plot_show=False,
-                     plot_save=True):
+                     array_map=None, obs_log=None, is_flat=False,
+                     pix_flag_list=[], flat_flux=1, flat_err=0, parallel=False,
+                     do_desnake=False, ref_pix=None, do_smooth=False,
+                     do_ica=False, spat_excl=None, return_ts=False,
+                     return_pix_flag_list=False, table_save=True, plot=True,
+                     plot_ts=True, reg_interest=None, plot_flux=True,
+                     plot_show=False, plot_save=True):
     """
     reduce data for general calibration that does not involve nodding or raster,
     but just continuous chop observations like pointing or focus
@@ -1882,8 +1904,8 @@ def proc_calibration(data_header, data_dir=None, write_dir=None, write_suffix=""
                 write_dir, "%s_beams_info.csv" % data_file_header),
                 overwrite=True)
     if plot:  # plot beam flux
-        plot_dict = {"beam flux": (beams_flux, beams_err,
-                                   {"c": "y", "ls": ":", "lw": 0.5})}
+        plot_dict = {"beam flux": [beams_flux, beams_err,
+                                   {"c": "y", "ls": ":", "lw": 0.5}]}
         # plot PWV over beam flux
         if ("UTC" in beams_flux.obs_info_.table_.colnames) and \
                 ("mm PWV" in beams_flux.obs_info_.table_.colnames):
