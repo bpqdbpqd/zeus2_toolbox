@@ -751,8 +751,13 @@ class DataObj(BaseObj):
                 }[method]
         dtype = int if method in ["num", "num_not_is_nan", "num_is_finite"] \
             else np.double
-
-        arr_proc = func(self.data_, axis=axis)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="Mean of empty slice")
+            warnings.filterwarnings("ignore", message="All-NaN slice encountered")
+            warnings.filterwarnings("ignore", message="Mean of empty slice")
+            warnings.filterwarnings(
+                    "ignore", message="Degrees of freedom <= 0 for slice.")
+            arr_proc = func(self.data_, axis=axis)
         arr_proc = np.expand_dims(arr_proc, axis=axis)
         arr_proc = arr_proc.astype(dtype)
         data_proc = self.replace(arr_in=arr_proc, **kwargs)
@@ -869,12 +874,20 @@ class DataObj(BaseObj):
         chunk_arr = np.empty(chunk_shape, dtype=dtype)
         for i, (idx_i, idx_e) in enumerate(zip(chunk_edge_idxs[:-1],
                                                chunk_edge_idxs[1:])):
-            if keep_shape:
-                chunk_arr[..., idx_i:idx_e] = \
-                    func(self.data_[..., idx_i:idx_e], axis=-1).reshape(
-                    *self.shape_[:-1], 1)
-            else:
-                chunk_arr[..., i] = func(self.data_[..., idx_i:idx_e], axis=-1)
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message="Mean of empty slice")
+                warnings.filterwarnings("ignore",
+                                        message="All-NaN slice encountered")
+                warnings.filterwarnings("ignore", message="Mean of empty slice")
+                warnings.filterwarnings(
+                        "ignore", message="Degrees of freedom <= 0 for slice.")
+                if keep_shape:
+                    chunk_arr[..., idx_i:idx_e] = \
+                        func(self.data_[..., idx_i:idx_e], axis=-1).reshape(
+                                *self.shape_[:-1], 1)
+                else:
+                    chunk_arr[..., i] = \
+                        func(self.data_[..., idx_i:idx_e], axis=-1)
 
         data_chunked = self.replace(arr_in=chunk_arr, **kwargs)
 

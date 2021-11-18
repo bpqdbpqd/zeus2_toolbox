@@ -1031,9 +1031,9 @@ def plot_beam_ts(obs, title=None, pix_flag_list=[], reg_interest=None,
                     plot_func(obs[key][0], label=key)
             else:
                 fig.scatter(obs[key], label=key)
-        fig.legend()
+        fig.legend(loc="upper left")
         if fig.twin_axs_list_ is not None:
-            fig.legend(twin_axes=True)
+            fig.legend(twin_axes=True, loc="lower right")
     else:
         for obs_i in obs:
             fig.scatter(obs_i)
@@ -1799,7 +1799,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                 plot_save=plot_save, write_header=os.path.join(
                         write_dir, "%s_err" % data_file_header)))
 
-        zobs_flux_array = ObsArray(zobs_flux)
+        zobs_flux_array = ObsArray(zobs_flux)  # plot spectrum
         array_map = zobs_flux_array.array_map_
         fig = FigSpec.plot_spec(zobs_flux, yerr=zobs_err,
                                 pix_flag_list=pix_flag_list, color="k")
@@ -1814,7 +1814,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
             fig.savefig(os.path.join(write_dir, "%s_spec.png" % data_file_header))
         plt.close(fig)
 
-        # plot PWV over beam pair flux
+        # get PWV
         if ("UTC" in zobs_flux.obs_info_.table_.colnames) and \
                 ("mm PWV" in zobs_flux.obs_info_.table_.colnames):
             tb_use = zobs_flux.obs_info_.table_[
@@ -1828,27 +1828,49 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
             obs_pwv = beam_pairs_flux.replace(
                     arr_in=np.tile(pwv_arr, beam_pairs_flux.shape_[:-1] + (1,)),
                     ts=t_arr, chop=None)
-            plot_dict["PWV"] = [obs_pwv,
-                                {"ls": "--", "twin_axes": True, "c": "c"}]
+            plot_dict["PWV"] = [obs_pwv, {"ls": "--", "twin_axes": True,
+                                          "c": "r", "marker": ".",
+                                          "markersize": 3}]
+
+        if not stack:
+            plt.close(plot_beam_ts(
+                    plot_dict, title=(data_file_header + " beam flux"),
+                    pix_flag_list=pix_flag_list, reg_interest=reg_interest,
+                    plot_show=plot_show, plot_save=plot_save,
+                    write_header=os.path.join(
+                            write_dir, "%s_beams_flux" % data_file_header),
+                    orientation=ORIENTATION))
+            plot_dict.pop("beam flux")
+
         if beam_pairs_flux.len_ > 1:  # cumulative flux measurement
             type_result = type(beam_pairs_flux)
-            cum_flux, cum_err, cum_wt = type_result(), type_result(), type_result()
+            cum_flux, cum_err, cum_wt = type_result(), type_result(), \
+                                        type_result()
             for idx in range(beam_pairs_flux.len_):
-                flux, err, wt = weighted_proc_along_axis(
-                        beam_pairs_flux.take_by_idx_along_time(range(idx + 1)),
-                        weight=1 / beam_pairs_err.take_by_idx_along_time(
-                                range(idx + 1)) ** 2)
+                flux_use, err_use, wt_use = [
+                    obs.take_by_idx_along_time(range(idx + 1)) for obs in
+                    (beam_pairs_flux, beam_pairs_err, beam_pairs_wt)]
+                flux, err_ex, wt = weighted_proc_along_axis(flux_use,
+                                                            weight=1 / err_use ** 2)
+                err_in = (err_use ** 2).proc_along_time("nanmean").sqrt() / \
+                         flux_use.proc_along_time("num_is_finite").sqrt()
+                err = err_ex.replace(
+                        arr_in=np.choose(err_ex.data_ < err_in.data_,
+                                         [err_ex.data_, err_in.data_]))
+                flux.ts_ = beam_pairs_flux.take_by_idx_along_time(idx).ts_
                 cum_flux.append(flux)
                 cum_err.append(err)
                 cum_wt.append(wt)
             cum_flux.ts_ += cum_flux.ts_.interv_ / 4
-            plot_dict["cum flux"] = [cum_flux, cum_err, {"c": ""}]
+            plot_dict["cum flux"] = [cum_flux, cum_err,
+                                     {"c": "c", "ls": ":", "lw": 1}]
+
         plt.close(plot_beam_ts(
                 plot_dict, title=(data_file_header + " beam pair flux"),
                 pix_flag_list=pix_flag_list, reg_interest=reg_interest,
                 plot_show=plot_show, plot_save=plot_save,
                 write_header=os.path.join(
-                        write_dir, "%s_beam_pairs_ts" % data_file_header),
+                        write_dir, "%s_beam_pairs_flux" % data_file_header),
                 orientation=ORIENTATION))
 
     result = (zobs_flux, zobs_err, zobs_wt)
@@ -1920,8 +1942,9 @@ def proc_calibration(data_header, data_dir=None, write_dir=None, write_suffix=""
             obs_pwv = beams_flux.replace(
                     arr_in=np.tile(pwv_arr, beams_flux.shape_[:-1] + (1,)),
                     ts=t_arr, chop=None)
-            plot_dict["PWV"] = (obs_pwv, obs_pwv * 0,
-                                {"ls": "--", "twin_axes": True, "c": "c"})
+            plot_dict["PWV"] = [obs_pwv, {"ls": "--", "twin_axes": True,
+                                          "c": "r", "marker": ".",
+                                          "markersize": 3}]
         plt.close(plot_beam_ts(
                 plot_dict, title=(data_file_header + " beam flux"),
                 pix_flag_list=pix_flag_list, reg_interest=reg_interest,
@@ -1955,11 +1978,10 @@ def proc_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
     result = proc_calibration(
             data_header=data_header, data_dir=data_dir, write_dir=write_dir,
             write_suffix=write_suffix, array_map=array_map, obs_log=obs_log,
-            is_flat=is_flat,
-            pix_flag_list=pix_flag_list, flat_flux=flat_flux, flat_err=flat_err,
-            parallel=parallel, do_desnake=do_desnake, ref_pix=ref_pix,
-            do_smooth=do_smooth, do_ica=do_ica, spat_excl=spat_excl,
-            return_ts=return_ts, return_pix_flag_list=True,
+            is_flat=is_flat, pix_flag_list=pix_flag_list, flat_flux=flat_flux,
+            flat_err=flat_err, parallel=parallel, do_desnake=do_desnake,
+            ref_pix=ref_pix, do_smooth=do_smooth, do_ica=do_ica,
+            spat_excl=spat_excl, return_ts=return_ts, return_pix_flag_list=True,
             table_save=table_save, plot=plot, plot_ts=plot_ts,
             reg_interest=reg_interest, plot_flux=plot_flux, plot_show=plot_show,
             plot_save=plot_save)
@@ -1981,7 +2003,7 @@ def proc_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
                             beam.obs_id_arr_.data_[-1:], num_fill)))
     elif beams_flux.len_ > zpold_len:
         warnings.warn("beam number grater than raster size.", UserWarning)
-# TODO: unique info for empty beam
+    # TODO: unique info for empty beam
 
     # auto flag pixels without anything at SNR > 3
     beam_flux_array, beam_err_array = ObsArray(beams_flux), ObsArray(beams_err)
@@ -2004,19 +2026,22 @@ def proc_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
             beams_flux.data_.reshape(
                     *beams_flux.shape_[:-1], *zpold_shape[::-1])[..., ::-1],
             beams_flux.data_.reshape(
-                    *beams_flux.shape_[:-1], *zpold_shape[::-1])))
+                    *beams_flux.shape_[:-1], *zpold_shape[::-1])),
+            chop=None, ts=None)
     zpold_err = beams_err.replace(arr_in=np.where(
             np.arange(zpold_shape[1])[:, None] % 2,
             beams_err.data_.reshape(
                     *beams_err.shape_[:-1], *zpold_shape[::-1])[..., ::-1],
             beams_err.data_.reshape(
-                    *beams_err.shape_[:-1], *zpold_shape[::-1])))
+                    *beams_err.shape_[:-1], *zpold_shape[::-1])),
+            chop=None, ts=None)
     zpold_wt = beams_wt.replace(arr_in=np.where(
             np.arange(zpold_shape[1])[:, None] % 2,
             beams_wt.data_.reshape(
                     *beams_wt.shape_[:-1], *zpold_shape[::-1])[..., ::-1],
             beams_wt.data_.reshape(
-                    *beams_wt.shape_[:-1], *zpold_shape[::-1])))
+                    *beams_wt.shape_[:-1], *zpold_shape[::-1])),
+            chop=None, ts=None)
 
     data_file_header = build_header(data_header)
     if plot:
