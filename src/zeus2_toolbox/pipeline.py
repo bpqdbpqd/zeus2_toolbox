@@ -58,6 +58,14 @@ warnings.filterwarnings("ignore", message="invalid value encountered in greater"
 warnings.filterwarnings("ignore", message="invalid value encountered in less")
 
 
+def custom_formatwarning(msg, *args, **kwargs):
+    # ignore everything except the message
+    return str(msg) + '\n'
+
+
+warnings.formatwarning = custom_formatwarning
+
+
 def check_parallel():
     """
     check whether parallelization is supported on the machine, requiring starmap
@@ -1659,7 +1667,7 @@ def reduce_skychop(flat_header, data_dir=None, write_dir=None, array_map=None,
                 pix_flag_list=pix_flag_list, reg_interest=reg_interest,
                 plot_show=plot_show, plot_save=plot_save,
                 write_header=os.path.join(
-                        write_dir, "%s_beams_flux" % (flat_file_header)),
+                        write_dir, "%s_beams_flux" % flat_file_header),
                 orientation=ORIENTATION))
 
     result = (flat_flux, flat_err, flat_wt)
@@ -2009,7 +2017,7 @@ def proc_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
     beam_flux_array, beam_err_array = ObsArray(beams_flux), ObsArray(beams_err)
     array_map = beam_flux_array.array_map_
     beam_flux_array_med = weighted_proc_along_axis(
-            beam_flux_array, method="nanmedian", weight=1/beam_err_array**2,
+            beam_flux_array, method="nanmedian", weight=1 / beam_err_array ** 2,
             axis=-1)[0]
     pix_flag = np.all(~((abs(beam_flux_array - beam_flux_array_med).data_ >
                          RASTER_THRE * beam_err_array.data_) &
@@ -2069,11 +2077,12 @@ def proc_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
 
     return result
 
+
 # TODO: throw away extra pixels
 
 def proc_zpoldbig(data_header, data_dir=None, write_dir=None, write_suffix="",
                   array_map=None, obs_log=None, is_flat=False, pix_flag_list=[],
-                  flat_flux=1,flat_err=0, parallel=False, do_desnake=False,
+                  flat_flux=1, flat_err=0, parallel=False, do_desnake=False,
                   ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
                   return_ts=False, return_pix_flag_list=False, table_save=True,
                   plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
@@ -2093,7 +2102,6 @@ def proc_zpoldbig(data_header, data_dir=None, write_dir=None, write_suffix="",
             plot=plot, plot_ts=plot_ts, reg_interest=reg_interest,
             plot_flux=plot_flux, plot_show=plot_show, plot_save=plot_save,
             zpold_shape=zpold_shape)
-
 
 # def raster_map
 

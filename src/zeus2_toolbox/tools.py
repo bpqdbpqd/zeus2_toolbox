@@ -134,25 +134,29 @@ def index_diff_edge(arr, thre_min=0.5, thre_max=None):
     input for numpy.split().
 
     :param arr: list or tuple or arr, 1 dimension of int or float or bool type
-    :type arr: list or tuple or numpy.ndarray
+    :type arr: Union[list, tuple, numpy.ndarray]
     :param float thre_min: float, lower threshold of absolute difference to cut
         the arr
     :param thre_max: float, optional upper threshold of absolute
         difference to cut the arr. Abs difference > thre_max will be ignored
-    :type thre_max: float or None, optional
+    :type thre_max: float
     :return edge_idxs: array, index of edge element of each chunk
     :rtype: numpy.ndarray
     :example:
-    edge_idxs = index_diff_edge([0, 0, 0, 1, 1, 0, 1])
+    >>> edge_idxs = index_diff_edge([0, 0, 0, 1, 1, 0, 1])
+
         will return array([0, 3, 5, 6, 7]), such that
         (edge_idxs[i]:edge_idxs[i+1])
         selects the part that are in the same chop phase
-    :example:
-    edge_idxs = index_diff_edge([0, 0.0025, 0.05, 0.3, 0.3025, 0.305, 0.3075],
-    thre=0.1)
+
+    >>> edge_idxs = index_diff_edge(
+    >>> [0, 0.0025, 0.05, 0.3, 0.3025, 0.305, 0.3075], thre=0.1)
+
         will return array([0, 3, 7])
-    :example:
-    index_diff_edge([0]) will return [0, 1]
+
+    >>> index_diff_edge([0])
+
+        will return [0, 1]
     """
 
     abs_diff = abs(np.diff(arr))
