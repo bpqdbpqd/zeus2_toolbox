@@ -1,5 +1,3 @@
-# zeus2_toolbox
-
 zeus2_toolbox is a python package developed for reducing and analyzing data taken by the Second-generation z (Redshift)
 and Early Universe Spectrometer (
 ZEUS2, [Ferkinhoff, C. et al. ApJ 780, 142, 2014](https://ui.adsabs.harvard.edu/abs/2014ApJ...780..142F/abstract)).
@@ -12,24 +10,26 @@ on both the detector and ancillary data.
 
 The package is composed of four submodules
 
-- tools: containing many small helper functions
-- zeus2io: containing the classes that can read and write both MCE and ancillary data
+- **tools** containing many small helper functions
+- **zeus2io** containing the classes that can read and write both MCE and ancillary data
    - ArrayMap: the class that contains the array map information, can read in array map stored in CSV file
    - Obs: the class hosting the raw MCE, and optionally many ancillary data including Chop, TimeStamp, ObsId, ObsInfo
    - ObsArray: the class with the data in Obs rearranged according to a given ArrayMap
-- view: containing the classes to visualize data in various ways
+- **view** containing the classes to visualize data in various ways
    - FigFlux: the class that can plot the flux on a 2d map
    - FigArray: the class that can plot the data of each pixel in either detector or MCE layout
    - FigSpec: the class to plot the spectrum of the detector array
-- pipeline: containing the functions needed for various levels of data reduction
+- **pipeline** containing the functions needed for various levels of data reduction
 
-## Documentation
+Documentation
+---------------
 
 The documentation can be found
 at [https://zeus2-toolbox.readthedocs.io/](https://zeus2-toolbox.readthedocs.io/en/latest/). It currently contains only
 the API, but a tutorial with examples and jupyter notebook will be added.
 
-## Acknowledgements
+Acknowledgements
+----------------
 
 The project is based on the previous pipeline data reduction codes developed by Cody Lamarche and
 the [zeustools](https://github.com/NanoExplorer/zeustools) project by Christopher Rooney. The mce_data submodule is

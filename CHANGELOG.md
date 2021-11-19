@@ -1,6 +1,4 @@
-# Changelog
-
-## 1.1
+1.1
 
 - Generated documentations on [https://zeus2-toolbox.readthedocs.io/](https://zeus2-toolbox.readthedocs.io/en/latest/)
 - Add the ability to plot cumulative flux in pipeline.reduce_zobs()
@@ -8,6 +6,6 @@
 - Fix a bug with multiprocessing.pool(), now generating pools with "Fork" context
 - Suppress unnecessary warnings
 
-## 1.0
+1.0
 
 - Initial release on GitHub

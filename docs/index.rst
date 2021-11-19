@@ -1,12 +1,15 @@
-Welcome to zeus2_toolbox's documentation!
+zeus2_toolbox's documentation
 =========================================
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 2
    :caption: Contents:
 
-    readme
-    changelog
+    :doc:`API <source/zeus2_toolbox.rst>`
+
+.. include:: readme.rst
+
+.. include:: changelog.rst
 
 Indices and tables
 ==================
