@@ -1898,14 +1898,14 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
 # TODO: return intermediate result
 # TODO: add write suffix automatically
 
-def proc_calibration(data_header, data_dir=None, write_dir=None, write_suffix="",
-                     array_map=None, obs_log=None, is_flat=False,
-                     pix_flag_list=[], flat_flux=1, flat_err=0, parallel=False,
-                     do_desnake=False, ref_pix=None, do_smooth=False,
-                     do_ica=False, spat_excl=None, return_ts=False,
-                     return_pix_flag_list=True, table_save=True, plot=True,
-                     plot_ts=True, reg_interest=None, plot_flux=True,
-                     plot_show=False, plot_save=True):
+def reduce_calibration(data_header, data_dir=None, write_dir=None, write_suffix="",
+                       array_map=None, obs_log=None, is_flat=False,
+                       pix_flag_list=[], flat_flux=1, flat_err=0, parallel=False,
+                       do_desnake=False, ref_pix=None, do_smooth=False,
+                       do_ica=False, spat_excl=None, return_ts=False,
+                       return_pix_flag_list=True, table_save=True, plot=True,
+                       plot_ts=True, reg_interest=None, plot_flux=True,
+                       plot_show=False, plot_save=True):
     """
     reduce data for general calibration that does not involve nodding or raster,
     but just continuous chop observations like pointing or focus
@@ -1975,20 +1975,20 @@ def proc_calibration(data_header, data_dir=None, write_dir=None, write_suffix=""
     return result
 
 
-def proc_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
-               array_map=None, obs_log=None, is_flat=False, pix_flag_list=[],
-               flat_flux=1, flat_err=0, parallel=False, do_desnake=False,
-               ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
-               return_ts=False, return_pix_flag_list=True, table_save=True,
-               plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
-               plot_show=False, plot_save=True, zpold_shape=ZPOLD_SHAPE):
+def reduce_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
+                 array_map=None, obs_log=None, is_flat=False, pix_flag_list=[],
+                 flat_flux=1, flat_err=0, parallel=False, do_desnake=False,
+                 ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
+                 return_ts=False, return_pix_flag_list=True, table_save=True,
+                 plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
+                 plot_show=False, plot_save=True, zpold_shape=ZPOLD_SHAPE):
     """
     plot raster of zpold
     """
 
     if write_dir is None:
         write_dir = os.getcwd()
-    result = proc_calibration(
+    result = reduce_calibration(
             data_header=data_header, data_dir=data_dir, write_dir=write_dir,
             write_suffix=write_suffix, array_map=array_map, obs_log=obs_log,
             is_flat=is_flat, pix_flag_list=pix_flag_list, flat_flux=flat_flux,
@@ -2085,18 +2085,18 @@ def proc_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
 
 # TODO: throw away extra pixels
 
-def proc_zpoldbig(data_header, data_dir=None, write_dir=None, write_suffix="",
-                  array_map=None, obs_log=None, is_flat=False, pix_flag_list=[],
-                  flat_flux=1, flat_err=0, parallel=False, do_desnake=False,
-                  ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
-                  return_ts=False, return_pix_flag_list=False, table_save=True,
-                  plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
-                  plot_show=False, plot_save=True, zpold_shape=ZPOLDBIG_SHAPE):
+def reduce_zpoldbig(data_header, data_dir=None, write_dir=None, write_suffix="",
+                    array_map=None, obs_log=None, is_flat=False, pix_flag_list=[],
+                    flat_flux=1, flat_err=0, parallel=False, do_desnake=False,
+                    ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
+                    return_ts=False, return_pix_flag_list=False, table_save=True,
+                    plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
+                    plot_show=False, plot_save=True, zpold_shape=ZPOLDBIG_SHAPE):
     """
     raster shape according to zpoldbig
     """
 
-    return proc_zpold(
+    return reduce_zpold(
             data_header=data_header, data_dir=data_dir, write_dir=write_dir,
             write_suffix=write_suffix, array_map=array_map, obs_log=obs_log,
             is_flat=is_flat, pix_flag_list=pix_flag_list, flat_flux=flat_flux,
