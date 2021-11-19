@@ -5,8 +5,6 @@ zeus2_toolbox's documentation
    :maxdepth: 2
    :caption: Contents:
 
-    :doc:`API <source/zeus2_toolbox.rst>`
-
 .. include:: readme.rst
 
 .. include:: changelog.rst
