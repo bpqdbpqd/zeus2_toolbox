@@ -5,7 +5,8 @@ Welcome to zeus2_toolbox's documentation!
    :maxdepth: 3
    :caption: Contents:
 
-
+    readme
+    changelog
 
 Indices and tables
 ==================
