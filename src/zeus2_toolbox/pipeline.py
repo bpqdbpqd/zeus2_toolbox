@@ -454,7 +454,12 @@ def adaptive_sklearn_obs(obs, sklearn_solver, verbose=False, llim=1, ulim=.5):
                        params["n_components"]))
             params["n_components"] += 1
             tmp_solver = type(sklearn_solver)(**params)
-            tmp_solver.fit(sample_obs.data_.transpose())
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                        "ignore", message="FastICA did not converge. " +
+                                          "Consider increasing tolerance or " +
+                                          "the maximum number of iterations.")
+                tmp_solver.fit(sample_obs.data_.transpose())
         if verbose:
             print("n_iter=%i for n_components=%i in range [%i, %i]." %
                   (tmp_solver.n_iter_, params["n_components"], llim, ulim))
@@ -763,7 +768,7 @@ def auto_flag_ts(obs, is_flat=False):
                    0.1 * blank_mask.shape[-1])  # ignore dead pixels
     obs_new.fill_by_mask(outlier_mask | blank_mask, fill_value=np.nan)
 
-    mad_thre = MAD_THRE_BEAM if is_flat else MAD_THRE_FLAT
+    mad_thre = MAD_THRE_FLAT if is_flat else MAD_THRE_BEAM
     mad_mask = obs_new.get_nanmad_flag(thre=mad_thre, axis=-1)  # flag by MAD
     obs_new.fill_by_mask(mask=mad_mask, fill_value=np.nan)
 
@@ -1177,7 +1182,7 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flu
                            pix_flag_list=pix_flag_list)
         beam_use = auto_flag_ts(ica_treated_beam, is_flat=is_flat)
         noise_beam += ica_noise_beam
-        plot_dict["ica"] = (noise_beam, {"c": "brown"})
+        plot_dict["ica"] = (noise_beam, {"c": "gray"})
 
     beam_flux, beam_err, beam_wt = get_chop_flux(  # compute flux and error
             beam_use, chunk_method=chunk_method, method=method,
@@ -1683,7 +1688,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                 array_map=None, obs_log=None, pix_flag_list=[], flat_flux=1,
                 flat_err=0, parallel=False, stack=False, do_desnake=False,
                 ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
-                return_ts=False, return_pix_flag_list=False, table_save=True,
+                return_ts=False, return_pix_flag_list=True, table_save=True,
                 plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
                 plot_show=False, plot_save=True):
     """
@@ -1898,7 +1903,7 @@ def proc_calibration(data_header, data_dir=None, write_dir=None, write_suffix=""
                      pix_flag_list=[], flat_flux=1, flat_err=0, parallel=False,
                      do_desnake=False, ref_pix=None, do_smooth=False,
                      do_ica=False, spat_excl=None, return_ts=False,
-                     return_pix_flag_list=False, table_save=True, plot=True,
+                     return_pix_flag_list=True, table_save=True, plot=True,
                      plot_ts=True, reg_interest=None, plot_flux=True,
                      plot_show=False, plot_save=True):
     """
@@ -1974,7 +1979,7 @@ def proc_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
                array_map=None, obs_log=None, is_flat=False, pix_flag_list=[],
                flat_flux=1, flat_err=0, parallel=False, do_desnake=False,
                ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
-               return_ts=False, return_pix_flag_list=False, table_save=True,
+               return_ts=False, return_pix_flag_list=True, table_save=True,
                plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
                plot_show=False, plot_save=True, zpold_shape=ZPOLD_SHAPE):
     """
