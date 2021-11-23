@@ -3,3 +3,4 @@ astropy
 matplotlib
 scikit-learn
 setuptools
+myst_nb
