@@ -426,6 +426,11 @@ def adaptive_sklearn_obs(obs, sklearn_solver, verbose=False, llim=1, ulim=.5):
 
     params = sklearn_solver.get_params()
     tmp_solver = type(sklearn_solver)(**params)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+                "ignore", message="FastICA did not converge. " +
+                                  "Consider increasing tolerance or " +
+                                  "the maximum number of iterations.")
     tmp_solver.fit(sample_obs.data_.transpose())
     if "n_iter_" not in tmp_solver.__dict__:
         raise ValueError("The solver doesn't have n_iter_, does not support " +
