@@ -1,2 +1,8 @@
+numpy>=1.13
+astropy
+matplotlib
+scikit-learn
+setuptools
+
 myst_nb
 sphinx_book_theme
