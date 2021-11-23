@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>&lt;no title&gt; &#8212; zeus2_toolbox 1.1 documentation</title>
+
+    <link href="../_static/css/theme.css" rel="stylesheet">
+    <link href="../_static/css/index.ff1ffe594081f20da1ef19478df9384b.css" rel="stylesheet">
+
+
+    <link href="../_static/vendor/fontawesome/5.13.0/css/all.min.css"
+          rel="stylesheet">
+    <link as="font" crossorigin href="../_static/vendor/fontawesome/5.13.0/webfonts/fa-solid-900.woff2" rel="preload"
+          type="font/woff2">
+    <link as="font" crossorigin href="../_static/vendor/fontawesome/5.13.0/webfonts/fa-brands-400.woff2" rel="preload"
+          type="font/woff2">
+
+
+    <link href="../_static/pygments.css" rel="stylesheet" type="text/css"/>
+    <link href="../_static/sphinx-book-theme.css?digest=c3fdc42140077d1ad13ad2f1588a4309" rel="stylesheet"
+          type="text/css"/>
+    <link href="../_static/togglebutton.css" rel="stylesheet" type="text/css"/>
+    <link href="../_static/mystnb.css" rel="stylesheet" type="text/css"/>
+
+    <link as="script" href="../_static/js/index.be7d3bbb2ef33a8344ce.js" rel="preload">
+
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <script src="../_static/togglebutton.js"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown, .tag_hide_input div.cell_input, .tag_hide-input div.cell_input, .tag_hide_output div.cell_output, .tag_hide-output div.cell_output, .tag_hide_cell.cell, .tag_hide-cell.cell';</script>
+    <script src="../_static/sphinx-book-theme.12a9622fbb08dcb3a2a40b2c02b83a57.js"></script>
+    <link href="../genindex.html" rel="index" title="Index"/>
+    <link href="../search.html" rel="search" title="Search"/>
+    <link href="pipeline_reduction.html" rel="next" title="Pipeline reduction"/>
+    <link href="README.html" rel="prev" title="Documentation"/>
+    <meta content="width=device-width, initial-scale=1" name="viewport"/>
+    <meta content="None" name="docsearch:language">
+
+
+    <!-- Google Analytics -->
+
+</head>
+<body data-offset="80" data-spy="scroll" data-target="#bd-toc-nav">
+
+<div class="container-fluid" id="banner"></div>
+
+
+<div class="container-xl">
+    <div class="row">
+
+        <div class="col-12 col-md-3 bd-sidebar site-navigation show" id="site-navigation">
+
+            <div class="navbar-brand-box">
+                <a class="navbar-brand text-wrap" href="../index.html">
+
+
+                    <h1 class="site-logo" id="site-title">zeus2_toolbox 1.1 documentation</h1>
+
+                </a>
+            </div>
+            <form action="../search.html" class="bd-search d-flex align-items-center" method="get">
+                <i class="icon fas fa-search"></i>
+                <input aria-label="Search the docs ..." autocomplete="off" class="form-control" id="search-input"
+                       name="q" placeholder="Search the docs ..." type="search">
+            </form>
+            <nav aria-label="Main" class="bd-links" id="bd-docs-nav">
+                <div class="bd-toc-item active">
+                    <p aria-level="2" class="caption" role="heading">
+ <span class="caption-text">
+  Contents:
+ </span>
+                    </p>
+                    <ul class="nav bd-sidenav">
+                        <li class="toctree-l1">
+                            <a class="reference internal" href="README.html">
+                                Documentation
+                            </a>
+                        </li>
+                        <li class="toctree-l1">
+                            <a class="reference internal" href="pipeline_reduction.html">
+                                Pipeline reduction
+                            </a>
+                        </li>
+                        <li class="toctree-l1">
+                            <a class="reference internal" href="zeus2_toolbox.html">
+                                API
+                            </a>
+                        </li>
+                    </ul>
+
+                </div>
+            </nav> <!-- To handle the deprecated key -->
+
+            <div class="navbar_extra_footer">
+                Theme by the <a href="https://ebp.jupyterbook.org">Executable Book Project</a>
+            </div>
+
+        </div>
+
+
+        <main class="col py-md-3 pl-md-4 bd-content overflow-auto" role="main">
+
+            <div class="topbar container-xl fixed-top">
+                <div class="topbar-contents row">
+                    <div class="col-12 col-md-3 bd-topbar-whitespace site-navigation show"></div>
+                    <div class="col pl-md-4 topbar-main">
+
+                        <button aria-controls="navbar-menu" aria-controls="site-navigation" aria-expanded="true"
+                                aria-label="Toggle navigation"
+                                class="navbar-toggler ml-0" data-placement="bottom" data-placement="left"
+                                data-target=".site-navigation"
+                                data-toggle="collapse" data-toggle="tooltip" data-toggle="tooltip"
+                                id="navbar-toggler" title="Toggle navigation" type="button">
+                            <i class="fas fa-bars"></i>
+                            <i class="fas fa-arrow-left"></i>
+                            <i class="fas fa-arrow-up"></i>
+                        </button>
+
+
+                        <div class="dropdown-buttons-trigger">
+                            <button aria-label="Download this page" class="btn btn-secondary topbarbtn"
+                                    id="dropdown-buttons-trigger"><i
+                                    class="fas fa-download"></i></button>
+
+                            <div class="dropdown-buttons">
+                                <!-- ipynb file if we had a myst markdown file -->
+
+                                <!-- Download raw file -->
+                                <a class="dropdown-buttons" href="../_sources/source/CHANGELOG.md.txt">
+                                    <button class="btn btn-secondary topbarbtn"
+                                            data-placement="left" data-toggle="tooltip" title="Download source file"
+                                            type="button">.md
+                                    </button>
+                                </a>
+                                <!-- Download PDF via print -->
+                                <button class="btn btn-secondary topbarbtn" data-placement="left" data-toggle="tooltip"
+                                        id="download-print"
+                                        onClick="window.print()" title="Print to PDF" type="button">.pdf
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Source interaction buttons -->
+
+                        <div class="dropdown-buttons-trigger">
+                            <button aria-label="Connect with source repository" class="btn btn-secondary topbarbtn"
+                                    id="dropdown-buttons-trigger"><i class="fab fa-github"></i></button>
+                            <div class="dropdown-buttons sourcebuttons">
+                                <a class="repository-button"
+                                   href="https://github.com/bpqdbpqd/zeus2_toolbox">
+                                    <button class="btn btn-secondary topbarbtn" data-placement="left"
+                                            data-toggle="tooltip" title="Source repository" type="button"><i
+                                            class="fab fa-github"></i>repository
+                                    </button>
+                                </a>
+
+
+                            </div>
+                        </div>
+
+                        <!-- Full screen (wrap in <a> to have style consistency -->
+
+                        <a class="full-screen-button">
+                            <button aria-label="Fullscreen mode" class="btn btn-secondary topbarbtn"
+                                    data-placement="bottom"
+                                    data-toggle="tooltip" onclick="toggleFullScreen()" title="Fullscreen mode"
+                                    type="button"><i
+                                    class="fas fa-expand"></i></button>
+                        </a>
+
+                        <!-- Launch buttons -->
+
+                    </div>
+
+                    <!-- Table of contents -->
+                    <div class="d-none d-md-block col-md-2 bd-toc show">
+
+                        <div class="tocsection onthispage pt-5 pb-3">
+                            <i class="fas fa-list"></i> Contents
+                        </div>
+                        <nav aria-label="Page" id="bd-toc-nav">
+                            <ul class="simple visible nav section-nav flex-column">
+                            </ul>
+
+                        </nav>
+                    </div>
+                </div>
+            </div>
+            <div class="row" id="main-content">
+                <div class="col-12 col-md-9 pl-md-3 pr-md-0">
+
+                    <div>
+
+                        <p>1.2</p>
+                        <ul class="simple">
+                            <li><p>Change the function name proc_calibration, proc_zpold, proc_zpoldbig to
+                                reduce_calibration, reduce_zpold,
+                                reduce_zpoldbig</p></li>
+                            <li><p>Fix a bug in pipeline.auto_flag_ts() which chooses the wrong flagging threshold</p>
+                            </li>
+                        </ul>
+                        <p>1.1</p>
+                        <ul class="simple">
+                            <li><p>Generated documentations on <a class="reference external"
+                                                                  href="https://zeus2-toolbox.readthedocs.io/en/latest/">https://zeus2-toolbox.readthedocs.io/</a>
+                            </p></li>
+                            <li><p>Add the ability to plot cumulative flux in pipeline.reduce_zobs()</p></li>
+                            <li><p>Add the ability to call FigArray.plot() in pipeline.plot_beam_ts()</p></li>
+                            <li><p>Fix a bug with multiprocessing.pool(), now generating pools with “Fork” context</p>
+                            </li>
+                            <li><p>Suppress unnecessary warnings</p></li>
+                        </ul>
+                        <p>1.0</p>
+                        <ul class="simple">
+                            <li><p>Initial release on GitHub</p></li>
+                        </ul>
+
+
+                    </div>
+
+
+                    <!-- Previous / next buttons -->
+                    <div class='prev-next-area'>
+                        <a class='left-prev' href="README.html" id="prev-link" title="previous page">
+                            <i class="fas fa-angle-left"></i>
+                            <div class="prev-next-info">
+                                <p class="prev-next-subtitle">previous</p>
+                                <p class="prev-next-title">Documentation</p>
+                            </div>
+                        </a>
+                        <a class='right-next' href="pipeline_reduction.html" id="next-link" title="next page">
+                            <div class="prev-next-info">
+                                <p class="prev-next-subtitle">next</p>
+                                <p class="prev-next-title">Pipeline reduction</p>
+                            </div>
+                            <i class="fas fa-angle-right"></i>
+                        </a>
+                    </div>
+
+                </div>
+            </div>
+            <footer class="footer">
+                <div class="container">
+                    <p>
+
+                        By Bo Peng<br/>
+
+                        &copy; Copyright 2021, Bo Peng.<br/>
+                    </p>
+                </div>
+            </footer>
+        </main>
+
+
+    </div>
+</div>
+
+<script src="../_static/js/index.be7d3bbb2ef33a8344ce.js"></script>
+
+</body>
+</html>

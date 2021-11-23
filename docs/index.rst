@@ -1,13 +1,23 @@
-zeus2_toolbox's documentation
+zeus2_toolbox
 =========================================
 
 .. toctree::
    :maxdepth: 2
+   :caption: Jupyter notebook exampls:
+
+    Pipeline reduction <source/pipeline_reduction>
+
+.. toctree::
+   :maxdepth: 2
+   :titlesonly:
    :caption: Contents:
 
-.. include:: readme.rst
+    readme <source/README.md>
+    API <source/zeus2_toolbox>
 
-.. include:: changelog.rst
+Changelog
+=========
+.. include:: source/CHANGELOG.md
 
 Indices and tables
 ==================

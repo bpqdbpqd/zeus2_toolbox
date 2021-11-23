@@ -14,6 +14,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.abspath('../src'))
+sys.path.insert(0, os.path.abspath('../example'))
 
 # -- Project information -----------------------------------------------------
 
@@ -32,10 +33,10 @@ release = '1.1'
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.intersphinx",
-    "recommonmark"
+    "myst_nb"
 ]
 
-source_suffix = [".rst", ".md"]
+source_suffix = [".rst", ".md", ".ipynb"]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -50,7 +51,7 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_rtd_theme'
+html_theme = 'sphinx_book_theme'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -59,3 +60,11 @@ html_static_path = ['_static']
 
 # output api doc in the ordering as in the source code
 autodoc_member_order = 'bysource'
+
+# add resource button
+html_theme_options = {
+    "repository_url": "https://github.com/bpqdbpqd/zeus2_toolbox",
+    "use_repository_button": True,
+}
+
+jupyter_execute_notebooks = "off"

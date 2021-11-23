@@ -1,9 +1,6 @@
 zeus2\_toolbox package
 ======================
 
-Submodules
-----------
-
 zeus2\_toolbox.tools module
 ---------------------------
 

@@ -441,7 +441,12 @@ def adaptive_sklearn_obs(obs, sklearn_solver, verbose=False, llim=1, ulim=.5):
                        params["n_components"], llim, ulim))
             params["n_components"] -= 1
             tmp_solver = type(sklearn_solver)(**params)
-            tmp_solver.fit(sample_obs.data_.transpose())
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                        "ignore", message="FastICA did not converge. " +
+                                          "Consider increasing tolerance or " +
+                                          "the maximum number of iterations.")
+                tmp_solver.fit(sample_obs.data_.transpose())
         if verbose:
             print("n_iter=%i for n_components=%i, converges." %
                   (tmp_solver.n_iter_, params["n_components"]))
@@ -1607,8 +1612,8 @@ def reduce_beam_pairs(data_header, data_dir=None, write_dir=None,
     return result
 
 
-def reduce_skychop(flat_header, data_dir=None, write_dir=None, array_map=None,
-                   obs_log=None, pix_flag_list=[], parallel=False,
+def reduce_skychop(flat_header, data_dir=None, write_dir=None, write_suffix="",
+                   array_map=None, obs_log=None, pix_flag_list=[], parallel=False,
                    return_ts=False, return_pix_flag_list=True, table_save=True,
                    plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
                    plot_show=False, plot_save=True):
@@ -1620,8 +1625,8 @@ def reduce_skychop(flat_header, data_dir=None, write_dir=None, array_map=None,
         write_dir = os.getcwd()
     result = reduce_beams(
             flat_header, data_dir=data_dir, write_dir=write_dir,
-            array_map=array_map, obs_log=obs_log, is_flat=True,
-            pix_flag_list=pix_flag_list, parallel=parallel,
+            write_suffix=write_suffix, array_map=array_map, obs_log=obs_log,
+            is_flat=True, pix_flag_list=pix_flag_list, parallel=parallel,
             return_ts=(return_ts or (plot and plot_ts)),
             return_pix_flag_list=True, plot=plot, plot_ts=False,
             reg_interest=reg_interest, plot_flux=plot_flux,
@@ -1898,14 +1903,15 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
 # TODO: return intermediate result
 # TODO: add write suffix automatically
 
-def reduce_calibration(data_header, data_dir=None, write_dir=None, write_suffix="",
-                       array_map=None, obs_log=None, is_flat=False,
-                       pix_flag_list=[], flat_flux=1, flat_err=0, parallel=False,
-                       do_desnake=False, ref_pix=None, do_smooth=False,
-                       do_ica=False, spat_excl=None, return_ts=False,
-                       return_pix_flag_list=True, table_save=True, plot=True,
-                       plot_ts=True, reg_interest=None, plot_flux=True,
-                       plot_show=False, plot_save=True):
+def reduce_calibration(data_header, data_dir=None, write_dir=None,
+                       write_suffix="", array_map=None, obs_log=None,
+                       is_flat=False, pix_flag_list=[], flat_flux=1, flat_err=0,
+                       parallel=False, do_desnake=False, ref_pix=None,
+                       do_smooth=False, do_ica=False, spat_excl=None,
+                       return_ts=False, return_pix_flag_list=True,
+                       table_save=True, plot=True, plot_ts=True,
+                       reg_interest=None, plot_flux=True, plot_show=False,
+                       plot_save=True):
     """
     reduce data for general calibration that does not involve nodding or raster,
     but just continuous chop observations like pointing or focus
