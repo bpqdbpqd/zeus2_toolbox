@@ -13,7 +13,7 @@ zeus2_toolbox
    :caption: Contents:
 
     readme <source/README.md>
-    API <source/zeus2_toolbox>
+   source/zeus2_toolbox
 
 Changelog
 =========

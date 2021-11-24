@@ -1,5 +1,7 @@
 1.2
 
+- Add example jupyter notebook for the pipeline reduction
+- Add example pipeline reduction script in the example folder
 - Change the function name proc_calibration, proc_zpold, proc_zpoldbig to reduce_calibration, reduce_zpold,
   reduce_zpoldbig
 - Fix a bug in pipeline.auto_flag_ts() which chooses the wrong flagging threshold

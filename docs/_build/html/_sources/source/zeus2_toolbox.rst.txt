@@ -1,4 +1,4 @@
-zeus2\_toolbox package
+API
 ======================
 
 zeus2\_toolbox.tools module

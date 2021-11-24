@@ -12,13 +12,13 @@ The package is composed of four submodules
 
 - **tools** containing many small helper functions
 - **zeus2io** containing the classes that can read and write both MCE and ancillary data
-   - ArrayMap: the class that contains the array map information, can read in array map stored in CSV file
-   - Obs: the class hosting the raw MCE, and optionally many ancillary data including Chop, TimeStamp, ObsId, ObsInfo
-   - ObsArray: the class with the data in Obs rearranged according to a given ArrayMap
+    - ArrayMap: the class that contains the array map information, can read in array map stored in CSV file
+    - Obs: the class hosting the raw MCE, and optionally many ancillary data including Chop, TimeStamp, ObsId, ObsInfo
+    - ObsArray: the class with the data in Obs rearranged according to a given ArrayMap
 - **view** containing the classes to visualize data in various ways
-   - FigFlux: the class that can plot the flux on a 2d map
-   - FigArray: the class that can plot the data of each pixel in either detector or MCE layout
-   - FigSpec: the class to plot the spectrum of the detector array
+    - FigFlux: the class that can plot the flux on a 2d map
+    - FigArray: the class that can plot the data of each pixel in either detector or MCE layout
+    - FigSpec: the class to plot the spectrum of the detector array
 - **pipeline** containing the functions needed for various levels of data reduction
 
 Documentation
