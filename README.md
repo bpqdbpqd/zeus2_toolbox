@@ -28,6 +28,8 @@ The documentation can be found
 at [https://zeus2-toolbox.readthedocs.io/](https://zeus2-toolbox.readthedocs.io/en/latest/). It currently contains only
 the API, but a tutorial with examples and jupyter notebook will be added.
 
+Example scripts and jupyter notebooks are also included in the "example" folder.
+
 Acknowledgements
 ----------------
 

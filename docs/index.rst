@@ -12,7 +12,7 @@ zeus2_toolbox
    :titlesonly:
    :caption: Contents:
 
-    readme <source/README.md>
+   Readme <source/README.md>
    source/zeus2_toolbox
 
 Changelog

@@ -1,30 +1,26 @@
 """
-This is an example demonstrating how to reduce the science data for PLCK G244,
-the data are plck_191128_0000 through 0039, and flat are skychop_191128_0068 and
-0069
+This is a template file which you can adapt to carry out the pipeline reduction
+for the 3x3 raster data taken with the zpold command.
 """
 
 from zeus2_toolbox import pipeline as z2pipl
 
 # ========================= reduction configuration =============================
 
-ARRAY_MAP_PATH = "/data2/share/zeus-2/ref/array_map_excel_alternative_20211101.csv"
-# path to the array map file, leave None if you don't want to use any array map
-OBS_LOG_DIR = "/data2/share/zeus-2/all_apex_2019/apex_logs/obslogs"
-# path to the folder containing the APEX html observation log files, leave None
-# if you don't need/have obs logs
-BAND = 350  # choose the band you would like to use for the array map, the
+ARRAY_MAP_PATH = None  # path to the array map file, leave None if you don't want
+# to use any array map
+OBS_LOG_DIR = None  # path to the folder containing the APEX html observation log
+# files, leave None if you don't need/have obs logs
+BAND = None  # choose the band you would like to use for the array map, the
 # accepted values are 200, 350, 400 and 450, leave None if you
 # want to use the whole array map
 
-DATA_DIR = "/data2/share/zeus-2/all_apex_2019/20191128/"
-# path to the folder containing the data
-WRITE_DIR = "/data/bp/workspace/zeus-2/nb/Plck_g244+54"
-# path to the folder to save the reduction result like figures or tables, leave
-# None if you want to use the current folder
+DATA_DIR =  # path to the folder containing the data
+WRITE_DIR = None  # path to the folder to save the reduction result like figures
+# or tables, leave None if you want to use the current folder
 
-FLAT_HEADER = {"skychop_191128": [(68, 69)]}
-# dictionary of the header and  beam numbers of the flat field data, in the format
+FLAT_HEADER =  # dictionary of the header and beam numbers of the flat field
+# data, in the format of
 # {'header1': [(start_beam1, end_beam1),
 #              (start_beam2, end_beam2),
 #              ...],
@@ -32,34 +28,16 @@ FLAT_HEADER = {"skychop_191128": [(68, 69)]}
 # e.g. {"skychop_191126": [(262, 263)]} combines
 # skychop_191126_0262 and skychop_191126_0263 as the flat
 # field, set to None if there is no flat data
-DATA_HEADER = {"plck_191128": [(0, 39)]}
-# dictionary of the header and beam numbers of the science data in the same
-# format as FLAT_HEADER
-
-DO_DESNAKE = False  # flag whether to perform desnaking
-REF_PIX = None  # [spat_pos, spec_idx] of the reference pixel used to select
-# other good pixels to build the snake model, e.g. [1, 11] means
-# the pixel at spatial position 1 and spectral index 11 will be
-# used as the reference, only matters if DO_DESNAKE=True
-DO_SMOOTH = False  # flag whether to use a gaussian kernel to smooth the time
-# series to remove the long term structure, an alternative
-# de-trending process to desnaking
-DO_ICA = True  # flag whether to use ICA decomposition to remove the correlated
-# noise
-SPAT_EXCL = [0, 2]  # list of the range of the spatial positions to be excluded
-# from being used to build correlated noise model by ICA,
-# should include at least +/- one spatial position to the
-# target, e.g. if the source is placed at spat_pos=1,
-# SPAT_EXCL should be [0, 2], or even [0, 3] or broader range
-# if it appears extended
+DATA_HEADER =  # dictionary of the header and beam numbers of the science data
+# in the same format as FLAT_HEADER
 
 PARALLEL = True  # flag whether to run the reduction in parallel mode
 TABLE_SAVE = True  # flag whether to save the reduction result as csv table
 PLOT = True  # flag whether to plot the reduction result
 PLOT_TS = True  # flag whether to plot the time series of each beam use in the
 # reduction
-REG_INTEREST = {"spat_ran": (0, 2), "spec_ran": (9, 13)}
-# the region of interest of the array to plot in the format of dictionary, e.g.
+REG_INTEREST = None  # the region of interest of the array to plot in the format
+# of dictionary, e.g.
 # REG_INTEREST={'spat_spec':[1, 11]} if you only want to
 #  see the result of the pixel at [1, 11]
 # REG_INTEREST={'spat_spec_list':[[1, 11], [1, 12]]} if you
@@ -98,13 +76,11 @@ else:
     flat_result = (1, 0, [])
 flat_flux, flat_err, pix_flag_list = flat_result[:2] + flat_result[-1:]
 
-zobs_result = z2pipl.reduce_zobs(
+zpold_result = z2pipl.reduce_zpold(
         data_header=DATA_HEADER, data_dir=DATA_DIR, write_dir=WRITE_DIR,
         array_map=array_map, obs_log=obs_log, pix_flag_list=pix_flag_list,
-        flat_flux=flat_flux, flat_err=flat_err, parallel=PARALLEL, stack=DO_ICA,
-        do_desnake=DO_DESNAKE, ref_pix=REF_PIX, do_smooth=DO_SMOOTH,
-        do_ica=DO_ICA, spat_excl=SPAT_EXCL, return_pix_flag_list=True,
-        table_save=TABLE_SAVE, plot=PLOT, plot_ts=PLOT_TS,
-        reg_interest=REG_INTEREST, plot_flux=PLOT_FLUX,
+        flat_flux=flat_flux, flat_err=flat_err, parallel=PARALLEL,
+        return_pix_flag_list=True, table_save=TABLE_SAVE, plot=PLOT,
+        plot_ts=PLOT_TS, reg_interest=REG_INTEREST, plot_flux=PLOT_FLUX,
         plot_show=PLOT_SHOW, plot_save=PLOT_SAVE)
-zobs_flux, zobs_err, zobs_pix_flag_list = zobs_result[:2] + zobs_result[-1:]
+zpold_flux, zpold_err, zpold_pix_flag_list = zpold_result[:2] + zpold_result[-1:]

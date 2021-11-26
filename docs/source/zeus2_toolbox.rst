@@ -1,7 +1,7 @@
 API
 ======================
 
-zeus2\_toolbox.tools module
+zeus2\_toolbox.tools
 ---------------------------
 
 .. automodule:: zeus2_toolbox.tools
@@ -9,7 +9,7 @@ zeus2\_toolbox.tools module
    :undoc-members:
    :show-inheritance:
 
-zeus2\_toolbox.zeus2\_io module
+zeus2\_toolbox.zeus2\_io
 -------------------------------
 
 .. automodule:: zeus2_toolbox.zeus2_io
@@ -17,7 +17,7 @@ zeus2\_toolbox.zeus2\_io module
    :undoc-members:
    :show-inheritance:
 
-zeus2\_toolbox.view module
+zeus2\_toolbox.view
 --------------------------
 
 .. automodule:: zeus2_toolbox.view
@@ -25,7 +25,7 @@ zeus2\_toolbox.view module
    :undoc-members:
    :show-inheritance:
 
-zeus2\_toolbox.pipeline module
+zeus2\_toolbox.pipeline
 ------------------------------
 
 .. automodule:: zeus2_toolbox.pipeline
