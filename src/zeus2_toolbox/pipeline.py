@@ -1707,6 +1707,12 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
 
     if write_dir is None:
         write_dir = os.getcwd()
+    if (write_suffix != "") and (write_suffix[0] != "_"):
+        write_suffix = "_" + write_suffix
+    for flag, method in zip((do_desnake, do_smooth, do_ica),
+                            ("desnake", "smooth", "ica")):
+        if flag and method not in write_suffix:
+            write_suffix += "_" + method
     plot_dict = {}
     if not stack:
         if do_ica:
@@ -1793,7 +1799,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
     pix_flag_list = auto_flag_pix_by_flux(zobs_flux, zobs_err,
                                           pix_flag_list=pix_flag_list)
 
-    data_file_header = build_header(data_header)
+    data_file_header = build_header(data_header) + write_suffix
     if table_save:
         tb_list = [beam_pairs_flux, beam_pairs_err, zobs_flux, zobs_err]
         tb_names = ["beam_pairs_flux", "beam_pairs_err", "flux", "err"]
@@ -1924,6 +1930,12 @@ def reduce_calibration(data_header, data_dir=None, write_dir=None,
 
     if write_dir is None:
         write_dir = os.getcwd()
+    if (write_suffix != "") and (write_suffix[0] != "_"):
+        write_suffix = "_" + write_suffix
+    for flag, method in zip((do_desnake, do_smooth, do_ica),
+                            ("desnake", "smooth", "ica")):
+        if flag and method not in write_suffix:
+            write_suffix += "_" + method
     result = reduce_beams(
             data_header=data_header, data_dir=data_dir, write_dir=write_dir,
             write_suffix=write_suffix, array_map=array_map, obs_log=obs_log,
@@ -1939,7 +1951,7 @@ def reduce_calibration(data_header, data_dir=None, write_dir=None,
         beams_ts = result[3]
     pix_flag_list = result[-1]
 
-    data_file_header = build_header(data_header)
+    data_file_header = build_header(data_header) + write_suffix
     if table_save:  # save to csv
         for obs, name in zip((beams_flux, beams_err),
                              ("beams_flux", "beams_err")):
@@ -1999,6 +2011,12 @@ def reduce_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
 
     if write_dir is None:
         write_dir = os.getcwd()
+    if (write_suffix != "") and (write_suffix[0] != "_"):
+        write_suffix = "_" + write_suffix
+    for flag, method in zip((do_desnake, do_smooth, do_ica),
+                            ("desnake", "smooth", "ica")):
+        if flag and method not in write_suffix:
+            write_suffix += "_" + method
     result = reduce_calibration(
             data_header=data_header, data_dir=data_dir, write_dir=write_dir,
             write_suffix=write_suffix, array_map=array_map, obs_log=obs_log,
@@ -2067,7 +2085,7 @@ def reduce_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
                     *beams_wt.shape_[:-1], *zpold_shape[::-1])),
             chop=None, ts=None)
 
-    data_file_header = build_header(data_header)
+    data_file_header = build_header(data_header) + write_suffix
     if plot:
         fig = FigArray.init_by_array_map(
                 array_map if reg_interest is None else array_map.take_where(
