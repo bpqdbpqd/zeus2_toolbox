@@ -10,6 +10,7 @@
 
 from zeus2_toolbox import pipeline as z2pipl
 
+
 # In[2]:
 
 
@@ -17,6 +18,7 @@ import os
 import numpy as np
 from matplotlib import pyplot as plt
 from IPython.display import Image
+
 
 # ## Data reduction on science target
 
@@ -28,12 +30,14 @@ from IPython.display import Image
 array_map = z2pipl.ArrayMap.read("/data2/share/zeus-2/ref/array_map_excel_alternative_20211101.csv")
 array_map.set_band(350)
 
+
 # Optionally we can also load the observation log which contains lots of supplementary information of the observation. Otherwise set `obs_log = None`.
 
 # In[4]:
 
 
 obs_log = z2pipl.ObsLog.read_folder("/data2/share/zeus-2/all_apex_2019/apex_logs/obslogs")
+
 
 # Besides we will also define some handy variables controlling where to read our data from and where to write the result figure/table.
 
@@ -42,6 +46,7 @@ obs_log = z2pipl.ObsLog.read_folder("/data2/share/zeus-2/all_apex_2019/apex_logs
 
 DATA_DIR = "/data2/share/zeus-2/all_apex_2019/20191128/"
 WRITE_DIR = "/data/bp/workspace/zeus-2/nb/Plck_g244+54"
+
 
 # Now we can start actual data reduction. An observation often involves one or multiple flat field scans used as the normalization of the detector. After that, the science observation is taken by the command `zobs` which means nodding the telescope between the neighboring beams to subtract the flux due to telescope dish temperature gradient.
 # 
@@ -55,6 +60,7 @@ WRITE_DIR = "/data/bp/workspace/zeus-2/nb/Plck_g244+54"
 FLAT_HEADER = {"skychop_191128": [(68, 69)]}
 REG_INTEREST = {"spat_ran": (0, 2), "spec_ran": (9, 13)}
 
+
 # In[7]:
 
 
@@ -65,6 +71,7 @@ flat_result = z2pipl.reduce_skychop(
         plot_flux=True, plot_show=False, plot_save=True)
 flat_flux, flat_err, pix_flag_list = flat_result[:2] + flat_result[-1:]
 
+
 # Because I set `table_save=True, plot_show=False, plot_save=True`, the tables and figures containing the result can be checked in the set `WRITE_DIR`. It is not recommended to set `plot_show=True` as it would take extra time for jupyter to display the figure (minutes if the figure is big) and slow down the reduction process. We then proceed to the next step of reducing the science data. Following a similar logic, we call `z2pipl.reduce_zobs()` function with `data_header={"plck_191128": [(0, 39)]}` to reduce data stored in files "plck_191128_0000" through "plck_191128_0039". And we only use "desnake" to reduce the long term noise in the timeseries. The line pixel \[1, 11\] is used as the reference pixel to select other good pixels, which are averaged together to build a high SNR snake model.
 
 # In[8]:
@@ -72,6 +79,7 @@ flat_flux, flat_err, pix_flag_list = flat_result[:2] + flat_result[-1:]
 
 DATA_HEADER = {"plck_191128": [(0, 39)]}
 REF_PIX = [1, 11]
+
 
 # In[ ]:
 
@@ -87,6 +95,7 @@ zobs_result = z2pipl.reduce_zobs(
         plot_show=False, plot_save=True)
 zobs_flux, zobs_err, zobs_pix_flag_list = zobs_result[:2] + zobs_result[-1:]
 
+
 # Let's check the spectrum of the observation
 
 # In[10]:
@@ -97,12 +106,14 @@ fig = z2pipl.FigSpec.plot_spec(zobs_flux, yerr=zobs_err,
 fig.plot_all_spat([0, 19], [0, 0], ls=":", c="k")
 plt.show(fig)
 
+
 # Now let's try to use ICA decomposition to reduce the correlated noise. Remember to set `stack=True` to stack beams of opposite nodding phase to exclude flux due to temperature gradient. Also remember to set `spat_excl` as the spatial position excluded from ICA decomposition. In this case it is set to `[0, 2]` as the potential spatial position of the target.
 
 # In[11]:
 
 
 SPAT_EXCL = [0, 2]
+
 
 # In[ ]:
 
