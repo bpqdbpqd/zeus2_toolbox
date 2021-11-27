@@ -5,6 +5,7 @@
 - Change the criteria for selecting usable pixel for ICA to be consistent with desnaking
 - Change the criteria for flagging time series outlier to flag different chop phase separately
 - Fix a bug in rebuilding time stamp
+- Fix a bug in desnaking that ref_pix is in pix_flag_list
 
 1.2
 

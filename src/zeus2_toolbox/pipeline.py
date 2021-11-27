@@ -9,6 +9,7 @@ seems to frozen with parallel=True, try running it against with parallel=False
 
 import os, multiprocessing, inspect
 import gc
+import warnings
 
 from .view import *
 from sklearn.decomposition import FastICA, PCA, FactorAnalysis, \
@@ -911,6 +912,9 @@ def desnake_beam(obs, ref_pix=None, pix_flag_list=[], corr_thre=CORR_THRE,
     :rtype: list
     """
 
+    if ref_pix in pix_flag_list:
+        warnings.warn("Reference pixel is in pix_flag_list, will ignore")
+        ref_pix = None
     stacked_best_pixels_obs = stack_best_pixels(
             ObsArray(obs).exclude_where(spat_spec_list=pix_flag_list),
             ref_pixel=ref_pix, corr_thre=corr_thre, min_pix_num=min_pix_num)
