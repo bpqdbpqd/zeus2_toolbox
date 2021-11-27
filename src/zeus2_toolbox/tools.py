@@ -210,16 +210,61 @@ def nanmad_flag(arr, thre=20, axis=-1):
             raise ValueError("Invalid axis value: %i." % axis)
         axis = int(axis) if (axis >= 0) else int(arr.ndim + axis)
 
-    med = np.nanmedian(arr, axis=axis, keepdims=True)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+                "ignore", message="All-NaN slice encountered")
+        med = np.nanmedian(arr, axis=axis, keepdims=True)
     abs_div = np.abs(arr - med)
     with warnings.catch_warnings():
         warnings.filterwarnings(
                 "ignore", message="invalid value encountered in greater")
+        warnings.filterwarnings(
+                "ignore", message="All-NaN slice encountered")
         mad = np.nanmedian(abs_div, axis=axis, keepdims=True)
     with warnings.catch_warnings():
         warnings.filterwarnings(
                 "ignore", message="invalid value encountered in greater")
+        warnings.filterwarnings(
+                "ignore", message="All-NaN slice encountered")
         flag_arr = (abs_div > mad * thre)
+
+    return flag_arr
+
+
+def double_nanmad_flag(arr, thre=20, axis=-1, frac_thre=0.1):
+    """
+    Similar to nanmad_flag(), but do nanmad_flag a second time on the data flagged
+    by nanmad_flag(), if frac_thre of data is flagged in the first time in a
+    certain entry of arr, to account for the sudden jump often witnessed in time
+    series
+
+    :param numpy.ndarray arr: array, to be checked
+    :param float thre: float, data with abs distance > thre*MAD will be flagged
+    :param int axis: int, axis along which the mad will be checked, if input is
+        None, will use the median of the whole array
+    :param flat frac_thre: float, between 0 and 1, threshold of the fraction of
+        data flagged in the first time nanmad_flag() to perform nanmad_flag() and
+        try to unflag some data
+    :return flag_arr: array, bool values of flag
+    :rtype: numpy.ndarray
+    :raises ValueError: invalid value for frac_thre
+    """
+
+    if not 0 <= frac_thre <= 1:
+        raise ValueError("Invalid value for frac_thre.")
+    arr = np.array(arr)  # check input arr and axis
+    first_flag_arr = nanmad_flag(arr=arr, thre=thre, axis=axis)
+    second_arr = np.full_like(arr, fill_value=np.nan, dtype=arr.dtype)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+                "ignore", message="invalid value encountered in greater")
+        do_flag = (np.nansum(first_flag_arr, axis=axis, keepdims=True) /
+                   first_flag_arr.shape[axis]) > frac_thre
+    second_arr[first_flag_arr & do_flag] = arr[first_flag_arr & do_flag]
+    second_flag_arr = nanmad_flag(second_arr)
+    flag_arr = first_flag_arr
+    flag_arr[np.full_like(first_flag_arr, fill_value=True) & do_flag] = \
+        second_flag_arr[np.full_like(first_flag_arr, fill_value=True) & do_flag]
 
     return flag_arr
 

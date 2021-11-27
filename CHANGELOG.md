@@ -1,3 +1,11 @@
+1.3
+
+- Add function double_nanmad_flag and method DataObj.get_double_nanmad_flag(), which do mad flagging twice to deal with
+  data with a sudden jump and flag less data
+- Change the criteria for selecting usable pixel for ICA to be consistent with desnaking
+- Change the criteria for flagging time series outlier to flag different chop phase separately
+- Fix a bug in rebuilding time stamp
+
 1.2
 
 - Add example jupyter notebook for the pipeline reduction

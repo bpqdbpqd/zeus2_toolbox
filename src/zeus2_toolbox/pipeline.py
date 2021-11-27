@@ -20,7 +20,7 @@ MATCH_SAME_PHASE = False  # default phase matching flag for stacking beam pairs,
 # will match chop chunks of the opposite chop phase
 STACK_FACTOR = 1  # default factor for the second beam in stacking beam pairs
 
-MAD_THRE_BEAM = 5  # default MAD threshold for flagging ordinary observation
+MAD_THRE_BEAM = 7  # default MAD threshold for flagging ordinary observation
 STD_THRE_FLAT = 2  # default MAD threshold for flagging skychop/flat
 THRE_FLAG = 1E7  # absolute value threshold of the time series to flag a pixel
 SNR_THRE = 50  # default SNR threshold to flag pixel for flat field
@@ -789,14 +789,14 @@ def auto_flag_ts(obs, is_flat=False):
                 abs(obs_new - obs_new.proc_along_time(method="nanmean")).data_ > \
                 STD_THRE_FLAT * obs_new.proc_along_time(method="nanstd").data_
         else:  # flag by MAD
-            outlier_mask = obs_new.get_nanmad_flag(thre=MAD_THRE_BEAM, axis=-1)
+            outlier_mask = obs_new.get_double_nanmad_flag(thre=MAD_THRE_BEAM, axis=-1)
     else:  # flat on and off chop separately by MAD
         outlier_mask = np.full(obs_new.shape_, fill_value=False, dtype=bool)
         outlier_mask[..., obs_new.chop_.data_] = \
-            obs_new.take_by_flag_along_time(chop=True).get_nanmad_flag(
+            obs_new.take_by_flag_along_time(chop=True).get_double_nanmad_flag(
                     thre=MAD_THRE_BEAM, axis=-1)
         outlier_mask[..., ~obs_new.chop_.data_] = \
-            obs_new.take_by_flag_along_time(chop=False).get_nanmad_flag(
+            obs_new.take_by_flag_along_time(chop=False).get_double_nanmad_flag(
                     thre=MAD_THRE_BEAM, axis=-1)
     obs_new.fill_by_mask(mask=outlier_mask, fill_value=np.nan)
 
@@ -960,33 +960,40 @@ def ica_treat_beam(obs, spat_excl=None, pix_flag_list=[], verbose=VERBOSE,
     obs_array, obs_sources = ObsArray(obs), Obs()
     array_map = obs_array.array_map_
     pix_excl_list = pix_flag_list + array_map.take_by_flag(
-            (obs_array.proc_along_time("num_is_finite") /
-             obs_array.proc_along_time("num")).data_ < finite_thre). \
-        array_idxs_.tolist()
+            ((obs_array.proc_along_time("num_is_finite") /
+              obs_array.proc_along_time("num")).data_ < finite_thre) |
+            ((obs_array.data_ == 0).sum(axis=-1, keepdims=True) /
+             obs_array.len_ > 0.5)).array_idxs_.tolist()
+    # obs_flattened = obs_array.flatten().exclude_where(
+    #         spat_spec_list=pix_excl_list, spat_ran=spat_excl, logic="or")
+    # flattened_array_map = obs_flattened.array_map_
+    # pix_excl_list += flattened_array_map.take_by_flag(
+    #         ~obs_flattened.proc_along_time("num_not_is_finite").
+    #             get_nanmad_flag(5, axis=0)).array_idxs_.tolist()
 
     # run ICA
     for col in range(array_map.mce_col_llim_, array_map.mce_col_ulim_ + 1):
-        obs_flattened = obs_array.exclude_where(
+        obs_use = obs_array.exclude_where(
                 spat_spec_list=pix_excl_list, spat_ran=spat_excl, logic="or"). \
             take_where(col=col).flatten()
-        if obs_flattened.shape_[0] > 0:
+        if obs_use.shape_[0] > 0:
             ica = FastICA(
-                    n_components=min(n_components_init, obs_flattened.shape_[0]),
+                    n_components=min(n_components_init, obs_use.shape_[0]),
                     whiten=True, fun='exp', max_iter=max_iter,
                     random_state=random_state)
-            obs_flattened = gaussian_filter_obs(
-                    obs_flattened, freq_sigma=15, chunk_edges_ncut=0,
+            obs_use = gaussian_filter_obs(
+                    obs_use, freq_sigma=15, chunk_edges_ncut=0,
                     edge_chunks_ncut=0)
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", message=
                 "FastICA did not converge. Consider increasing tolerance or" +
                 "the maximum number of iterations.")
                 obs_sources.expand(adaptive_sklearn_obs(
-                        obs_flattened, ica, verbose=verbose, llim=1,
-                        ulim=min(n_components_max, obs_flattened.shape_[0])))
+                        obs_use, ica, verbose=verbose, llim=1,
+                        ulim=min(n_components_max, obs_use.shape_[0])))
             if verbose:
                 print("MCE column = %i, iter num = %i, input pix num = %i" %
-                      (col, ica.n_iter_, obs_flattened.shape_[0]))
+                      (col, ica.n_iter_, obs_use.shape_[0]))
 
     # fit to the original data
     obs_sources.expand(obs_sources.replace(
@@ -1342,6 +1349,8 @@ def reduce_beam(file_header, write_dir=None, write_suffix="", array_map=None,
     a wrapper function to read data and reduce beam in the standard way
     """
 
+    if write_dir is None:
+        write_dir = os.getcwd()
     write_suffix = str(write_suffix)
     if (write_suffix != "") and (write_suffix[0] != "_"):
         write_suffix = "_" + write_suffix
@@ -1384,6 +1393,8 @@ def reduce_beam_pair(file_header1, file_header2, write_dir=None, write_suffix=""
     a wrapper function to read data and reduce beam pair in the standard way
     """
 
+    if write_dir is None:
+        write_dir = os.getcwd()
     write_suffix = str(write_suffix)
     if (write_suffix != "") and (write_suffix[0] != "_"):
         write_suffix = "_" + write_suffix
@@ -1508,7 +1519,7 @@ def reduce_beams(data_header, data_dir=None, write_dir=None, write_suffix="",
         if return_ts:
             beams_ts.append(result[3])
         if return_pix_flag_list:
-            pix_flag_list += result[-1]
+            pix_flag_list = pix_flag_list.copy() + result[-1]
 
     result = (beams_flux, beams_err, beams_wt)
     if return_ts:
@@ -1624,7 +1635,7 @@ def reduce_beam_pairs(data_header, data_dir=None, write_dir=None,
         if return_ts:
             beam_pairs_ts.append(result[3])
         if return_pix_flag_list:
-            pix_flag_list += result[-1]
+            pix_flag_list = pix_flag_list.copy() + result[-1]
 
     result = (beam_pairs_flux, beam_pairs_err, beam_pairs_wt)
     if return_ts:

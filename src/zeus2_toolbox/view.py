@@ -1998,9 +1998,9 @@ class FigSpec(FigFlux):
         fig.step(obs_array=obs_array, color=color, mask=mask,
                  pix_flag_list=pix_flag_list)
         fig.imshow_flag(mask=mask, pix_flag_list=pix_flag_list)
-        fig.set_ylim(ylim=None)
         fig.errorbar(obs_array=obs_array, yerr=yerr, xerr=xerr, color=color,
                      mask=mask, pix_flag_list=pix_flag_list, **kwargs)
+        fig.set_ylim(ylim=None)
 
         return fig
 

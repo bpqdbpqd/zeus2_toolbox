@@ -619,6 +619,25 @@ class DataObj(BaseObj):
             axis = self.__check_axis__(axis=axis)
         return nanmad_flag(self.data_, thre=thre, axis=axis)
 
+    def get_double_nanmad_flag(self, thre=10, axis=-1, frac_thre=0.1):
+        """
+        similar to get_nanmad_flag(), but call double_nanmad_flag() to perform
+        mad flagging twice, which is more robust for the sudden jump in time
+        series and saves more data
+
+        :param float thre: float, data with abs distance > thre*MAD will be flagged
+        :param int axis: int, axis along which the mad will be checked, if input is
+            None, will use the median of the whole array
+        :param flat frac_thre: float, between 0 and 1, threshold of the fraction of
+            data flagged in the first time nanmad_flag() to perform nanmad_flag() and
+            try to unflag some data
+        """
+
+        if axis is not None:
+            axis = self.__check_axis__(axis=axis)
+        return double_nanmad_flag(self.data_, thre=thre, axis=axis,
+                                  frac_thre=frac_thre)
+
     def take_by_flag_along_axis(self, flag_arr, axis=-1, **kwargs):
         """
         Create a new object from the current DataObj whose data are selected by
@@ -2059,15 +2078,22 @@ class TimeStamps(DataObj):
             # if there are 0 value elements but no extra time stamps
             elif (np.count_nonzero(flag_zero) > 0) and (chop.len_ == self.len_):
                 ts_new = self.data_.copy()
-                for idx in np.flatnonzero(flag_zero):
-                    if idx not in chop_chunk_edge_idxs:
-                        ts_new[idx] = ts_new[idx - 1] + self.interv_
-                    else:
-                        i = 1
-                        while idx + i in chop_chunk_edge_idxs:
-                            i += 1
-                        ts_new[idx] = ts_new[idx + i] - self.interv_ * i
-                warnings.warn("Zero value time stamps corrected")
+                if self.interv_ != 0:
+                    for idx in np.flatnonzero(flag_zero):
+                        if idx not in chop_chunk_edge_idxs:
+                            ts_new[idx] = ts_new[idx - 1] + self.interv_
+                        else:
+                            i = 1
+                            while (ts_new[idx + i] < 1e-5) and \
+                                    ((idx + i + 1) < len(ts_new)):
+                                i += 1
+                            if (idx + i + 1 == len(ts_new) - 1) and \
+                                    (ts_new[idx + i] < 1e-5):
+                                if idx - 1 >= 0:
+                                    ts_new[idx] = ts_new[idx - 1] + self.interv_
+                            else:
+                                ts_new[idx] = ts_new[idx + i] - self.interv_ * i
+                    warnings.warn("Zero value time stamps corrected")
                 return TimeStamps(arr_in=ts_new)
             else:
                 warnings.warn("0 Values and extra length in ts, " +
@@ -2102,27 +2128,37 @@ class TimeStamps(DataObj):
         ts_chunk_edge_idxs = self.get_index_chunk_edge(
                 thre_min=interv * 2, thre_max=self.t_mid_ / 2)
         chunk_edge_num = min(len(chop_chunk_edge_idxs), len(ts_chunk_edge_idxs))
-        idx_chunk_i = np.nonzero(chop_chunk_edge_idxs[:chunk_edge_num] -
-                                 ts_chunk_edge_idxs[:chunk_edge_num])[0][0] - 1
-        idx_i = chop_chunk_edge_idxs[idx_chunk_i]
-        if idx_i == 0:  # estimate the starting time
-            if ts_flag.sum() == self.len_:
-                t_start = 0
+        if (len(np.nonzero(chop_chunk_edge_idxs[:chunk_edge_num] -
+                           ts_chunk_edge_idxs[:chunk_edge_num])[0]) == 0) and \
+                (chunk_edge_num == len(chop_chunk_edge_idxs)):  # only truncate ts
+            ts_new = self.data_[:chop.len_]
+        else:  # rebuild
+            if len(np.nonzero(chop_chunk_edge_idxs[:chunk_edge_num] -
+                              ts_chunk_edge_idxs[:chunk_edge_num])[0]) == 0:
+                # time stamp shorter than chop
+                idx_chunk_i = chunk_edge_num - 1
+            else:  # rebuild time stamp from the middle
+                idx_chunk_i = \
+                    np.nonzero(chop_chunk_edge_idxs[:chunk_edge_num] -
+                               ts_chunk_edge_idxs[:chunk_edge_num])[0][0] - 1
+            idx_i = chop_chunk_edge_idxs[idx_chunk_i]
+            if idx_i == 0:  # estimate the starting time
+                if ts_flag.sum() == self.len_:
+                    t_start = 0
+                else:
+                    t_finite_i = np.nonzero(~ts_flag)[0][0]
+                    t_start = self.data_[t_finite_i] - interv * t_finite_i - \
+                              ((chop_chunk_edge_idxs <= t_finite_i).sum() - 1) * \
+                              chunk_interv
             else:
-                t_finite_i = np.nonzero(~ts_flag)[0][0]
-                t_start = self.data_[t_finite_i] - interv * t_finite_i - \
-                          ((chop_chunk_edge_idxs <= t_finite_i).sum() - 1) * \
-                          chunk_interv
-        else:
-            t_start = self.data_[idx_i - 1]
-
-        ts_new = np.empty(chop.shape_, dtype=self.dtype_)
-        idxs = np.arange(chop.len_)
-        ts_new[:idx_i] = self.data_[:idx_i]
-        ts_new[idx_i:] = \
-            t_start + (idxs[idx_i:] - idx_i + 1) * interv + chunk_interv * \
-            (idxs[idx_i:].reshape(-1, 1) >=
-             chop_chunk_edge_idxs[idx_chunk_i:].reshape(1, -1)).sum(axis=-1)
+                t_start = self.data_[idx_i - 1]
+            ts_new = np.empty(chop.shape_, dtype=self.dtype_)
+            idxs = np.arange(chop.len_)
+            ts_new[:idx_i] = self.data_[:idx_i]
+            ts_new[idx_i:] = \
+                t_start + (idxs[idx_i:] - idx_i + 1) * interv + chunk_interv * \
+                (idxs[idx_i:].reshape(-1, 1) >=
+                 chop_chunk_edge_idxs[idx_chunk_i:].reshape(1, -1)).sum(axis=-1)
 
         warnings.warn("Times stamp is rebuilt.", UserWarning)
         return TimeStamps(arr_in=ts_new)
