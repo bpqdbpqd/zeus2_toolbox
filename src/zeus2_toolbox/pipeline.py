@@ -20,8 +20,8 @@ MATCH_SAME_PHASE = False  # default phase matching flag for stacking beam pairs,
 # will match chop chunks of the opposite chop phase
 STACK_FACTOR = 1  # default factor for the second beam in stacking beam pairs
 
-MAD_THRE_BEAM = 10  # default MAD threshold for flagging ordinary observation
-MAD_THRE_FLAT = 200  # default MAD threshold for flagging skychop/flat
+MAD_THRE_BEAM = 5  # default MAD threshold for flagging ordinary observation
+STD_THRE_FLAT = 2  # default MAD threshold for flagging skychop/flat
 THRE_FLAG = 1E7  # absolute value threshold of the time series to flag a pixel
 SNR_THRE = 50  # default SNR threshold to flag pixel for flat field
 MAD_THRE_BEAM_ERR = 10  # default MAD threshold for flagging pixel based on error
@@ -762,8 +762,13 @@ def get_chop_flux(obs, chunk_method="nanmedian", method="nanmean",
 
 def auto_flag_ts(obs, is_flat=False):
     """
-    flag time series in obs in a standard way: first remove known outlier feature
-    like weird data point at 0 and -0.0625; then flag by MAD threshold
+    flag time series in obs in a standard way: first remove known glitch feature
+    like weird data point at 0 and -0.0625; then flag by MAD threshold, the
+    on-chop and off-chop data will be flagged separately if chop_ exists, to
+    avoid flagging actual signal, in the case chop_ doesn't exist and is_flat=True
+    the data will be flagged by STD, as MAD is prone to bimodal data; the default
+    MAD or STD threshold are defined in the package variable MAD_THRE_BEAM and
+    STD_THRE_FLAT
 
     :param obs: Obs or ObsArray object containing the time series
     :type obs: Union[Obs, ObsArray]
@@ -772,15 +777,28 @@ def auto_flag_ts(obs, is_flat=False):
     """
 
     obs_new = obs.copy()
-    outlier_mask = (obs_new.data_ == -0.0625)  # find -0.0625 data points
+    glitch_mask = (obs_new.data_ == -0.0625)  # find -0.0625 data points
     blank_mask = (obs_new.data_ == 0.)  # find 0 data points
     blank_mask *= (blank_mask.sum(axis=-1, keepdims=True) <
                    0.1 * blank_mask.shape[-1])  # ignore dead pixels
-    obs_new.fill_by_mask(outlier_mask | blank_mask, fill_value=np.nan)
+    obs_new.fill_by_mask(glitch_mask | blank_mask, fill_value=np.nan)
 
-    mad_thre = MAD_THRE_FLAT if is_flat else MAD_THRE_BEAM
-    mad_mask = obs_new.get_nanmad_flag(thre=mad_thre, axis=-1)  # flag by MAD
-    obs_new.fill_by_mask(mask=mad_mask, fill_value=np.nan)
+    if obs_new.chop_.empty_flag_:  # no chop data
+        if is_flat:
+            outlier_mask = \
+                abs(obs_new - obs_new.proc_along_time(method="nanmean")).data_ > \
+                STD_THRE_FLAT * obs_new.proc_along_time(method="nanstd").data_
+        else:  # flag by MAD
+            outlier_mask = obs_new.get_nanmad_flag(thre=MAD_THRE_BEAM, axis=-1)
+    else:  # flat on and off chop separately by MAD
+        outlier_mask = np.full(obs_new.shape_, fill_value=False, dtype=bool)
+        outlier_mask[..., obs_new.chop_.data_] = \
+            obs_new.take_by_flag_along_time(chop=True).get_nanmad_flag(
+                    thre=MAD_THRE_BEAM, axis=-1)
+        outlier_mask[..., ~obs_new.chop_.data_] = \
+            obs_new.take_by_flag_along_time(chop=False).get_nanmad_flag(
+                    thre=MAD_THRE_BEAM, axis=-1)
+    obs_new.fill_by_mask(mask=outlier_mask, fill_value=np.nan)
 
     return obs_new
 
