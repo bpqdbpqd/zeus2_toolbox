@@ -913,7 +913,7 @@ def desnake_beam(obs, ref_pix=None, pix_flag_list=[], corr_thre=CORR_THRE,
     """
 
     if ref_pix in pix_flag_list:
-        warnings.warn("Reference pixel is in pix_flag_list, will ignore")
+        warnings.warn("Reference pixel is in pix_flag_list, will ignore ref_pix")
         ref_pix = None
     stacked_best_pixels_obs = stack_best_pixels(
             ObsArray(obs).exclude_where(spat_spec_list=pix_flag_list),
