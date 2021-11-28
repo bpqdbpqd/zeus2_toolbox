@@ -1465,7 +1465,7 @@ def read_beams(file_header_list, array_map=None, obs_log=None, flag_ts=True,
         auto_flag_ts(), default False
     :param bool parallel: bool, flag whether to run it in parallelized mode,
         would accelerate the process by many factors on a multi-core machine
-    :return: Obs or ObsArray object containing all the data
+    :return: Obs or ObsArray object containing all the data concatenated
     :rtype: Union[Obs, ObsArray]
     """
 

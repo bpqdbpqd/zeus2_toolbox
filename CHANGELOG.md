@@ -1,8 +1,8 @@
 1.3
 
-- Add function double_nanmad_flag and method DataObj.get_double_nanmad_flag(), which do MAD flagging twice to deal with
+- Add function double_nanmad_flag and method DataObj.get_double_nanmad_flag, which do MAD flagging twice to deal with
   the data with a sudden jump to flag less data
-- Add function read_beams() to read a large number of beams in parallel
+- Add function read_beams to read a large number of beams in parallel
 - Change the criteria for selecting usable pixel for ICA
 - Change the criteria for flagging time series outlier to flag different chop phase separately
 - Fix a bug in rebuilding time stamp
