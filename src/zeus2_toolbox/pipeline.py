@@ -875,6 +875,9 @@ def auto_flag_pix_by_flux(obs_flux, obs_err, pix_flag_list=[], is_flat=False,
     return np.unique(pix_flag_list, axis=0).tolist()
 
 
+# ================= intermediate level reduction functions =====================
+
+
 def desnake_beam(obs, ref_pix=None, pix_flag_list=[], corr_thre=CORR_THRE,
                  min_pix_num=MIN_PIX_NUM, freq_sigma=FREQ_SIGMA,
                  edge_chunks_ncut=EDGE_CHUNKS_NCUT,
@@ -964,12 +967,13 @@ def ica_treat_beam(obs, spat_excl=None, pix_flag_list=[], verbose=VERBOSE,
     obs_array, obs_sources = ObsArray(obs), Obs()
     array_map = obs_array.array_map_
     pix_excl_list = pix_flag_list + array_map.take_by_flag(
-            ((obs_array.proc_along_time("num_is_finite") /
-              obs_array.proc_along_time("num")).data_ < finite_thre) |
+            ((obs_array.proc_along_time("num_is_finite").data_ /
+              np.nanmax(obs_array.proc_along_time("num_is_finite").data_)) <
+             finite_thre) |
             ((obs_array.data_ == 0).sum(axis=-1, keepdims=True) /
              obs_array.len_ > 0.5)).array_idxs_.tolist()
-    # obs_flattened = obs_array.flatten().exclude_where(
-    #         spat_spec_list=pix_excl_list, spat_ran=spat_excl, logic="or")
+    obs_flattened = obs_array.flatten().exclude_where(
+            spat_spec_list=pix_excl_list, spat_ran=spat_excl, logic="or")
     # flattened_array_map = obs_flattened.array_map_
     # pix_excl_list += flattened_array_map.take_by_flag(
     #         ~obs_flattened.proc_along_time("num_not_is_finite").
@@ -1442,6 +1446,28 @@ def reduce_beam_pair(file_header1, file_header2, write_dir=None, write_suffix=""
             result += (pix_flag_list,)
 
     return result
+
+
+def read_beams(data_header_list, array_map=None, obs_log=None, flag_ts=True,
+               is_flat=False, parallel=False):
+    """
+    function to read multiple MCE data files, optionally in a parallelized manner
+
+    :param dict data_header: dict, containing the file in the format of
+    :param ArrayMap array_map: ArrayMap, optional, if not None, will transform
+        flat data into ObsArray and then process
+    :param ObsLog obs_log: ObsLog, optional, if not None, will try to find the
+        entry in the provided obs_log and add to the obs_info of the output obj
+    :param bool flag_ts: bool, flag whether to flag outliers in time series by
+        auto_flag_ts(), default True
+    :param bool is_flat: bool, flag whether the beam is flat/skychop, passed to
+        auto_flag_ts(), default False
+    :return: Obs or ObsArray object containing the data
+    :rtype: Union[Obs, ObsArray]
+    """
+
+
+# ====================== high level reduction functions ========================
 
 
 def reduce_beams(data_header, data_dir=None, write_dir=None, write_suffix="",
