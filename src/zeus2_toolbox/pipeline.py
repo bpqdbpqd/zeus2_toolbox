@@ -11,6 +11,8 @@ import os, multiprocessing, inspect
 import gc
 import warnings
 
+import numpy as np
+
 from .view import *
 from sklearn.decomposition import FastICA, PCA, FactorAnalysis, \
     DictionaryLearning, SparsePCA, MiniBatchSparsePCA, \
@@ -974,10 +976,6 @@ def ica_treat_beam(obs, spat_excl=None, pix_flag_list=[], verbose=VERBOSE,
              obs_array.len_ > 0.5)).array_idxs_.tolist()
     obs_flattened = obs_array.flatten().exclude_where(
             spat_spec_list=pix_excl_list, spat_ran=spat_excl, logic="or")
-    # flattened_array_map = obs_flattened.array_map_
-    # pix_excl_list += flattened_array_map.take_by_flag(
-    #         ~obs_flattened.proc_along_time("num_not_is_finite").
-    #             get_nanmad_flag(5, axis=0)).array_idxs_.tolist()
 
     # run ICA
     for col in range(array_map.mce_col_llim_, array_map.mce_col_ulim_ + 1):
@@ -1448,12 +1446,15 @@ def reduce_beam_pair(file_header1, file_header2, write_dir=None, write_suffix=""
     return result
 
 
-def read_beams(data_header_list, array_map=None, obs_log=None, flag_ts=True,
+def read_beams(file_header_list, array_map=None, obs_log=None, flag_ts=True,
                is_flat=False, parallel=False):
     """
-    function to read multiple MCE data files, optionally in a parallelized manner
+    Function to read multiple MCE data files, optionally in a parallelized mode.
+    It takes ~ 5 min on spectrosaurus to read 700 beams in parallel. It is
+    recommended to clean the memory or start a new thread before running it in
+    parallel.
 
-    :param dict data_header: dict, containing the file in the format of
+    :param dict file_header_list: list, of the paths to the headers of the data
     :param ArrayMap array_map: ArrayMap, optional, if not None, will transform
         flat data into ObsArray and then process
     :param ObsLog obs_log: ObsLog, optional, if not None, will try to find the
@@ -1462,9 +1463,55 @@ def read_beams(data_header_list, array_map=None, obs_log=None, flag_ts=True,
         auto_flag_ts(), default True
     :param bool is_flat: bool, flag whether the beam is flat/skychop, passed to
         auto_flag_ts(), default False
-    :return: Obs or ObsArray object containing the data
+    :param bool parallel: bool, flag whether to run it in parallelized mode,
+        would accelerate the process by many factors on a multi-core machine
+    :return: Obs or ObsArray object containing all the data
     :rtype: Union[Obs, ObsArray]
     """
+
+    args_list = []  # build variable list for read_beam
+    for file_header in file_header_list:
+        args = ()
+        for var_name in inspect.getfullargspec(read_beam)[0]:
+            args += (locals()[var_name],)
+        args_list.append(args)
+
+    if parallel and check_parallel():
+        gc.collect()
+        with multiprocessing.get_context("fork").Pool(
+                min(MAX_THREAD_NUM, len(args_list))) as pool:
+            results = pool.starmap(read_beam, args_list)
+    else:
+        results = []
+        for args in args_list:
+            results += [read_beam(*args)]
+
+    kwargs = {}
+    if array_map is not None:  # combine all beams
+        all_beams = ObsArray()
+        kwargs["array_map"] = array_map
+    else:
+        all_beams = Obs()
+    data_list, ts_list, chop_list, obs_id_list, obs_id_arr_list, obs_info_list = \
+        [], [], [], [], [], []
+    for beam in results:
+        if not beam.empty_flag_:
+            data_list.append(beam.data_)
+            ts_list.append(beam.ts_.data_)
+            chop_list.append(beam.chop_.data_)
+            obs_id_list += beam.obs_id_list_
+            obs_id_arr_list.append(beam.obs_id_arr_.data_)
+            obs_info_list.append(beam.obs_info_.table_)
+    kwargs["arr_in"] = np.concatenate(data_list, axis=-1)
+    kwargs["ts"] = np.concatenate(ts_list)
+    kwargs["chop"] = np.concatenate(chop_list)
+    kwargs["obs_id_list"] = obs_id_list
+    kwargs["obs_id_arr"] = np.concatenate(obs_id_arr_list)
+    kwargs["obs_info"] = vstack(obs_info_list, join_type="outer")
+    kwargs["obs_id"] = obs_id_list[0]
+    all_beams = all_beams.replace(**kwargs)
+
+    return all_beams
 
 
 # ====================== high level reduction functions ========================
@@ -1485,7 +1532,7 @@ def reduce_beams(data_header, data_dir=None, write_dir=None, write_suffix="",
         data_dir = os.getcwd()
     if write_dir is None:
         write_dir = os.getcwd()
-    args_list = []  # build file header list
+    args_list = []  # build variable list for reduce_beam()
     flat_flux_group_flag, flat_err_group_flag = False, False
     if isinstance(flat_flux, (Obs, ObsArray)) and flat_flux.len_ > 1:
         flat_flux_group_flag, flat_flux_group = True, flat_flux
@@ -1508,17 +1555,10 @@ def reduce_beams(data_header, data_dir=None, write_dir=None, write_suffix="",
                 args_list.append(args)
 
     if parallel and check_parallel():
-        pool = multiprocessing.get_context("fork").Pool(
-                min(MAX_THREAD_NUM, len(args_list)))
-        try:
-            gc.collect()
+        gc.collect()
+        with multiprocessing.get_context("fork").Pool(
+                min(MAX_THREAD_NUM, len(args_list))) as pool:
             results = pool.starmap(reduce_beam, args_list)
-            pool.close()
-            pool.join()
-        except Exception:
-            pool.close()
-            pool.join()
-            raise Exception
     else:
         results = []
         for args in args_list:
@@ -1576,7 +1616,7 @@ def reduce_beam_pairs(data_header, data_dir=None, write_dir=None,
         data_dir = os.getcwd()
     if write_dir is None:
         write_dir = os.getcwd()
-    args_list = []  # build file header list
+    args_list = []  # build variable list for reduce_beam_pair
     flat_flux_group_flag, flat_err_group_flag = False, False
     if isinstance(flat_flux, (Obs, ObsArray)) and flat_flux.len_ > 1:
         flat_flux_group_flag, flat_flux_group = True, flat_flux
@@ -1623,17 +1663,10 @@ def reduce_beam_pairs(data_header, data_dir=None, write_dir=None,
                 args_list.append(args)
 
     if parallel and check_parallel():
-        pool = multiprocessing.get_context("fork").Pool(
-                min(MAX_THREAD_NUM, len(args_list)))
-        try:
-            gc.collect()
+        gc.collect()
+        with multiprocessing.get_context("fork").Pool(
+                min(MAX_THREAD_NUM, len(args_list))) as pool:
             results = pool.starmap(reduce_beam_pair, args_list)
-            pool.close()
-            pool.join()
-        except Exception:
-            pool.close()
-            pool.join()
-            raise Exception
     else:
         results = []
         for args in args_list:
