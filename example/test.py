@@ -40,7 +40,7 @@ zobs_result = reduce_zobs(
         data_header=DATA_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
         array_map=array_map, obs_log=obs_log, pix_flag_list=pix_flag_list,
         flat_flux=flat_flux, flat_err=flat_err, parallel=True, stack=False,
-        do_desnake=False, ref_pix=REF_PIX, do_smooth=True, do_ica=False,
+        do_desnake=True, ref_pix=REF_PIX, do_smooth=False, do_ica=False,
         spat_excl=SPAT_EXCL, return_ts=False, return_pix_flag_list=False,
         table_save=False, plot=True, plot_ts=True,
         reg_interest=REG_INTEREST, plot_flux=PLOT_FLUX, plot_show=False,

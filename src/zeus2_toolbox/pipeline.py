@@ -1064,10 +1064,15 @@ def plot_beam_ts(obs, title=None, pix_flag_list=[], reg_interest=None,
         title = obs0.obs_id_
     if write_header is None:
         write_header = obs0.obs_id_
+    if isinstance(obs, (Obs, ObsArray)) and (not obs.ts_.empty_flag_):
+        obs_t_len = obs.t_end_time_ - obs.t_start_time_
+        x_size = max((obs_t_len / units.hour).to(1), FigArray.x_size_)
+    else:
+        x_size = FigArray.x_size_
 
     fig = FigArray.init_by_array_map(array_map if reg_interest is None else
                                      array_map.take_where(**reg_interest),
-                                     orientation=orientation)
+                                     orientation=orientation, x_size=x_size)
     if isinstance(obs, (Obs, ObsArray, np.ndarray)):
         fig.scatter(obs)
     elif isinstance(obs, dict):
@@ -1174,6 +1179,8 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
     if (write_header is None) and plot:
         write_header = os.path.join(os.getcwd(), beam.obs_id_)
     beam_chop_rms = beam.chunk_proc(method="nanstd")
+    beam_chop_rms.fill_by_mask(beam_chop_rms.get_nanmad_flag(
+            thre=MAD_THRE_BEAM, axis=-1))
     beam_chop_wt = beam.chunk_proc(method="num_is_finite")
     beam_rms = weighted_proc_along_axis(beam_chop_rms, method="nanmean",
                                         weight=beam_chop_wt, axis=-1)[0]
@@ -1232,6 +1239,8 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
             fig.set_labels(beam, orientation=ORIENTATION)
             fig.set_title("%s power spectral diagram" %
                           write_header.split("/")[-1])
+            fig.set_ylabel("Spectral power [dB]")
+            fig.set_xlabel("Frequency [Hz]")
             if plot_show:
                 plt.show(fig)
             if plot_save:
@@ -1240,17 +1249,20 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
         if plot_specgram:
             beam_t_len = beam.t_end_time_ - beam.t_start_time_
             x_size = max((beam_t_len / units.hour).to(1), FigArray.x_size_)
-            nfft = min(10., max(5., (beam_t_len / units.second).to(1.))) / 10.
-            noverlap = min(1., max(nfft - 1., (
-                    nfft - beam_t_len / units.second).to(1) / 10.))
+            nfft = min(10., max(5., (beam_t_len / units.second).to(1.) / 10.),
+                       (beam_t_len / units.second).to(1.))
+            noverlap = max(2., min(
+                    nfft - 1., nfft - (beam_t_len / units.second).to(1) / 200.))
             fig = FigArray.plot_specgram(
                     beam if reg_interest is None else
                     ObsArray(beam).take_where(**reg_interest),
                     orientation=ORIENTATION, x_size=x_size, nfft=nfft,
-                    noverlap=noverlap, scale="dB", cmap="jet")
+                    noverlap=noverlap, scale="dB", cmap="gist_ncar")
             fig.imshow_flag(pix_flag_list=pix_flag_list, orientation=ORIENTATION)
             fig.set_labels(beam, orientation=ORIENTATION)
             fig.set_title("%s dynamical spectrum" % write_header.split("/")[-1])
+            fig.set_ylabel("Frequency [Hz]")
+            fig.set_xlabel("GPS time [s]")
             if plot_show:
                 plt.show(fig)
             if plot_save:
