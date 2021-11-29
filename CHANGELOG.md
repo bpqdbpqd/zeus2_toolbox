@@ -7,6 +7,7 @@
 - Change the criteria for flagging time series outlier to flag different chop phase separately
 - Fix a bug in rebuilding time stamp
 - Fix a bug in desnaking to deal with the case that ref_pix is in pix_flag_list
+- Fix a bug in FigFlux.imshow_flag which doesn't accept empty list
 
 1.2
 

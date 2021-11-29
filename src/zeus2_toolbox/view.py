@@ -517,7 +517,7 @@ class FigFlux(Figure):
             if flag_pix_arr.shape == (2,):
                 flag_pix_arr = flag_pix_arr.reshape(1, 2)
             elif flag_pix_arr.shape == (0,):
-                flag_pix_arr = np.array((0, 2), dtype=int)
+                flag_pix_arr = np.empty((0, 2), dtype=int)
             elif (flag_pix_arr.ndim != 2) or \
                     (flag_pix_arr.shape[-1] != 2):
                 raise ValueError("Invalid format for input flag_pix_arr.")
