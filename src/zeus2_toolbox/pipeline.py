@@ -11,6 +11,7 @@ import os, multiprocessing, inspect
 import gc
 import warnings
 
+import matplotlib.pyplot as plt
 import numpy as np
 
 from .view import *
@@ -1142,6 +1143,75 @@ def plot_beam_flux(obs, title=None, pix_flag_list=[], plot_show=False,
     return fig
 
 
+def analyze_performance(beam, write_header=None, plot=True, plot_ts=False,
+                        reg_interest=None, plot_psd=True, plot_specgram=False,
+                        plot_show=False, plot_save=False):
+    """
+    Analyze the performance of each pixel in the beam, including the rms of each
+    pixel, plotting the time series, power spectral diagram (psd) and dynamical
+    spectrum
+
+    :param beam: Obs or ObsArray, with time series data
+    :type beam: Union[Obs, ObsArray]
+    :param str write_header: str, full path to the title to save files/figures,
+        if left None, will write to current folder with obs_id as the title
+    :param bool plot: bool, flag whether to make figure
+    :param bool plot_ts: bool, flag whether to plot time series
+    :param dict reg_interest: dict, region of interest of array passed to
+        ArrayMap.take_where() for plotting
+    :param bool plot_psd: bool, flag whether to plot power spectral diagram
+    :param plot_specgram: bool, flag whether to plot dynamical spectrum
+    :param bool plot_show: bool, flag whether to call plt.show() and show figure
+    :param bool plot_save: bool, flag whether to save the figure
+    :return: Obs or ObsArray, containing the average chop-wise rms of each pixel
+    :rtype: Union[Obs, ObsArray]
+    """
+
+    if (write_header is None) and plot:
+        write_header = os.path.join(os.getcwd(), beam.obs_id_)
+    beam_chop_rms = beam.chunk_proc(method="nanstd")
+    beam_chop_wt = beam.chunk_proc(method="num_is_finite")
+    beam_rms = weighted_proc_along_axis(beam_chop_rms, method="nanmean",
+                                        weight=beam_chop_wt, axis=-1)
+
+    if plot:
+        plot_dict = {"rms": beam_chop_rms}
+        if plot_ts:
+            plot_dict["raw data"] = (beam, {"twin_axes": True})
+        plt.close(plot_beam_ts(
+                plot_dict, title="%s rms time series" %
+                                 write_header.split("/")[-1],
+                reg_interest=reg_interest, plot_show=plot_show,
+                plot_save=plot_save, write_header="%s_rms_ts" % write_header))
+        if plot_psd:
+            fig = FigArray.plot_psd(beam.take_where(**reg_interest),
+                                    orientation=ORIENTATION)
+            fig.set_labels(beam, orientation=ORIENTATION)
+            fig.set_title("%s power spectral diagram" %
+                          write_header.split("/")[-1])
+            if plot_show:
+                plt.show(fig)
+            if plot_save:
+                fig.savefig("%s_psd.png" % write_header)
+            plt.close(fig)
+        if plot_specgram:
+            beam_t_len = beam.t_end_time_ - beam.t_start_time_
+            x_size = max((beam_t_len / units.hour).to(1), FigArray.x_size_)
+            nfft = min(10., max(5., (beam_t_len / units.second).to(1.))) / 10.
+            noverlap = min(1., max(n_fft - 1., (
+                    n_fft - beam_t_len / units.second).to(1) / 10.))
+            fig = FigArray.plot_specgram(
+                    beam.take_where(**reg_interest), orientation=ORIENTATION,
+                    x_size=x_size, nfft=nfft, noverlap=noverlap)
+            fig.set_labels(beam, orientation=ORIENTATION)
+            fig.set_title("%s dynamical spectrum" % write_header.split("/")[-1])
+            if plot_show:
+                plt.show(fig)
+            if plot_save:
+                fig.savefig("%s_specgram.png" % write_header)
+            plt.close(fig)
+
+
 def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flux=1,
               flat_err=0, do_desnake=False, ref_pix=None, do_smooth=False,
               do_ica=False, spat_excl=None, return_ts=False,
@@ -1185,7 +1255,7 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flu
     :param bool plot: bool, flag whether to make figure
     :param bool plot_ts: bool, flag whether to plot time series
     :param dict reg_interest: dict, region of interest of array passed to
-        ArrayMap.take_where()
+        ArrayMap.take_where() for plotting
     :param bool plot_flux: bool, flag whether to plot flux
     :param bool plot_show: bool, flag whether to call plt.show() and show figure
     :param bool plot_save: bool, flag whether to save the figure
@@ -1486,12 +1556,12 @@ def read_beams(file_header_list, array_map=None, obs_log=None, flag_ts=True,
         for args in args_list:
             results += [read_beam(*args)]
 
-    kwargs = {}
+    kwargs = {},
     if array_map is not None:  # combine all beams
-        all_beams = ObsArray()
+        type_result = ObsArray
         kwargs["array_map"] = array_map
     else:
-        all_beams = Obs()
+        type_result = Obs
     data_list, ts_list, chop_list, obs_id_list, obs_id_arr_list, obs_info_list = \
         [], [], [], [], [], []
     for beam in results:
@@ -1509,7 +1579,7 @@ def read_beams(file_header_list, array_map=None, obs_log=None, flag_ts=True,
     kwargs["obs_id_arr"] = np.concatenate(obs_id_arr_list)
     kwargs["obs_info"] = vstack(obs_info_list, join_type="outer")
     kwargs["obs_id"] = obs_id_list[0]
-    all_beams = all_beams.replace(**kwargs)
+    all_beams = type_result(**kwargs)
 
     return all_beams
 
