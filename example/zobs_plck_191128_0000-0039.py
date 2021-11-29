@@ -8,18 +8,18 @@ from zeus2_toolbox import pipeline as z2pipl
 
 # ========================= reduction configuration =============================
 
-ARRAY_MAP_PATH = "/data2/share/zeus-2/ref/array_map_excel_alternative_20211101.csv"
+ARRAY_MAP_PATH = "../ref/array_map_excel_alternative_20211101.csv"
 # path to the array map file, leave None if you don't want to use any array map
-OBS_LOG_DIR = "/data2/share/zeus-2/all_apex_2019/apex_logs/obslogs"
+OBS_LOG_DIR = None
 # path to the folder containing the APEX html observation log files, leave None
 # if you don't need/have obs logs
 BAND = 350  # choose the band you would like to use for the array map, the
 # accepted values are 200, 350, 400 and 450, leave None if you
 # want to use the whole array map
 
-DATA_DIR = "/data2/share/zeus-2/all_apex_2019/20191128/"
+DATA_DIR = "/data/cryo/20191128/"
 # path to the folder containing the data
-WRITE_DIR = "/data/bp/workspace/zeus-2/nb/Plck_g244+54"
+WRITE_DIR = "../test"
 # path to the folder to save the reduction result like figures or tables, leave
 # None if you want to use the current folder
 
@@ -79,6 +79,7 @@ REG_INTEREST = {"spat_ran": (0, 2), "spec_ran": (9, 13)}
 PLOT_FLUX = True  # flag whether to plot the flux of each beam
 PLOT_SHOW = False  # flag whether to show the figures, can slow down the reduction
 PLOT_SAVE = True  # flag whether to save the figures as png files
+ANALYZE = True  # flag whether to perform pixel performance analyze based on rms
 
 # ======================= run the reduction pipeline ===========================
 
@@ -106,5 +107,5 @@ zobs_result = z2pipl.reduce_zobs(
         do_ica=DO_ICA, spat_excl=SPAT_EXCL, return_pix_flag_list=True,
         table_save=TABLE_SAVE, plot=PLOT, plot_ts=PLOT_TS,
         reg_interest=REG_INTEREST, plot_flux=PLOT_FLUX,
-        plot_show=PLOT_SHOW, plot_save=PLOT_SAVE)
+        plot_show=PLOT_SHOW, plot_save=PLOT_SAVE, analyze=ANALYZE)
 zobs_flux, zobs_err, zobs_pix_flag_list = zobs_result[:2] + zobs_result[-1:]
