@@ -1144,7 +1144,7 @@ def plot_beam_flux(obs, title=None, pix_flag_list=[], plot_show=False,
     return fig
 
 
-def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=True,
+def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
                         plot_rms=False, plot_ts=False, reg_interest=None,
                         plot_psd=True, plot_specgram=False, plot_show=False,
                         plot_save=False):
@@ -1900,7 +1900,7 @@ def reduce_skychop(flat_header, data_dir=None, write_dir=None, write_suffix="",
                 os.path.join(write_dir, data_file_header),
                 pix_flag_list=pix_flag_list, plot=plot, plot_rms=plot_flux,
                 plot_ts=plot_ts, reg_interest=reg_interest, plot_psd=plot_ts,
-                plot_specgram=plot_ts, plot_show=plot_show, plot_save=plot_save)
+                plot_specgram=False, plot_show=plot_show, plot_save=plot_save)
         if table_save:
             beams_rms.to_table(orientation=ORIENTATION).write(os.path.join(
                     write_dir, "%s_rms.csv" % flat_file_header), overwrite=True)
@@ -2126,7 +2126,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                         write_dir, data_file_header), pix_flag_list=pix_flag_list,
                 plot=plot, plot_rms=plot_flux, plot_ts=plot_ts,
                 reg_interest=reg_interest, plot_psd=plot_ts,
-                plot_specgram=plot_ts, plot_show=plot_show, plot_save=plot_save)
+                plot_specgram=False, plot_show=plot_show, plot_save=plot_save)
         if table_save:
             beams_rms.to_table(orientation=ORIENTATION).write(os.path.join(
                     write_dir, "%s_rms.csv" % data_file_header), overwrite=True)
@@ -2223,7 +2223,7 @@ def reduce_calibration(data_header, data_dir=None, write_dir=None,
                 beams_ts, write_header=os.path.join(write_dir, data_file_header),
                 pix_flag_list=pix_flag_list, plot=plot, plot_rms=plot_flux,
                 plot_ts=plot_ts, reg_interest=reg_interest, plot_psd=plot_ts,
-                plot_specgram=plot_ts, plot_show=plot_show, plot_save=plot_save)
+                plot_specgram=False, plot_show=plot_show, plot_save=plot_save)
         if table_save:
             beams_rms.to_table(orientation=ORIENTATION).write(os.path.join(
                     write_dir, "%s_rms.csv" % data_file_header), overwrite=True)
