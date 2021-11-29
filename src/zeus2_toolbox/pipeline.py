@@ -787,21 +787,22 @@ def auto_flag_ts(obs, is_flat=False):
                    0.1 * blank_mask.shape[-1])  # ignore dead pixels
     obs_new.fill_by_mask(glitch_mask | blank_mask, fill_value=np.nan)
 
-    if obs_new.chop_.empty_flag_:  # no chop data
-        if is_flat:
-            outlier_mask = \
-                abs(obs_new - obs_new.proc_along_time(method="nanmean")).data_ > \
-                STD_THRE_FLAT * obs_new.proc_along_time(method="nanstd").data_
-        else:  # flag by MAD
-            outlier_mask = obs_new.get_double_nanmad_flag(thre=MAD_THRE_BEAM, axis=-1)
-    else:  # flat on and off chop separately by MAD
-        outlier_mask = np.full(obs_new.shape_, fill_value=False, dtype=bool)
-        outlier_mask[..., obs_new.chop_.data_] = \
-            obs_new.take_by_flag_along_time(chop=True).get_double_nanmad_flag(
-                    thre=MAD_THRE_BEAM, axis=-1)
-        outlier_mask[..., ~obs_new.chop_.data_] = \
-            obs_new.take_by_flag_along_time(chop=False).get_double_nanmad_flag(
-                    thre=MAD_THRE_BEAM, axis=-1)
+    outlier_mask = obs_new.get_double_nanmad_flag(thre=MAD_THRE_BEAM, axis=-1)
+    # if obs_new.chop_.empty_flag_:  # no chop data
+    #     if is_flat:
+    #         outlier_mask = \
+    #             abs(obs_new - obs_new.proc_along_time(method="nanmean")).data_ > \
+    #             STD_THRE_FLAT * obs_new.proc_along_time(method="nanstd").data_
+    #     else:  # flag by MAD
+    #         outlier_mask = obs_new.get_double_nanmad_flag(thre=MAD_THRE_BEAM, axis=-1)
+    # else:  # flat on and off chop separately by MAD
+    #     outlier_mask = np.full(obs_new.shape_, fill_value=False, dtype=bool)
+    #     outlier_mask[..., obs_new.chop_.data_] = \
+    #         obs_new.take_by_flag_along_time(chop=True).get_double_nanmad_flag(
+    #                 thre=MAD_THRE_BEAM, axis=-1)
+    #     outlier_mask[..., ~obs_new.chop_.data_] = \
+    #         obs_new.take_by_flag_along_time(chop=False).get_double_nanmad_flag(
+    #                 thre=MAD_THRE_BEAM, axis=-1)
     obs_new.fill_by_mask(mask=outlier_mask, fill_value=np.nan)
 
     return obs_new
