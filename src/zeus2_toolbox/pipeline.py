@@ -1225,8 +1225,9 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
                     orientation=ORIENTATION))
         if plot_psd:
             fig = FigArray.plot_psd(
-                    beam.take_where(**reg_interest), orientation=ORIENTATION,
-                    scale="dB", lw=0.5)
+                    beam if reg_interest is None else
+                    ObsArray(beam).take_where(**reg_interest),
+                    orientation=ORIENTATION, scale="dB", lw=0.5)
             fig.imshow_flag(pix_flag_list=pix_flag_list, orientation=ORIENTATION)
             fig.set_labels(beam, orientation=ORIENTATION)
             fig.set_title("%s power spectral diagram" %
@@ -1243,9 +1244,10 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
             noverlap = min(1., max(nfft - 1., (
                     nfft - beam_t_len / units.second).to(1) / 10.))
             fig = FigArray.plot_specgram(
-                    beam.take_where(**reg_interest), orientation=ORIENTATION,
-                    x_size=x_size, nfft=nfft, noverlap=noverlap, scale="dB",
-                    cmap="gist_ncar")
+                    beam if reg_interest is None else
+                    ObsArray(beam).take_where(**reg_interest),
+                    orientation=ORIENTATION, x_size=x_size, nfft=nfft,
+                    noverlap=noverlap, scale="dB", cmap="jet")
             fig.imshow_flag(pix_flag_list=pix_flag_list, orientation=ORIENTATION)
             fig.set_labels(beam, orientation=ORIENTATION)
             fig.set_title("%s dynamical spectrum" % write_header.split("/")[-1])
@@ -1603,7 +1605,7 @@ def read_beams(file_header_list, array_map=None, obs_log=None, flag_ts=True,
         for args in args_list:
             results += [read_beam(*args)]
 
-    kwargs = {},
+    kwargs = {}
     if array_map is not None:  # combine all beams
         type_result = ObsArray
         kwargs["array_map"] = array_map
@@ -2402,14 +2404,32 @@ def eval_performance(data_header, data_dir=None, write_dir=None, write_suffix=""
         data_dir = os.getcwd()
     if write_dir is None:
         write_dir = os.getcwd()
+    if (write_suffix != "") and (write_suffix[0] != "_"):
+        write_suffix = "_" + write_suffix
 
+    print("Reading data.")
+    data_file_header = build_header(data_header) + write_suffix
     file_header_list = [os.path.join(data_dir, "%s_%04d" % (header, beam_num))
                         for header in data_header
                         for beam_ran in data_header[header]
                         for beam_num in range(beam_ran[0], beam_ran[1] + 1)]
     beams = read_beams(file_header_list, array_map=array_map, obs_log=obs_log,
                        flag_ts=True, parallel=parallel)
-    beams_rms = analyze_performance()
+    print("Analyzing data.")
+    beams_rms = analyze_performance(
+            beams, write_header=os.path.join(write_dir, data_file_header),
+            pix_flag_list=pix_flag_list, plot=plot, plot_rms=plot_flux,
+            plot_ts=plot_ts, reg_interest=reg_interest, plot_psd=plot_psd,
+            plot_specgram=plot_specgram, plot_show=plot_show,
+            plot_save=plot_save)
+    if table_save:
+        beams_rms.to_table(orientation=ORIENTATION).write(os.path.join(
+                write_dir, "%s_rms.csv" % data_file_header), overwrite=True)
+
+    result = (beams_rms,)
+    if return_ts:
+        result += (beams,)
+    return (beams_rms, beams, pix_flag_list)
 
 # def raster_map
 

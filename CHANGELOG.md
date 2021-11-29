@@ -5,6 +5,8 @@
 - Add function read_beams to read a large number of beams in parallel
 - Add function analyze_performance to evaluate pixel performance based on rms and power spectrum; implement it in
   pipeline reduction functions
+- Add function eval_performance to evaluate pixel performance based on rms and power spectrum, plot power spectrum,
+  dynamical spectrum and the whole time series
 - Change the criteria for selecting usable pixel for ICA
 - Change the criteria for flagging time series outlier to flag different chop phase separately
 - Fix a bug in rebuilding time stamp
