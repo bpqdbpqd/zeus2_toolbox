@@ -80,8 +80,7 @@ flat_flux, flat_err, pix_flag_list = flat_result[:2] + flat_result[-1:]
 DATA_HEADER = {"plck_191128": [(0, 39)]}
 REF_PIX = [1, 11]
 
-
-# In[ ]:
+# In[9]:
 
 
 zobs_result = z2pipl.reduce_zobs(
@@ -92,7 +91,7 @@ zobs_result = z2pipl.reduce_zobs(
         do_ica=False, spat_excl=None, return_ts=False,
         return_pix_flag_list=True, table_save=False, plot=True, plot_ts=True,
         reg_interest=REG_INTEREST, plot_flux=True,
-        plot_show=False, plot_save=True)
+        plot_show=False, plot_save=True, analyze=True)
 zobs_flux, zobs_err, zobs_pix_flag_list = zobs_result[:2] + zobs_result[-1:]
 
 
@@ -114,8 +113,7 @@ plt.show(fig)
 
 SPAT_EXCL = [0, 2]
 
-
-# In[ ]:
+# In[12]:
 
 
 zobs_ica_result = z2pipl.reduce_zobs(
@@ -126,7 +124,7 @@ zobs_ica_result = z2pipl.reduce_zobs(
         do_ica=True, spat_excl=SPAT_EXCL, return_ts=False,
         return_pix_flag_list=True, table_save=False, plot=True, plot_ts=True,
         reg_interest=REG_INTEREST, plot_flux=True,
-        plot_show=False, plot_save=True)
+        plot_show=False, plot_save=True, analyze=True)
 zobs_ica_flux, zobs_ica_err, zobs_ica_pix_flag_list = zobs_ica_result[:2] + zobs_ica_result[-1:]
 
 # We can compare with result of the two reductions.
@@ -148,11 +146,23 @@ plt.show(fig)
 # In[14]:
 
 
-Image(os.path.join(WRITE_DIR, "plck_191128_0000-0039_beam_pairs_flux.png"))
+Image(os.path.join(WRITE_DIR, "plck_191128_0000-0039_ica_beam_pairs_flux.png"))
+
+# We can also compare the power spectrum and dynamical spectrum after desnaking and ICA decomposition, it can be seen that correlated noise is suppressed significantly after ICA.
+
+# In[15]:
+
+
+Image(os.path.join(WRITE_DIR, "plck_191128_0000-0039_desnake_psd.png"))
+
+# In[16]:
+
+
+Image(os.path.join(WRITE_DIR, "plck_191128_0000-0039_ica_psd.png"))
 
 # For the convenience I show another example with a single block of code that reduces w0533_191130_0084-0143 with ICA. I will not read array map or observation log again.
 
-# In[ ]:
+# In[17]:
 
 
 DATA_DIR = "/data2/share/zeus-2/all_apex_2019/20191130/"
@@ -170,11 +180,12 @@ DO_ICA, SPAT_EXCL = True, [0, 2]
 PARALLEL = True
 TABLE_SAVE = True
 PLOT = True
-PLOT_TS = True
+PLOT_TS = True  # can slow down reduction significantly
 REG_INTEREST = {"spat_ran": (0, 2), "spec_ran": (5, 9)}  # line is placed at [1, 7]
 PLOT_FLUX = True
 PLOT_SHOW = False
 PLOT_SAVE = True
+ANALYZE = True  # can slow down reduction significantly
 
 # reduce flat
 flat_result = z2pipl.reduce_skychop(
@@ -193,27 +204,28 @@ zobs_ica_result = z2pipl.reduce_zobs(
         do_ica=DO_ICA, spat_excl=SPAT_EXCL, return_pix_flag_list=True,
         table_save=TABLE_SAVE, plot=PLOT, plot_ts=PLOT_TS,
         reg_interest=REG_INTEREST, plot_flux=PLOT_FLUX,
-        plot_show=PLOT_SHOW, plot_save=PLOT_SAVE)
+        plot_show=PLOT_SHOW, plot_save=PLOT_SAVE, analyze=ANALYZE)
 zobs_ica_flux, zobs_ica_err, zobs_ica_pix_flag_list = zobs_ica_result[:2] + zobs_ica_result[-1:]
 
-# In[16]:
+# In[18]:
 
 
-Image(os.path.join(WRITE_DIR, "%s_spec.png" % z2pipl.build_header(DATA_HEADER)))
+Image(os.path.join(WRITE_DIR, "%s_ica_spec.png" % z2pipl.build_header(DATA_HEADER)))
 
-# In[17]:
+# In[19]:
 
 
-Image(os.path.join(WRITE_DIR, "%s_beam_pairs_flux.png" % z2pipl.build_header(DATA_HEADER)))
+Image(os.path.join(WRITE_DIR, "%s_ica_beam_pairs_flux.png" % z2pipl.build_header(DATA_HEADER)))
 
 # ## Data reduction on calibration source
 
 # All observations taken with the commands other than `zobs`, `zpold` and `zpoldbig` are just continuous beams without nodding or special ordering. Most of the information is in the flux variation in different beams. Here for example, let's reduce uranus_191128 beam 26 through 36, which is an `zpoint` observation for that night. Because this scan doesn't have a skychop, we will skip the flat reduction step and leave the default value for flat, which are `flat_flux=1` and `flat_err=0`. Because the line is put at [1, 6], we would like to plot the spatial range [0, 2] and spectral range [5, 9].
 
-# In[ ]:
+# In[20]:
 
 
 DATA_DIR = "/data2/share/zeus-2/all_apex_2019/20191128/"
+WRITE_DIR = "/data/bp/workspace/zeus-2/nb/test"
 
 DATA_HEADER = {"skychop_191128": [(26, 36)]}
 
@@ -231,6 +243,7 @@ REG_INTEREST = {"spat_ran": (0, 2), "spec_ran": (5, 9)}  # line is placed at [1,
 PLOT_FLUX = True
 PLOT_SHOW = False
 PLOT_SAVE = True
+ANALYZE = True  # can slow down reduction significantly
 
 flat_flux, flat_err = 1, 0
 
@@ -243,15 +256,17 @@ zpoint_result = z2pipl.reduce_calibration(
         do_ica=DO_ICA, spat_excl=SPAT_EXCL, return_pix_flag_list=True,
         table_save=TABLE_SAVE, plot=PLOT, plot_ts=PLOT_TS,
         reg_interest=REG_INTEREST, plot_flux=PLOT_FLUX,
-        plot_show=PLOT_SHOW, plot_save=PLOT_SAVE)
+        plot_show=PLOT_SHOW, plot_save=PLOT_SAVE, analyze=ANALYZE)
 zpoint_flux, zpoint_err, zpoint_pix_flag_list = zpoint_result[:2] + zpoint_result[-1:]
+
 
 # The figure below shows the pixel flux of each beam in the raw data unit due to the lack of skychop.
 
-# In[19]:
+# In[21]:
 
 
 Image(os.path.join(WRITE_DIR, "%s_beams_flux.png" % z2pipl.build_header(DATA_HEADER)))
+
 
 # ## Reduction of zpold or zpoldbig raster
 
@@ -259,7 +274,7 @@ Image(os.path.join(WRITE_DIR, "%s_beams_flux.png" % z2pipl.build_header(DATA_HEA
 # 
 # As an example, I will show uranus_191126_0025 to 0049 taken with `zpoldbig`. The flat is skychop_191126 260 through 262. I would like to see the raster on the whole 400 micron array, so I will read in the aray map again with the band set to 400 instead of 350.
 
-# In[20]:
+# In[22]:
 
 
 array_map = z2pipl.ArrayMap.read("/data2/share/zeus-2/ref/array_map_excel_alternative_20211101.csv")
@@ -288,6 +303,7 @@ REG_INTEREST = None  # show the whole array
 PLOT_FLUX = True
 PLOT_SHOW = False
 PLOT_SAVE = True
+ANALYZE = False  # to accelerate reduction
 
 # reduce flat
 flat_result = z2pipl.reduce_skychop(
@@ -306,12 +322,12 @@ zpoldbig_result = z2pipl.reduce_zpoldbig(
         do_ica=DO_ICA, spat_excl=SPAT_EXCL, return_pix_flag_list=True,
         table_save=TABLE_SAVE, plot=PLOT, plot_ts=PLOT_TS,
         reg_interest=REG_INTEREST, plot_flux=PLOT_FLUX,
-        plot_show=PLOT_SHOW, plot_save=PLOT_SAVE)
+        plot_show=PLOT_SHOW, plot_save=PLOT_SAVE, analyze=ANALYZE)
 zpoldbig_flux, zpoldbig_err, zpoldbig_pix_flag_list = zpoldbig_result[:2] + zpoldbig_result[-1:]
 
 # The result is saved in "{data_header}\_raster.png". In the figure, all the pixels without any 2-sigma detection in any beam are flagged. The pointing target Uranus clearly shows up as a point source at different location for pixels at different spatial position. It also shows the alignment of the array on the sky.
 
-# In[22]:
+# In[ ]:
 
 
 Image(os.path.join(WRITE_DIR, "%s_raster.png" % z2pipl.build_header(DATA_HEADER)))

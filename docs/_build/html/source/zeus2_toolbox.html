@@ -5,7 +5,7 @@
 <head>
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-    <title>API &#8212; zeus2_toolbox 1.2 documentation</title>
+    <title>API &#8212; zeus2_toolbox 1.3 documentation</title>
 
     <link href="../_static/css/theme.css" rel="stylesheet">
     <link href="../_static/css/index.ff1ffe594081f20da1ef19478df9384b.css" rel="stylesheet">
@@ -58,7 +58,7 @@
                 <a class="navbar-brand text-wrap" href="../index.html">
 
 
-                    <h1 class="site-logo" id="site-title">zeus2_toolbox 1.2 documentation</h1>
+                    <h1 class="site-logo" id="site-title">zeus2_toolbox 1.3 documentation</h1>
 
                 </a>
             </div>
@@ -536,6 +536,62 @@
                                             <dt class="field-even">Raises</dt>
                                             <dd class="field-even"><p><strong>ValueError</strong> – invalid axis value
                                             </p>
+                                            </dd>
+                                        </dl>
+                                    </dd>
+                                </dl>
+
+                                <dl class="py function">
+                                    <dt class="sig sig-object py" id="zeus2_toolbox.tools.double_nanmad_flag">
+                                        <span class="sig-prename descclassname"><span
+                                                class="pre">zeus2_toolbox.tools.</span></span><span
+                                            class="sig-name descname"><span class="pre">double_nanmad_flag</span></span><span
+                                            class="sig-paren">(</span><em class="sig-param"><span class="n"><span
+                                            class="pre">arr</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">thre</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span
+                                            class="pre">20</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">axis</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span
+                                            class="pre">-</span> <span class="pre">1</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span
+                                            class="pre">frac_thre</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span
+                                            class="pre">0.1</span></span></em><span class="sig-paren">)</span><a
+                                            class="headerlink" href="#zeus2_toolbox.tools.double_nanmad_flag"
+                                            title="Permalink to this definition">¶</a></dt>
+                                    <dd><p>Similar to nanmad_flag(), but do nanmad_flag a second time on the data
+                                        flagged
+                                        by nanmad_flag(), if frac_thre of data is flagged in the first time in a
+                                        certain entry of arr, to account for the sudden jump often witnessed in time
+                                        series</p>
+                                        <dl class="field-list simple">
+                                            <dt class="field-odd">Parameters</dt>
+                                            <dd class="field-odd">
+                                                <ul class="simple">
+                                                    <li><p><strong>arr</strong> (<em>numpy.ndarray</em>) – array, to be
+                                                        checked</p></li>
+                                                    <li><p><strong>thre</strong> (<em>float</em>) – float, data with abs
+                                                        distance &gt; thre*MAD will be flagged</p></li>
+                                                    <li><p><strong>axis</strong> (<em>int</em>) – int, axis along which
+                                                        the mad will be checked, if input is
+                                                        None, will use the median of the whole array</p></li>
+                                                    <li><p><strong>frac_thre</strong> (<em>flat</em>) – float, between 0
+                                                        and 1, threshold of the fraction of
+                                                        data flagged in the first time nanmad_flag() to perform
+                                                        nanmad_flag() and
+                                                        try to unflag some data</p></li>
+                                                </ul>
+                                            </dd>
+                                            <dt class="field-even">Return flag_arr</dt>
+                                            <dd class="field-even"><p>array, bool values of flag</p>
+                                            </dd>
+                                            <dt class="field-odd">Return type</dt>
+                                            <dd class="field-odd"><p>numpy.ndarray</p>
+                                            </dd>
+                                            <dt class="field-even">Raises</dt>
+                                            <dd class="field-even"><p><strong>ValueError</strong> – invalid value for
+                                                frac_thre</p>
                                             </dd>
                                         </dl>
                                     </dd>
@@ -1344,6 +1400,49 @@
                                                     </dd>
                                                     <dt class="field-odd">Return type</dt>
                                                     <dd class="field-odd"><p>numpy.ndarray</p>
+                                                    </dd>
+                                                </dl>
+                                            </dd>
+                                        </dl>
+
+                                        <dl class="py method">
+                                            <dt class="sig sig-object py"
+                                                id="zeus2_toolbox.zeus2_io.DataObj.get_double_nanmad_flag">
+                                                <span class="sig-name descname"><span
+                                                        class="pre">get_double_nanmad_flag</span></span><span
+                                                    class="sig-paren">(</span><em class="sig-param"><span
+                                                    class="n"><span class="pre">thre</span></span><span class="o"><span
+                                                    class="pre">=</span></span><span class="default_value"><span
+                                                    class="pre">10</span></span></em>, <em class="sig-param"><span
+                                                    class="n"><span class="pre">axis</span></span><span class="o"><span
+                                                    class="pre">=</span></span><span class="default_value"><span
+                                                    class="pre">-</span> <span class="pre">1</span></span></em>, <em
+                                                    class="sig-param"><span class="n"><span class="pre">frac_thre</span></span><span
+                                                    class="o"><span class="pre">=</span></span><span
+                                                    class="default_value"><span class="pre">0.1</span></span></em><span
+                                                    class="sig-paren">)</span><a class="headerlink"
+                                                                                 href="#zeus2_toolbox.zeus2_io.DataObj.get_double_nanmad_flag"
+                                                                                 title="Permalink to this definition">¶</a>
+                                            </dt>
+                                            <dd><p>similar to get_nanmad_flag(), but call double_nanmad_flag() to
+                                                perform
+                                                mad flagging twice, which is more robust for the sudden jump in time
+                                                series and saves more data</p>
+                                                <dl class="field-list simple">
+                                                    <dt class="field-odd">Parameters</dt>
+                                                    <dd class="field-odd">
+                                                        <ul class="simple">
+                                                            <li><p><strong>thre</strong> (<em>float</em>) – float, data
+                                                                with abs distance &gt; thre*MAD will be flagged</p></li>
+                                                            <li><p><strong>axis</strong> (<em>int</em>) – int, axis
+                                                                along which the mad will be checked, if input is
+                                                                None, will use the median of the whole array</p></li>
+                                                            <li><p><strong>frac_thre</strong> (<em>flat</em>) – float,
+                                                                between 0 and 1, threshold of the fraction of
+                                                                data flagged in the first time nanmad_flag() to perform
+                                                                nanmad_flag() and
+                                                                try to unflag some data</p></li>
+                                                        </ul>
                                                     </dd>
                                                 </dl>
                                             </dd>
@@ -10406,8 +10505,16 @@
                                             class="sig-paren">)</span><a class="headerlink"
                                                                          href="#zeus2_toolbox.pipeline.auto_flag_ts"
                                                                          title="Permalink to this definition">¶</a></dt>
-                                    <dd><p>flag time series in obs in a standard way: first remove known outlier feature
-                                        like weird data point at 0 and -0.0625; then flag by MAD threshold</p>
+                                    <dd><p>flag time series in obs in a standard way: first remove known glitch feature
+                                        like weird data point at 0 and -0.0625; then flag by MAD threshold, the
+                                        on-chop and off-chop data will be flagged separately if <a href="#id339"><span
+                                                class="problematic" id="id340">chop_</span></a> exists, to
+                                        avoid flagging actual signal, in the case <a href="#id341"><span
+                                                class="problematic" id="id342">chop_</span></a> doesn’t exist and
+                                        is_flat=True
+                                        the data will be flagged by STD, as MAD is prone to bimodal data; the default
+                                        MAD or STD threshold are defined in the package variable MAD_THRE_BEAM and
+                                        STD_THRE_FLAT</p>
                                         <dl class="field-list simple">
                                             <dt class="field-odd">Parameters</dt>
                                             <dd class="field-odd">
@@ -10884,6 +10991,100 @@
                                 </dl>
 
                                 <dl class="py function">
+                                    <dt class="sig sig-object py" id="zeus2_toolbox.pipeline.analyze_performance">
+                                        <span class="sig-prename descclassname"><span class="pre">zeus2_toolbox.pipeline.</span></span><span
+                                            class="sig-name descname"><span
+                                            class="pre">analyze_performance</span></span><span
+                                            class="sig-paren">(</span><em class="sig-param"><span class="n"><span
+                                            class="pre">beam</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">write_header</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">pix_flag_list</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">[]</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">plot</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">plot_rms</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">False</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">plot_ts</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">reg_interest</span></span><span class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">None</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span
+                                            class="pre">plot_psd</span></span><span class="o"><span class="pre">=</span></span><span
+                                            class="default_value"><span class="pre">True</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span
+                                            class="pre">plot_specgram</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">plot_show</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">False</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">plot_save</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span
+                                            class="sig-paren">)</span><a class="headerlink"
+                                                                         href="#zeus2_toolbox.pipeline.analyze_performance"
+                                                                         title="Permalink to this definition">¶</a></dt>
+                                    <dd><p>Analyze the performance of each pixel in the beam, including the rms of each
+                                        pixel, plotting the time series, power spectral diagram (psd) and dynamical
+                                        spectrum</p>
+                                        <dl class="field-list simple">
+                                            <dt class="field-odd">Parameters</dt>
+                                            <dd class="field-odd">
+                                                <ul class="simple">
+                                                    <li><p><strong>beam</strong> (<em>Union</em><em>[</em><a
+                                                            class="reference internal"
+                                                            href="#zeus2_toolbox.zeus2_io.Obs"
+                                                            title="zeus2_toolbox.zeus2_io.Obs"><em>Obs</em></a><em>, </em><a
+                                                            class="reference internal"
+                                                            href="#zeus2_toolbox.zeus2_io.ObsArray"
+                                                            title="zeus2_toolbox.zeus2_io.ObsArray"><em>ObsArray</em></a><em>]</em>)
+                                                        – Obs or ObsArray, with time series data</p></li>
+                                                    <li><p><strong>write_header</strong> (<em>str</em>) – str, full path
+                                                        to the title to save files/figures,
+                                                        if left None, will write to current folder with obs_id as the
+                                                        title</p></li>
+                                                    <li><p><strong>pix_flag_list</strong> (<em>list</em>) – list, a list
+                                                        including pixels to be flagged</p></li>
+                                                    <li><p><strong>plot</strong> (<em>bool</em>) – bool, flag whether to
+                                                        make figure</p></li>
+                                                    <li><p><strong>plot_rms</strong> (<em>bool</em>) – bool, flag
+                                                        whether to plot rms in 2-d array layout</p></li>
+                                                    <li><p><strong>plot_ts</strong> (<em>bool</em>) – bool, flag whether
+                                                        to plot time series for each pixel</p></li>
+                                                    <li><p><strong>reg_interest</strong> (<em>dict</em>) – dict, region
+                                                        of interest of array passed to
+                                                        ArrayMap.take_where() for plotting</p></li>
+                                                    <li><p><strong>plot_psd</strong> (<em>bool</em>) – bool, flag
+                                                        whether to plot power spectral diagram</p></li>
+                                                    <li><p><strong>plot_specgram</strong> – bool, flag whether to plot
+                                                        dynamical spectrum</p></li>
+                                                    <li><p><strong>plot_show</strong> (<em>bool</em>) – bool, flag
+                                                        whether to call plt.show() and show figure</p></li>
+                                                    <li><p><strong>plot_save</strong> (<em>bool</em>) – bool, flag
+                                                        whether to save the figure</p></li>
+                                                </ul>
+                                            </dd>
+                                            <dt class="field-even">Returns</dt>
+                                            <dd class="field-even"><p>Obs or ObsArray, containing the average chop-wise
+                                                rms of each pixel</p>
+                                            </dd>
+                                            <dt class="field-odd">Return type</dt>
+                                            <dd class="field-odd"><p>Union[<a class="reference internal"
+                                                                              href="#zeus2_toolbox.zeus2_io.Obs"
+                                                                              title="zeus2_toolbox.zeus2_io.Obs">Obs</a>,
+                                                <a class="reference internal" href="#zeus2_toolbox.zeus2_io.ObsArray"
+                                                   title="zeus2_toolbox.zeus2_io.ObsArray">ObsArray</a>]</p>
+                                            </dd>
+                                        </dl>
+                                    </dd>
+                                </dl>
+
+                                <dl class="py function">
                                     <dt class="sig sig-object py" id="zeus2_toolbox.pipeline.proc_beam">
                                         <span class="sig-prename descclassname"><span class="pre">zeus2_toolbox.pipeline.</span></span><span
                                             class="sig-name descname"><span class="pre">proc_beam</span></span><span
@@ -11031,7 +11232,7 @@
                                                         to plot time series</p></li>
                                                     <li><p><strong>reg_interest</strong> (<em>dict</em>) – dict, region
                                                         of interest of array passed to
-                                                        ArrayMap.take_where()</p></li>
+                                                        ArrayMap.take_where() for plotting</p></li>
                                                     <li><p><strong>plot_flux</strong> (<em>bool</em>) – bool, flag
                                                         whether to plot flux</p></li>
                                                     <li><p><strong>plot_show</strong> (<em>bool</em>) – bool, flag
@@ -11360,6 +11561,77 @@
                                 </dl>
 
                                 <dl class="py function">
+                                    <dt class="sig sig-object py" id="zeus2_toolbox.pipeline.read_beams">
+                                        <span class="sig-prename descclassname"><span class="pre">zeus2_toolbox.pipeline.</span></span><span
+                                            class="sig-name descname"><span class="pre">read_beams</span></span><span
+                                            class="sig-paren">(</span><em class="sig-param"><span class="n"><span
+                                            class="pre">file_header_list</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">array_map</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">obs_log</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">None</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">flag_ts</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">is_flat</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">False</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">parallel</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span
+                                            class="sig-paren">)</span><a class="headerlink"
+                                                                         href="#zeus2_toolbox.pipeline.read_beams"
+                                                                         title="Permalink to this definition">¶</a></dt>
+                                    <dd><p>Function to read multiple MCE data files, optionally in a parallelized mode.
+                                        It takes ~ 5 min on spectrosaurus to read 700 beams in parallel. It is
+                                        recommended to clean the memory or start a new thread before running it in
+                                        parallel.</p>
+                                        <dl class="field-list simple">
+                                            <dt class="field-odd">Parameters</dt>
+                                            <dd class="field-odd">
+                                                <ul class="simple">
+                                                    <li><p><strong>file_header_list</strong> (<em>dict</em>) – list, of
+                                                        the paths to the headers of the data</p></li>
+                                                    <li><p><strong>array_map</strong> (<a class="reference internal"
+                                                                                          href="#zeus2_toolbox.zeus2_io.ArrayMap"
+                                                                                          title="zeus2_toolbox.zeus2_io.ArrayMap"><em>ArrayMap</em></a>)
+                                                        – ArrayMap, optional, if not None, will transform
+                                                        flat data into ObsArray and then process</p></li>
+                                                    <li><p><strong>obs_log</strong> (<a class="reference internal"
+                                                                                        href="#zeus2_toolbox.zeus2_io.ObsLog"
+                                                                                        title="zeus2_toolbox.zeus2_io.ObsLog"><em>ObsLog</em></a>)
+                                                        – ObsLog, optional, if not None, will try to find the
+                                                        entry in the provided obs_log and add to the obs_info of the
+                                                        output obj</p></li>
+                                                    <li><p><strong>flag_ts</strong> (<em>bool</em>) – bool, flag whether
+                                                        to flag outliers in time series by
+                                                        auto_flag_ts(), default True</p></li>
+                                                    <li><p><strong>is_flat</strong> (<em>bool</em>) – bool, flag whether
+                                                        the beam is flat/skychop, passed to
+                                                        auto_flag_ts(), default False</p></li>
+                                                    <li><p><strong>parallel</strong> (<em>bool</em>) – bool, flag
+                                                        whether to run it in parallelized mode,
+                                                        would accelerate the process by many factors on a multi-core
+                                                        machine</p></li>
+                                                </ul>
+                                            </dd>
+                                            <dt class="field-even">Returns</dt>
+                                            <dd class="field-even"><p>Obs or ObsArray object containing all the data
+                                                concatenated</p>
+                                            </dd>
+                                            <dt class="field-odd">Return type</dt>
+                                            <dd class="field-odd"><p>Union[<a class="reference internal"
+                                                                              href="#zeus2_toolbox.zeus2_io.Obs"
+                                                                              title="zeus2_toolbox.zeus2_io.Obs">Obs</a>,
+                                                <a class="reference internal" href="#zeus2_toolbox.zeus2_io.ObsArray"
+                                                   title="zeus2_toolbox.zeus2_io.ObsArray">ObsArray</a>]</p>
+                                            </dd>
+                                        </dl>
+                                    </dd>
+                                </dl>
+
+                                <dl class="py function">
                                     <dt class="sig sig-object py" id="zeus2_toolbox.pipeline.reduce_beams">
                                         <span class="sig-prename descclassname"><span class="pre">zeus2_toolbox.pipeline.</span></span><span
                                             class="sig-name descname"><span class="pre">reduce_beams</span></span><span
@@ -11576,9 +11848,12 @@
                                         <em class="sig-param"><span class="n"><span
                                                 class="pre">plot_save</span></span><span class="o"><span
                                                 class="pre">=</span></span><span class="default_value"><span
-                                                class="pre">True</span></span></em><span class="sig-paren">)</span><a
-                                            class="headerlink" href="#zeus2_toolbox.pipeline.reduce_skychop"
-                                            title="Permalink to this definition">¶</a></dt>
+                                                class="pre">True</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">analyze</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span
+                                            class="sig-paren">)</span><a class="headerlink"
+                                                                         href="#zeus2_toolbox.pipeline.reduce_skychop"
+                                                                         title="Permalink to this definition">¶</a></dt>
                                     <dd><p>process data taken as skychop</p>
                                     </dd>
                                 </dl>
@@ -11659,9 +11934,12 @@
                                         <em class="sig-param"><span class="n"><span
                                                 class="pre">plot_save</span></span><span class="o"><span
                                                 class="pre">=</span></span><span class="default_value"><span
-                                                class="pre">True</span></span></em><span class="sig-paren">)</span><a
-                                            class="headerlink" href="#zeus2_toolbox.pipeline.reduce_zobs"
-                                            title="Permalink to this definition">¶</a></dt>
+                                                class="pre">True</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">analyze</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span
+                                            class="sig-paren">)</span><a class="headerlink"
+                                                                         href="#zeus2_toolbox.pipeline.reduce_zobs"
+                                                                         title="Permalink to this definition">¶</a></dt>
                                     <dd><p>reduce the data from zobs command</p>
                                     </dd>
                                 </dl>
@@ -11743,9 +12021,12 @@
                                         <em class="sig-param"><span class="n"><span
                                                 class="pre">plot_save</span></span><span class="o"><span
                                                 class="pre">=</span></span><span class="default_value"><span
-                                                class="pre">True</span></span></em><span class="sig-paren">)</span><a
-                                            class="headerlink" href="#zeus2_toolbox.pipeline.reduce_calibration"
-                                            title="Permalink to this definition">¶</a></dt>
+                                                class="pre">True</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">analyze</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span
+                                            class="sig-paren">)</span><a class="headerlink"
+                                                                         href="#zeus2_toolbox.pipeline.reduce_calibration"
+                                                                         title="Permalink to this definition">¶</a></dt>
                                     <dd><p>reduce data for general calibration that does not involve nodding or raster,
                                         but just continuous chop observations like pointing or focus</p>
                                     </dd>
@@ -11829,9 +12110,12 @@
                                                 class="pre">plot_save</span></span><span class="o"><span
                                                 class="pre">=</span></span><span class="default_value"><span
                                                 class="pre">True</span></span></em>, <em class="sig-param"><span
-                                            class="n"><span class="pre">zpold_shape</span></span><span class="o"><span
-                                            class="pre">=</span></span><span class="default_value"><span
-                                            class="pre">(3,</span> <span class="pre">3)</span></span></em><span
+                                            class="n"><span class="pre">analyze</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">zpold_shape</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">(3,</span> <span class="pre">3)</span></span></em><span
                                             class="sig-paren">)</span><a class="headerlink"
                                                                          href="#zeus2_toolbox.pipeline.reduce_zpold"
                                                                          title="Permalink to this definition">¶</a></dt>
@@ -11918,13 +12202,81 @@
                                                 class="pre">plot_save</span></span><span class="o"><span
                                                 class="pre">=</span></span><span class="default_value"><span
                                                 class="pre">True</span></span></em>, <em class="sig-param"><span
-                                            class="n"><span class="pre">zpold_shape</span></span><span class="o"><span
-                                            class="pre">=</span></span><span class="default_value"><span
-                                            class="pre">(5,</span> <span class="pre">5)</span></span></em><span
+                                            class="n"><span class="pre">analyze</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">zpold_shape</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">(5,</span> <span class="pre">5)</span></span></em><span
                                             class="sig-paren">)</span><a class="headerlink"
                                                                          href="#zeus2_toolbox.pipeline.reduce_zpoldbig"
                                                                          title="Permalink to this definition">¶</a></dt>
                                     <dd><p>raster shape according to zpoldbig</p>
+                                    </dd>
+                                </dl>
+
+                                <dl class="py function">
+                                    <dt class="sig sig-object py" id="zeus2_toolbox.pipeline.eval_performance">
+                                        <span class="sig-prename descclassname"><span class="pre">zeus2_toolbox.pipeline.</span></span><span
+                                            class="sig-name descname"><span
+                                            class="pre">eval_performance</span></span><span
+                                            class="sig-paren">(</span><em class="sig-param"><span class="n"><span
+                                            class="pre">data_header</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">data_dir</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">write_dir</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">None</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">write_suffix</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span
+                                            class="pre">''</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">array_map</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">obs_log</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">None</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">pix_flag_list</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span
+                                            class="pre">[]</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">parallel</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">return_ts</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">False</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">table_save</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">True</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span
+                                            class="pre">plot_ts</span></span><span class="o"><span class="pre">=</span></span><span
+                                            class="default_value"><span class="pre">True</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span
+                                            class="pre">reg_interest</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">plot_psd</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">True</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">plot_specgram</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">plot_flux</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">True</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">plot_show</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">plot_save</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">True</span></span></em><span class="sig-paren">)</span><a
+                                            class="headerlink" href="#zeus2_toolbox.pipeline.eval_performance"
+                                            title="Permalink to this definition">¶</a></dt>
+                                    <dd><p>Read a batch of beams and run analyze_performance on the time series. Be
+                                        cautious that plot_specgram can be very slow</p>
                                     </dd>
                                 </dl>
 
