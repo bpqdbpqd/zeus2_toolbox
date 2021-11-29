@@ -55,6 +55,8 @@ REG_INTEREST = None  # the region of interest of the array to plot in the format
 PLOT_FLUX = True  # flag whether to plot the flux of each beam
 PLOT_SHOW = False  # flag whether to show the figures, can slow down the reduction
 PLOT_SAVE = True  # flag whether to save the figures as png files
+ANALYZE = True  # flag whether to perform pixel performance analyze based on rms
+# and power spectrum
 
 # ======================= run the reduction pipeline ===========================
 
@@ -68,5 +70,5 @@ flat_result = z2pipl.reduce_skychop(
         array_map=array_map, obs_log=obs_log, parallel=PARALLEL,
         table_save=TABLE_SAVE, plot=PLOT, plot_ts=PLOT_TS,
         reg_interest=REG_INTEREST, plot_flux=PLOT_FLUX, plot_show=PLOT_SHOW,
-        plot_save=PLOT_SAVE)
+        plot_save=PLOT_SAVE, analyze=ANALYZE)
 flat_flux, flat_err, pix_flag_list = flat_result[:2] + flat_result[-1:]

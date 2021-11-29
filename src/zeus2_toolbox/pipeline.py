@@ -60,6 +60,7 @@ RASTER_THRE = 2  # default SNR requirement for not flagging a pixel
 
 warnings.filterwarnings("ignore", message="invalid value encountered in greater")
 warnings.filterwarnings("ignore", message="invalid value encountered in less")
+warnings.filterwarnings("ignore", message="divide by zero encountered in log10")
 
 
 def custom_formatwarning(msg, *args, **kwargs):
@@ -1183,17 +1184,18 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=True,
                     beam_rms, title="%s rms" %
                                     write_header.split("/")[-1],
                     pix_flag_list=pix_flag_list, plot_show=plot_show,
-                    plot_save=plot_save, write_header="%s_rms_ts" % write_header,
+                    plot_save=plot_save, write_header="%s_rms" %
+                                                      write_header,
                     orientation=ORIENTATION))
-        plot_dict = {"rms": beam_chop_rms}
+        plot_dict = {"rms": (beam_chop_rms, {"c": "k"})}
         if plot_ts:
             plot_dict["raw data"] = (beam, {"twin_axes": True})
             plt.close(plot_beam_ts(
                     plot_dict, title="%s rms" %
                                      write_header.split("/")[-1],
-                    reg_interest=reg_interest, plot_show=plot_show,
-                    plot_save=plot_save, write_header="%s_rms_ts" %
-                                                      write_header,
+                    pix_flag_list=pix_flag_list, reg_interest=reg_interest,
+                    plot_show=plot_show, plot_save=plot_save,
+                    write_header="%s_rms_ts" % write_header,
                     orientation=ORIENTATION))
         if ("UTC" in beam.obs_info_.table_.colnames) and \
                 ("mm PWV" in beam.obs_info_.table_.colnames):
@@ -1213,17 +1215,19 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=True,
             if plot_ts:
                 plot_dict["raw_data"] = (beam, {"twin_axes": True})
             else:
-                plot_dict["rms"] = (beam_chop_rms, {"twin_axes": True})
-                plt.close(plot_beam_ts(
-                        plot_dict, title="%s PWV curve" %
-                                         write_header.split("/")[-1],
-                        reg_interest=reg_interest, plot_show=plot_show,
-                        plot_save=plot_save, write_header="%s_pwv_ts" %
-                                                          write_header,
-                        orientation=ORIENTATION))
+                plot_dict["rms"] = (beam_chop_rms, {"c": "k", "twin_axes": True})
+            plt.close(plot_beam_ts(
+                    plot_dict, title="%s PWV curve" %
+                                     write_header.split("/")[-1],
+                    pix_flag_list=pix_flag_list, reg_interest=reg_interest,
+                    plot_show=plot_show, plot_save=plot_save,
+                    write_header="%s_pwv_ts" % write_header,
+                    orientation=ORIENTATION))
         if plot_psd:
-            fig = FigArray.plot_psd(beam.take_where(**reg_interest),
-                                    orientation=ORIENTATION, scale="dB")
+            fig = FigArray.plot_psd(
+                    beam.take_where(**reg_interest), orientation=ORIENTATION,
+                    scale="dB", lw=0.5)
+            fig.imshow_flag(pix_flag_list=pix_flag_list, orientation=ORIENTATION)
             fig.set_labels(beam, orientation=ORIENTATION)
             fig.set_title("%s power spectral diagram" %
                           write_header.split("/")[-1])
@@ -1236,11 +1240,13 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=True,
             beam_t_len = beam.t_end_time_ - beam.t_start_time_
             x_size = max((beam_t_len / units.hour).to(1), FigArray.x_size_)
             nfft = min(10., max(5., (beam_t_len / units.second).to(1.))) / 10.
-            noverlap = min(1., max(n_fft - 1., (
-                    n_fft - beam_t_len / units.second).to(1) / 10.))
+            noverlap = min(1., max(nfft - 1., (
+                    nfft - beam_t_len / units.second).to(1) / 10.))
             fig = FigArray.plot_specgram(
                     beam.take_where(**reg_interest), orientation=ORIENTATION,
-                    x_size=x_size, nfft=nfft, noverlap=noverlap, scale="dB")
+                    x_size=x_size, nfft=nfft, noverlap=noverlap, scale="dB",
+                    cmap="gist_ncar")
+            fig.imshow_flag(pix_flag_list=pix_flag_list, orientation=ORIENTATION)
             fig.set_labels(beam, orientation=ORIENTATION)
             fig.set_title("%s dynamical spectrum" % write_header.split("/")[-1])
             if plot_show:
@@ -1824,7 +1830,7 @@ def reduce_skychop(flat_header, data_dir=None, write_dir=None, write_suffix="",
                    array_map=None, obs_log=None, pix_flag_list=[], parallel=False,
                    return_ts=False, return_pix_flag_list=True, table_save=True,
                    plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
-                   plot_show=False, plot_save=True):
+                   plot_show=False, plot_save=True, analyze=False):
     """
     process data taken as skychop
     """
@@ -1835,12 +1841,12 @@ def reduce_skychop(flat_header, data_dir=None, write_dir=None, write_suffix="",
             flat_header, data_dir=data_dir, write_dir=write_dir,
             write_suffix=write_suffix, array_map=array_map, obs_log=obs_log,
             is_flat=True, pix_flag_list=pix_flag_list, parallel=parallel,
-            return_ts=(return_ts or (plot and plot_ts)),
+            return_ts=(return_ts or (plot and plot_ts) or analyze),
             return_pix_flag_list=True, plot=plot, plot_ts=False,
             reg_interest=reg_interest, plot_flux=plot_flux,
             plot_show=plot_show, plot_save=plot_save)
     flat_beams_flux, flat_beams_err, flat_beams_wt = result[:3]
-    if return_ts or (plot and plot_ts):
+    if return_ts or (plot and plot_ts) or analyze:
         flat_beams_ts = result[3]
     pix_flag_list = result[-1]
 
@@ -1887,6 +1893,16 @@ def reduce_skychop(flat_header, data_dir=None, write_dir=None, write_suffix="",
                 write_header=os.path.join(
                         write_dir, "%s_beams_flux" % flat_file_header),
                 orientation=ORIENTATION))
+
+    if analyze:
+        beams_rms = analyze_performance(
+                flat_beams_ts, write_header=flat_file_header,
+                pix_flag_list=pix_flag_list, plot=plot, plot_rms=plot_flux,
+                plot_ts=plot_ts, reg_interest=reg_interest, plot_psd=plot_ts,
+                plot_specgram=plot_ts, plot_show=plot_show, plot_save=plot_save)
+        if table_save:
+            beams_rms.to_table(orientation=ORIENTATION).write(os.path.join(
+                    write_dir, "%s_rms.csv" % flat_file_header), overwrite=True)
 
     result = (flat_flux, flat_err, flat_wt)
     if return_ts:
@@ -1988,7 +2004,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
         beam_pairs_flux, beam_pairs_err, beam_pairs_wt = result[:3]
         beam_pairs_flux *= NOD_PHASE
     plot_dict["beam pair flux"] = (beam_pairs_flux, beam_pairs_err, {"c": "k"})
-    if return_ts | analyze:
+    if return_ts or analyze:
         zobs_ts = result[3]
     pix_flag_list = result[-1]
 
@@ -2112,6 +2128,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
         if table_save:
             beams_rms.to_table(orientation=ORIENTATION).write(os.path.join(
                     write_dir, "%s_rms.csv" % data_file_header), overwrite=True)
+
     result = (zobs_flux, zobs_err, zobs_wt)
     if return_ts:
         result += (zobs_ts,)
@@ -2132,7 +2149,7 @@ def reduce_calibration(data_header, data_dir=None, write_dir=None,
                        return_ts=False, return_pix_flag_list=True,
                        table_save=True, plot=True, plot_ts=True,
                        reg_interest=None, plot_flux=True, plot_show=False,
-                       plot_save=True):
+                       plot_save=True, analyze=False):
     """
     reduce data for general calibration that does not involve nodding or raster,
     but just continuous chop observations like pointing or focus
@@ -2152,12 +2169,12 @@ def reduce_calibration(data_header, data_dir=None, write_dir=None,
             is_flat=is_flat, pix_flag_list=pix_flag_list, flat_flux=flat_flux,
             flat_err=flat_err, parallel=parallel, do_desnake=do_desnake,
             ref_pix=ref_pix, do_smooth=do_smooth, do_ica=do_ica,
-            spat_excl=spat_excl, return_ts=return_ts,
+            spat_excl=spat_excl, return_ts=return_ts | analyze,
             return_pix_flag_list=True, plot=plot, plot_ts=plot_ts,
             reg_interest=reg_interest, plot_flux=plot_flux, plot_show=plot_show,
             plot_save=plot_save)
     beams_flux, beams_err, beams_wt = result[:3]
-    if return_ts:
+    if return_ts or analyze:
         beams_ts = result[3]
     pix_flag_list = result[-1]
 
@@ -2199,6 +2216,16 @@ def reduce_calibration(data_header, data_dir=None, write_dir=None,
                         write_dir, "%s_beams_flux" % data_file_header),
                 orientation=ORIENTATION))
 
+    if analyze:
+        beams_rms = analyze_performance(
+                beams_ts, write_header=data_file_header, pix_flag_list=pix_flag_list,
+                plot=plot, plot_rms=plot_flux, plot_ts=plot_ts,
+                reg_interest=reg_interest, plot_psd=plot_ts,
+                plot_specgram=plot_ts, plot_show=plot_show, plot_save=plot_save)
+        if table_save:
+            beams_rms.to_table(orientation=ORIENTATION).write(os.path.join(
+                    write_dir, "%s_rms.csv" % data_file_header), overwrite=True)
+
     result = (beams_flux, beams_err, beams_wt)
     if return_ts:
         result += (beams_ts,)
@@ -2214,7 +2241,8 @@ def reduce_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
                  ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
                  return_ts=False, return_pix_flag_list=True, table_save=True,
                  plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
-                 plot_show=False, plot_save=True, zpold_shape=ZPOLD_SHAPE):
+                 plot_show=False, plot_save=True, analyze=False,
+                 zpold_shape=ZPOLD_SHAPE):
     """
     plot raster of zpold
     """
@@ -2236,7 +2264,7 @@ def reduce_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
             spat_excl=spat_excl, return_ts=return_ts, return_pix_flag_list=True,
             table_save=table_save, plot=plot, plot_ts=plot_ts,
             reg_interest=reg_interest, plot_flux=plot_flux, plot_show=plot_show,
-            plot_save=plot_save)
+            plot_save=plot_save, analyze=analyze)
     beams_flux, beams_err, beams_wt = result[:3]
     if return_ts:
         beams_ts = result[3]
@@ -2330,7 +2358,8 @@ def reduce_zpoldbig(data_header, data_dir=None, write_dir=None, write_suffix="",
                     ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
                     return_ts=False, return_pix_flag_list=False, table_save=True,
                     plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
-                    plot_show=False, plot_save=True, zpold_shape=ZPOLDBIG_SHAPE):
+                    plot_show=False, plot_save=True, analyze=False,
+                    zpold_shape=ZPOLDBIG_SHAPE):
     """
     raster shape according to zpoldbig
     """
@@ -2345,7 +2374,7 @@ def reduce_zpoldbig(data_header, data_dir=None, write_dir=None, write_suffix="",
             return_pix_flag_list=return_pix_flag_list, table_save=table_save,
             plot=plot, plot_ts=plot_ts, reg_interest=reg_interest,
             plot_flux=plot_flux, plot_show=plot_show, plot_save=plot_save,
-            zpold_shape=zpold_shape)
+            analyze=analyze, zpold_shape=zpold_shape)
 
 # def raster_map
 

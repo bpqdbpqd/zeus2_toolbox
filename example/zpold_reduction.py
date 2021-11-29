@@ -57,6 +57,8 @@ REG_INTEREST = None  # the region of interest of the array to plot in the format
 PLOT_FLUX = True  # flag whether to plot the flux of each beam
 PLOT_SHOW = False  # flag whether to show the figures, can slow down the reduction
 PLOT_SAVE = True  # flag whether to save the figures as png files
+ANALYZE = True  # flag whether to perform pixel performance analyze based on rms
+# and power spectrum
 
 # ======================= run the reduction pipeline ===========================
 
@@ -82,5 +84,5 @@ zpold_result = z2pipl.reduce_zpold(
         flat_flux=flat_flux, flat_err=flat_err, parallel=PARALLEL,
         return_pix_flag_list=True, table_save=TABLE_SAVE, plot=PLOT,
         plot_ts=PLOT_TS, reg_interest=REG_INTEREST, plot_flux=PLOT_FLUX,
-        plot_show=PLOT_SHOW, plot_save=PLOT_SAVE)
+        plot_show=PLOT_SHOW, plot_save=PLOT_SAVE, analyze=ANALYZE)
 zpold_flux, zpold_err, zpold_pix_flag_list = zpold_result[:2] + zpold_result[-1:]

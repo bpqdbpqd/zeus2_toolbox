@@ -3,6 +3,8 @@
 - Add function double_nanmad_flag and method DataObj.get_double_nanmad_flag, which do MAD flagging twice to deal with
   the data with a sudden jump to flag less data
 - Add function read_beams to read a large number of beams in parallel
+- Add function analyze_performance to evaluate pixel performance based on rms and power spectrum; implement it in
+  pipeline reduction functions
 - Change the criteria for selecting usable pixel for ICA
 - Change the criteria for flagging time series outlier to flag different chop phase separately
 - Fix a bug in rebuilding time stamp
