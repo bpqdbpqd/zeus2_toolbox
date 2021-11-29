@@ -13,6 +13,7 @@ REG_INTEREST = {"spat_ran": (5, 8), "spec_ran": (5, 9)}
 PLOT_FLUX = True
 PLOT_SHOW = False
 PLOT_SAVE = True
+ANALYZE = True
 
 ARRAY_MAP_PATH = "../example_data/array_200_excel.csv"
 BAND = 200
@@ -42,8 +43,8 @@ zobs_result = reduce_zobs(
         do_desnake=False, ref_pix=REF_PIX, do_smooth=True, do_ica=False,
         spat_excl=SPAT_EXCL, return_ts=False, return_pix_flag_list=False,
         table_save=False, plot=True, plot_ts=True,
-        reg_interest=REG_INTEREST, plot_flux=True, plot_show=False,
-        plot_save=True)
+        reg_interest=REG_INTEREST, plot_flux=PLOT_FLUX, plot_show=False,
+        plot_save=PLOT_SAVE, analyze=ANALYZE)
 
 # ARRAY_MAP_PATH = "../example_data/array_map_excel_alternative_20211101.csv"
 # BAND = 400

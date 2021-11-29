@@ -787,22 +787,21 @@ def auto_flag_ts(obs, is_flat=False):
                    0.1 * blank_mask.shape[-1])  # ignore dead pixels
     obs_new.fill_by_mask(glitch_mask | blank_mask, fill_value=np.nan)
 
-    outlier_mask = obs_new.get_double_nanmad_flag(thre=MAD_THRE_BEAM, axis=-1)
-    # if obs_new.chop_.empty_flag_:  # no chop data
-    #     if is_flat:
-    #         outlier_mask = \
-    #             abs(obs_new - obs_new.proc_along_time(method="nanmean")).data_ > \
-    #             STD_THRE_FLAT * obs_new.proc_along_time(method="nanstd").data_
-    #     else:  # flag by MAD
-    #         outlier_mask = obs_new.get_double_nanmad_flag(thre=MAD_THRE_BEAM, axis=-1)
-    # else:  # flat on and off chop separately by MAD
-    #     outlier_mask = np.full(obs_new.shape_, fill_value=False, dtype=bool)
-    #     outlier_mask[..., obs_new.chop_.data_] = \
-    #         obs_new.take_by_flag_along_time(chop=True).get_double_nanmad_flag(
-    #                 thre=MAD_THRE_BEAM, axis=-1)
-    #     outlier_mask[..., ~obs_new.chop_.data_] = \
-    #         obs_new.take_by_flag_along_time(chop=False).get_double_nanmad_flag(
-    #                 thre=MAD_THRE_BEAM, axis=-1)
+    if obs_new.chop_.empty_flag_:  # no chop data
+        if is_flat:
+            outlier_mask = \
+                abs(obs_new - obs_new.proc_along_time(method="nanmean")).data_ > \
+                STD_THRE_FLAT * obs_new.proc_along_time(method="nanstd").data_
+        else:  # flag by MAD
+            outlier_mask = obs_new.get_double_nanmad_flag(thre=MAD_THRE_BEAM, axis=-1)
+    else:  # flat on and off chop separately by MAD
+        outlier_mask = np.full(obs_new.shape_, fill_value=False, dtype=bool)
+        outlier_mask[..., obs_new.chop_.data_] = \
+            obs_new.take_by_flag_along_time(chop=True).get_double_nanmad_flag(
+                    thre=MAD_THRE_BEAM, axis=-1)
+        outlier_mask[..., ~obs_new.chop_.data_] = \
+            obs_new.take_by_flag_along_time(chop=False).get_double_nanmad_flag(
+                    thre=MAD_THRE_BEAM, axis=-1)
     obs_new.fill_by_mask(mask=outlier_mask, fill_value=np.nan)
 
     return obs_new
@@ -1144,9 +1143,10 @@ def plot_beam_flux(obs, title=None, pix_flag_list=[], plot_show=False,
     return fig
 
 
-def analyze_performance(beam, write_header=None, plot=True, plot_ts=False,
-                        reg_interest=None, plot_psd=True, plot_specgram=False,
-                        plot_show=False, plot_save=False):
+def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=True,
+                        plot_rms=False, plot_ts=False, reg_interest=None,
+                        plot_psd=True, plot_specgram=False, plot_show=False,
+                        plot_save=False):
     """
     Analyze the performance of each pixel in the beam, including the rms of each
     pixel, plotting the time series, power spectral diagram (psd) and dynamical
@@ -1156,8 +1156,10 @@ def analyze_performance(beam, write_header=None, plot=True, plot_ts=False,
     :type beam: Union[Obs, ObsArray]
     :param str write_header: str, full path to the title to save files/figures,
         if left None, will write to current folder with obs_id as the title
+    :param list pix_flag_list: list, a list including pixels to be flagged
     :param bool plot: bool, flag whether to make figure
-    :param bool plot_ts: bool, flag whether to plot time series
+    :param bool plot_rms: bool, flag whether to plot rms in 2-d array layout
+    :param bool plot_ts: bool, flag whether to plot time series for each pixel
     :param dict reg_interest: dict, region of interest of array passed to
         ArrayMap.take_where() for plotting
     :param bool plot_psd: bool, flag whether to plot power spectral diagram
@@ -1173,20 +1175,55 @@ def analyze_performance(beam, write_header=None, plot=True, plot_ts=False,
     beam_chop_rms = beam.chunk_proc(method="nanstd")
     beam_chop_wt = beam.chunk_proc(method="num_is_finite")
     beam_rms = weighted_proc_along_axis(beam_chop_rms, method="nanmean",
-                                        weight=beam_chop_wt, axis=-1)
+                                        weight=beam_chop_wt, axis=-1)[0]
 
     if plot:
+        if plot_rms:
+            plt.close(plot_beam_flux(
+                    beam_rms, title="%s rms" %
+                                    write_header.split("/")[-1],
+                    pix_flag_list=pix_flag_list, plot_show=plot_show,
+                    plot_save=plot_save, write_header="%s_rms_ts" % write_header,
+                    orientation=ORIENTATION))
         plot_dict = {"rms": beam_chop_rms}
         if plot_ts:
             plot_dict["raw data"] = (beam, {"twin_axes": True})
-        plt.close(plot_beam_ts(
-                plot_dict, title="%s rms time series" %
-                                 write_header.split("/")[-1],
-                reg_interest=reg_interest, plot_show=plot_show,
-                plot_save=plot_save, write_header="%s_rms_ts" % write_header))
+            plt.close(plot_beam_ts(
+                    plot_dict, title="%s rms" %
+                                     write_header.split("/")[-1],
+                    reg_interest=reg_interest, plot_show=plot_show,
+                    plot_save=plot_save, write_header="%s_rms_ts" %
+                                                      write_header,
+                    orientation=ORIENTATION))
+        if ("UTC" in beam.obs_info_.table_.colnames) and \
+                ("mm PWV" in beam.obs_info_.table_.colnames):
+            tb_use = beam.obs_info_.table_[
+                ~beam.obs_info_.table_.mask["UTC"]]
+            tb_use.sort("UTC")
+            t_arr = Time.strptime(tb_use["UTC"],
+                                  format_string="%Y-%m-%dU%H:%M:%S"). \
+                to_value(format="unix")
+            t_arr += tb_use["Scan duration"] / 2
+            pwv_arr = tb_use["mm PWV"]
+            beam_pwv = beam.replace(
+                    arr_in=np.tile(pwv_arr, beam.shape_[:-1] + (1,)),
+                    ts=t_arr, chop=None)
+            plot_dict = {"PWV": [beam_pwv, {"ls": "--", "c": "r", "marker": ".",
+                                            "markersize": 3}]}
+            if plot_ts:
+                plot_dict["raw_data"] = (beam, {"twin_axes": True})
+            else:
+                plot_dict["rms"] = (beam_chop_rms, {"twin_axes": True})
+                plt.close(plot_beam_ts(
+                        plot_dict, title="%s PWV curve" %
+                                         write_header.split("/")[-1],
+                        reg_interest=reg_interest, plot_show=plot_show,
+                        plot_save=plot_save, write_header="%s_pwv_ts" %
+                                                          write_header,
+                        orientation=ORIENTATION))
         if plot_psd:
             fig = FigArray.plot_psd(beam.take_where(**reg_interest),
-                                    orientation=ORIENTATION)
+                                    orientation=ORIENTATION, scale="dB")
             fig.set_labels(beam, orientation=ORIENTATION)
             fig.set_title("%s power spectral diagram" %
                           write_header.split("/")[-1])
@@ -1203,7 +1240,7 @@ def analyze_performance(beam, write_header=None, plot=True, plot_ts=False,
                     n_fft - beam_t_len / units.second).to(1) / 10.))
             fig = FigArray.plot_specgram(
                     beam.take_where(**reg_interest), orientation=ORIENTATION,
-                    x_size=x_size, nfft=nfft, noverlap=noverlap)
+                    x_size=x_size, nfft=nfft, noverlap=noverlap, scale="dB")
             fig.set_labels(beam, orientation=ORIENTATION)
             fig.set_title("%s dynamical spectrum" % write_header.split("/")[-1])
             if plot_show:
@@ -1211,6 +1248,8 @@ def analyze_performance(beam, write_header=None, plot=True, plot_ts=False,
             if plot_save:
                 fig.savefig("%s_specgram.png" % write_header)
             plt.close(fig)
+
+    return beam_rms
 
 
 def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flux=1,
@@ -1310,17 +1349,18 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flu
     pix_flag_list = auto_flag_pix_by_flux(  # auto flag
             beam_flux, beam_err, pix_flag_list=pix_flag_list, is_flat=is_flat)
 
+    if plot and plot_flux:
+        plt.close(plot_beam_flux(
+                beam_flux, title="%s flux" % write_header.split("/")[-1],
+                pix_flag_list=pix_flag_list, plot_show=plot_show,
+                plot_save=plot_save, write_header="%s_flux" % write_header,
+                orientation=ORIENTATION))
     if plot and plot_ts:
         plt.close(plot_beam_ts(
                 plot_dict, title="%s time series" % write_header.split("/")[-1],
                 pix_flag_list=pix_flag_list, reg_interest=reg_interest,
                 plot_show=plot_show, plot_save=plot_save,
-                write_header="%s_ts" % write_header))
-    if plot and plot_flux:
-        plt.close(plot_beam_flux(
-                beam_flux, title="%s flux" % write_header.split("/")[-1],
-                pix_flag_list=pix_flag_list, plot_show=plot_show,
-                plot_save=plot_save, write_header="%s_flux" % write_header))
+                write_header="%s_ts" % write_header, orientation=ORIENTATION))
 
     result = (beam_flux, beam_err, beam_wt)
     if return_ts:
@@ -1863,7 +1903,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                 ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
                 return_ts=False, return_pix_flag_list=True, table_save=True,
                 plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
-                plot_show=False, plot_save=True):
+                plot_show=False, plot_save=True, analyze=False):
     """
     reduce the data from zobs command
     """
@@ -1887,7 +1927,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                 is_flat=False, pix_flag_list=pix_flag_list, flat_flux=flat_flux,
                 flat_err=flat_err, parallel=parallel, do_desnake=do_desnake,
                 ref_pix=ref_pix, do_smooth=do_smooth, do_ica=do_ica,
-                spat_excl=spat_excl, return_ts=return_ts,
+                spat_excl=spat_excl, return_ts=return_ts | analyze,
                 return_pix_flag_list=True, plot=plot,
                 plot_ts=plot_ts, reg_interest=reg_interest, plot_flux=plot_flux,
                 plot_show=plot_show, plot_save=plot_save)
@@ -1941,14 +1981,14 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                 is_flat=False, pix_flag_list=pix_flag_list, flat_flux=flat_flux,
                 flat_err=flat_err, parallel=parallel, do_desnake=do_desnake,
                 ref_pix=ref_pix, do_smooth=do_smooth, do_ica=do_ica,
-                spat_excl=spat_excl, return_ts=return_ts,
+                spat_excl=spat_excl, return_ts=return_ts | analyze,
                 return_pix_flag_list=True, plot=plot, plot_ts=plot_ts,
                 reg_interest=reg_interest, plot_flux=plot_flux,
                 plot_show=plot_show, plot_save=plot_save)
         beam_pairs_flux, beam_pairs_err, beam_pairs_wt = result[:3]
         beam_pairs_flux *= NOD_PHASE
     plot_dict["beam pair flux"] = (beam_pairs_flux, beam_pairs_err, {"c": "k"})
-    if return_ts:
+    if return_ts | analyze:
         zobs_ts = result[3]
     pix_flag_list = result[-1]
 
@@ -2033,7 +2073,6 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                             write_dir, "%s_beams_flux" % data_file_header),
                     orientation=ORIENTATION))
             plot_dict.pop("beam flux")
-
         if beam_pairs_flux.len_ > 1:  # cumulative flux measurement
             type_result = type(beam_pairs_flux)
             cum_flux, cum_err, cum_wt = type_result(), type_result(), \
@@ -2056,7 +2095,6 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
             cum_flux.ts_ += cum_flux.ts_.interv_ / 4
             plot_dict["cum flux"] = [cum_flux, cum_err,
                                      {"c": "c", "ls": ":", "lw": 1}]
-
         plt.close(plot_beam_ts(
                 plot_dict, title=(data_file_header + " beam pair flux"),
                 pix_flag_list=pix_flag_list, reg_interest=reg_interest,
@@ -2065,6 +2103,15 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                         write_dir, "%s_beam_pairs_flux" % data_file_header),
                 orientation=ORIENTATION))
 
+    if analyze:
+        beams_rms = analyze_performance(
+                zobs_ts, write_header=data_file_header, pix_flag_list=pix_flag_list,
+                plot=plot, plot_rms=plot_flux, plot_ts=plot_ts,
+                reg_interest=reg_interest, plot_psd=plot_ts,
+                plot_specgram=plot_ts, plot_show=plot_show, plot_save=plot_save)
+        if table_save:
+            beams_rms.to_table(orientation=ORIENTATION).write(os.path.join(
+                    write_dir, "%s_rms.csv" % data_file_header), overwrite=True)
     result = (zobs_flux, zobs_err, zobs_wt)
     if return_ts:
         result += (zobs_ts,)
