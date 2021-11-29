@@ -1835,6 +1835,8 @@ def reduce_skychop(flat_header, data_dir=None, write_dir=None, write_suffix="",
     process data taken as skychop
     """
 
+    if data_dir is None:
+        data_dir = os.getcwd()
     if write_dir is None:
         write_dir = os.getcwd()
     result = reduce_beams(
@@ -1899,7 +1901,7 @@ def reduce_skychop(flat_header, data_dir=None, write_dir=None, write_suffix="",
                 flat_beams_ts, write_header=
                 os.path.join(write_dir, data_file_header),
                 pix_flag_list=pix_flag_list, plot=plot, plot_rms=plot_flux,
-                plot_ts=plot_ts, reg_interest=reg_interest, plot_psd=plot_ts,
+                plot_ts=False, reg_interest=reg_interest, plot_psd=plot_ts,
                 plot_specgram=False, plot_show=plot_show, plot_save=plot_save)
         if table_save:
             beams_rms.to_table(orientation=ORIENTATION).write(os.path.join(
@@ -1925,6 +1927,8 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
     reduce the data from zobs command
     """
 
+    if data_dir is None:
+        data_dir = os.getcwd()
     if write_dir is None:
         write_dir = os.getcwd()
     if (write_suffix != "") and (write_suffix[0] != "_"):
@@ -2124,7 +2128,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
         beams_rms = analyze_performance(
                 zobs_ts, write_header=os.path.join(
                         write_dir, data_file_header), pix_flag_list=pix_flag_list,
-                plot=plot, plot_rms=plot_flux, plot_ts=plot_ts,
+                plot=plot, plot_rms=plot_flux, plot_ts=False,
                 reg_interest=reg_interest, plot_psd=plot_ts,
                 plot_specgram=False, plot_show=plot_show, plot_save=plot_save)
         if table_save:
@@ -2157,6 +2161,8 @@ def reduce_calibration(data_header, data_dir=None, write_dir=None,
     but just continuous chop observations like pointing or focus
     """
 
+    if data_dir is None:
+        data_dir = os.getcwd()
     if write_dir is None:
         write_dir = os.getcwd()
     if (write_suffix != "") and (write_suffix[0] != "_"):
@@ -2222,7 +2228,7 @@ def reduce_calibration(data_header, data_dir=None, write_dir=None,
         beams_rms = analyze_performance(
                 beams_ts, write_header=os.path.join(write_dir, data_file_header),
                 pix_flag_list=pix_flag_list, plot=plot, plot_rms=plot_flux,
-                plot_ts=plot_ts, reg_interest=reg_interest, plot_psd=plot_ts,
+                plot_ts=False, reg_interest=reg_interest, plot_psd=plot_ts,
                 plot_specgram=False, plot_show=plot_show, plot_save=plot_save)
         if table_save:
             beams_rms.to_table(orientation=ORIENTATION).write(os.path.join(
@@ -2249,6 +2255,8 @@ def reduce_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
     plot raster of zpold
     """
 
+    if data_dir is None:
+        data_dir = os.getcwd()
     if write_dir is None:
         write_dir = os.getcwd()
     if (write_suffix != "") and (write_suffix[0] != "_"):
@@ -2377,6 +2385,31 @@ def reduce_zpoldbig(data_header, data_dir=None, write_dir=None, write_suffix="",
             plot=plot, plot_ts=plot_ts, reg_interest=reg_interest,
             plot_flux=plot_flux, plot_show=plot_show, plot_save=plot_save,
             analyze=analyze, zpold_shape=zpold_shape)
+
+
+def eval_performance(data_header, data_dir=None, write_dir=None, write_suffix="",
+                     array_map=None, obs_log=None, pix_flag_list=[],
+                     parallel=False, return_ts=False, table_save=True,
+                     plot=True, plot_ts=True, reg_interest=None, plot_psd=True,
+                     plot_specgram=True, plot_flux=True, plot_show=False,
+                     plot_save=True):
+    """
+    Read a batch of beams and run analyze_performance on the time series. Be
+    cautious that plot_specgram can be very slow
+    """
+
+    if data_dir is None:
+        data_dir = os.getcwd()
+    if write_dir is None:
+        write_dir = os.getcwd()
+
+    file_header_list = [os.path.join(data_dir, "%s_%04d" % (header, beam_num))
+                        for header in data_header
+                        for beam_ran in data_header[header]
+                        for beam_num in range(beam_ran[0], beam_ran[1] + 1)]
+    beams = read_beams(file_header_list, array_map=array_map, obs_log=obs_log,
+                       flag_ts=True, parallel=parallel)
+    beams_rms = analyze_performance()
 
 # def raster_map
 
