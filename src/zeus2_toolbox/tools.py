@@ -264,7 +264,8 @@ def double_nanmad_flag(arr, thre=20, axis=-1, frac_thre=0.1):
                    first_flag_arr.shape[axis]) > frac_thre
     flagged_arr[first_flag_arr & do_flag] = arr[first_flag_arr & do_flag]
     unflagged_arr[~first_flag_arr & do_flag] = arr[~first_flag_arr & do_flag]
-    second_flag_arr = nanmad_flag(flagged_arr) | nanmad_flag(unflagged_arr)
+    second_flag_arr = nanmad_flag(flagged_arr, thre=thre, axis=axis) | \
+                      nanmad_flag(unflagged_arr, thre=thre, axis=axis)
     flag_arr = first_flag_arr
     flag_arr[np.full_like(first_flag_arr, fill_value=True) & do_flag] = \
         second_flag_arr[np.full_like(first_flag_arr, fill_value=True) & do_flag]
