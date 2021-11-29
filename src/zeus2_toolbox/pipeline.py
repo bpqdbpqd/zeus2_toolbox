@@ -1896,7 +1896,8 @@ def reduce_skychop(flat_header, data_dir=None, write_dir=None, write_suffix="",
 
     if analyze:
         beams_rms = analyze_performance(
-                flat_beams_ts, write_header=flat_file_header,
+                flat_beams_ts, write_header=
+                os.path.join(write_dir, data_file_header),
                 pix_flag_list=pix_flag_list, plot=plot, plot_rms=plot_flux,
                 plot_ts=plot_ts, reg_interest=reg_interest, plot_psd=plot_ts,
                 plot_specgram=plot_ts, plot_show=plot_show, plot_save=plot_save)
@@ -2121,7 +2122,8 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
 
     if analyze:
         beams_rms = analyze_performance(
-                zobs_ts, write_header=data_file_header, pix_flag_list=pix_flag_list,
+                zobs_ts, write_header=os.path.join(
+                        write_dir, data_file_header), pix_flag_list=pix_flag_list,
                 plot=plot, plot_rms=plot_flux, plot_ts=plot_ts,
                 reg_interest=reg_interest, plot_psd=plot_ts,
                 plot_specgram=plot_ts, plot_show=plot_show, plot_save=plot_save)
@@ -2218,9 +2220,9 @@ def reduce_calibration(data_header, data_dir=None, write_dir=None,
 
     if analyze:
         beams_rms = analyze_performance(
-                beams_ts, write_header=data_file_header, pix_flag_list=pix_flag_list,
-                plot=plot, plot_rms=plot_flux, plot_ts=plot_ts,
-                reg_interest=reg_interest, plot_psd=plot_ts,
+                beams_ts, write_header=os.path.join(write_dir, data_file_header),
+                pix_flag_list=pix_flag_list, plot=plot, plot_rms=plot_flux,
+                plot_ts=plot_ts, reg_interest=reg_interest, plot_psd=plot_ts,
                 plot_specgram=plot_ts, plot_show=plot_show, plot_save=plot_save)
         if table_save:
             beams_rms.to_table(orientation=ORIENTATION).write(os.path.join(
