@@ -3498,7 +3498,7 @@ class ObsArray(Obs):
             obs_array_proc = self.proc_along_time(method=method, **kwargs)
         elif axis == 0:
             obs_array_proc = super(Obs, self).proc_along_axis(
-                    method=method, axis=axis, array_map=None, **kwargs)
+                    method=method, axis=axis, **kwargs)
         else:
             obs_array_proc = super(Obs, self).proc_along_axis(
                     method=method, axis=axis, array_map=self.array_map_,

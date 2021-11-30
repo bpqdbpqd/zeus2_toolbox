@@ -1066,7 +1066,8 @@ def plot_beam_ts(obs, title=None, pix_flag_list=[], reg_interest=None,
         write_header = obs0.obs_id_
     if isinstance(obs0, (Obs, ObsArray)) and (not obs0.ts_.empty_flag_):
         obs_t_len = obs0.t_end_time_ - obs0.t_start_time_
-        x_size = max((obs_t_len / units.hour).to(1).value, FigArray.x_size_)
+        x_size = max((obs_t_len / units.hour).to(1).value / 2,
+                     FigArray.x_size_)
     else:
         x_size = FigArray.x_size_
 
@@ -1294,7 +1295,7 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flu
     :param beam: Obs or ObsArray, with time series data
     :type beam: Union[Obs, ObsArray]
     :param str write_header: str, full path to the title to save files/figures,
-        if left None, will write to current folder with obs_id as the title
+        if left None, will write to current folder with {obs_id} as the title
     :param bool is_flat: bool, flag indicating this beam is flat field, which will
         use much larger mad flag threshold, flag pixel by SNR, and will not use
         weighted mean in calculating flux
@@ -1399,6 +1400,60 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flu
         result += (pix_flag_list,)
 
     return result
+
+
+def stack_raster(raster, raster_wt=None, write_header=None, pix_flag_list=[],
+                 plot=False, plot_show=False, plot_save=False):
+    """
+    Stack the raster along spatial dimension to get a high SNR raster, used for
+    analyzing data taken with zpold or zpoldbig
+
+    :param ObsArray raster: ObsArray, object containing the raster in the last
+        two dimensions
+    :param raster_wt: weight of the raster, raster * raster_wt will be stacked
+    :type raster_wt: Union[int, float, numpy.ndarray, Obs, ObsArray]
+    :param str write_header: str, full path to the title to save files/figures,
+        if left None, will write to current folder with {obs_id}_raster_stack
+        as file header
+    :param list pix_flag_list: list, a list including pixels to be flagged, these
+        pixels will not be used in stacking
+    :param bool plot: bool, flag whether to make the figure of the stacked raster
+    :param bool plot_show: bool, flag whether to show the figure
+    :param bool plot_save: bool, flag whether to save the figure
+    :return: ObsArray object containing the stacked raster
+    :rtype: ObsArray
+    """
+
+    raster_norm = ObsArray(raster * raster_wt)
+    array_map = raster_norm.array_map_
+    if (write_header is None) and plot:
+        write_header = os.path.join(os.getcwd(), raster_norm.obs_id_)
+
+    stacked_raster = ObsArray()  # stack raster
+    for spat in range(array_map.array_spat_llim_,
+                      array_map.array_spat_ulim_ + 1):
+        spat_raster = raster_norm.exclude_where(spat_spec_list=pix_flag_list). \
+            take_where(spat=spat)
+        if spat_raster.len_ > 0:
+            stacked_pix = spat_raster.proc_along_axis(
+                    method="nanmean", axis=0, array_map=[[spat, 0, spat, 0]])
+            stacked_raster.expand(stacked_pix)
+
+    if plot:
+        fig = FigArray.init_by_array_map(stacked_raster, orientation=ORIENTATION,
+                                         x_size=0.5, y_size=.5, axs_fontsize=2)
+        fig.imshow(stacked_raster, origin="lower")
+        fig.set_xlabel("azimuth")
+        fig.set_ylabel("altitude")
+        fig.set_labels(raster, orientation=ORIENTATION)
+        fig.set_title(title="%s stacked raster" % write_header.split("/")[-1])
+        if plot_show:
+            plt.show()
+        if plot_save:
+            fig.savefig("%s_raster_stack.png" % write_header)
+        plt.close(fig)
+
+    return stacked_raster
 
 
 def read_beam(file_header, array_map=None, obs_log=None, flag_ts=True,
@@ -2360,6 +2415,14 @@ def reduce_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
 
     data_file_header = build_header(data_header) + write_suffix
     if plot:
+        stacked_zpold = stack_raster(
+                raster=zpold_flux, raster_wt=1 / (zpold_err ** 2).
+                    proc_along_time(method="nanmean").
+                    proc_along_time(method="nanmean").sqrt(),
+                write_header=os.path.join(write_dir, data_file_header),
+                pix_flag_list=pix_flag_list, plot=plot, plot_show=plot_show,
+                plot_save=plot_save)
+
         fig = FigArray.init_by_array_map(
                 array_map if reg_interest is None else array_map.take_where(
                         **reg_interest), orientation=ORIENTATION,
@@ -2456,6 +2519,3 @@ def eval_performance(data_header, data_dir=None, write_dir=None, write_suffix=""
     return result
 
 # def raster_map
-
-
-# def check_pixel

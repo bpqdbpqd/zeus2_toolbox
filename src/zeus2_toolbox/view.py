@@ -928,14 +928,14 @@ class FigArray(FigFlux):
             for spec in range(self.array_map_.array_spec_llim_,
                               self.array_map_.array_spec_ulim_ + 1):
                 array_map_use = self.array_map_.take_where(spec=spec)
-                if not array_map_use.empty_flag_:
+                if (not array_map_use.empty_flag_) and len(array_map_use) > 0:
                     spat = func(array_map_use.array_spat_)
                     edge_spat_spec_list.append((spat, spec))
         else:
             for spat in range(self.array_map_.array_spat_llim_,
                               self.array_map_.array_spat_ulim_ + 1):
                 array_map_use = self.array_map_.take_where(spat=spat)
-                if not array_map_use.empty_flag_:
+                if (not array_map_use.empty_flag_) and len(array_map_use) > 0:
                     spec = func(array_map_use.array_spec_)
                     edge_spat_spec_list.append((spat, spec))
 

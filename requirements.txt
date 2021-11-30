@@ -2,4 +2,5 @@ numpy>=1.13
 astropy
 matplotlib
 scikit-learn
+beautifulsoup4
 setuptools
