@@ -1179,8 +1179,10 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
     if (write_header is None) and plot:
         write_header = os.path.join(os.getcwd(), beam.obs_id_)
     beam_chop_rms = beam.chunk_proc(method="nanstd")
-    beam_chop_rms.fill_by_mask(beam_chop_rms.get_nanmad_flag(
-            thre=MAD_THRE_BEAM, axis=-1))
+    beam_chop_rms.fill_by_mask(
+            beam.chunk_proc(method="num_is_finite").data_ <= 10)
+    beam_chop_rms.fill_by_mask(
+            beam_chop_rms.get_nanmad_flag(thre=MAD_THRE_BEAM, axis=-1))
     beam_chop_wt = beam.chunk_proc(method="num_is_finite")
     beam_rms = weighted_proc_along_axis(beam_chop_rms, method="nanmean",
                                         weight=beam_chop_wt, axis=-1)[0]
@@ -1247,12 +1249,21 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
                 fig.savefig("%s_psd.png" % write_header)
             plt.close(fig)
         if plot_specgram:
-            beam_t_len = beam.t_end_time_ - beam.t_start_time_
-            x_size = max((beam_t_len / units.hour).to(1), FigArray.x_size_)
-            nfft = min(10., max(5., (beam_t_len / units.second).to(1.) / 10.),
-                       (beam_t_len / units.second).to(1.))
-            noverlap = max(2., min(
-                    nfft - 1., nfft - (beam_t_len / units.second).to(1) / 200.))
+            if not beam.ts_.empty_flag_:
+                beam_t_len = beam.t_end_time_ - beam.t_start_time_
+                x_size = max((beam_t_len / units.hour).to(1), FigArray.x_size_)
+                nfft = min(12., (beam_t_len / units.second).to(1).value,
+                           max(5., (beam_t_len / units.second).to(1).value /
+                               30.))
+                noverlap = max(2., min(nfft - 1., nfft -
+                                       (beam_t_len / units.second).to(1).value /
+                                       300.))
+            else:
+                x_size = FigArray.x_size_
+                nfft = min(12 * 240, beam.len_,
+                           max(5 * 240, int(beam.len_ / 240 / 30)))
+                noverlap = max(2 * 240, min(nfft - 240,
+                                            nfft - int(beam.len_ / 240 / 300)))
             fig = FigArray.plot_specgram(
                     beam if reg_interest is None else
                     ObsArray(beam).take_where(**reg_interest),

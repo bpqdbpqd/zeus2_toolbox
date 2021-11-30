@@ -28,23 +28,23 @@ array_map.set_band(band=BAND)
 
 obs_log = ObsLog.read_folder(folder=OBS_LOG_FD)  # read in obs_fft log
 
-flat_result = reduce_skychop(
-        flat_header=FLAT_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
-        array_map=array_map, obs_log=obs_log, pix_flag_list=[],
-        parallel=True, return_ts=False, return_pix_flag_list=True,
-        table_save=False, plot=True, plot_ts=True, reg_interest=REG_INTEREST,
-        plot_flux=True, plot_show=False, plot_save=True)
-flat_flux, flat_err, flat_wt, pix_flag_list = flat_result
-
-zobs_result = reduce_zobs(
-        data_header=DATA_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
-        array_map=array_map, obs_log=obs_log, pix_flag_list=pix_flag_list,
-        flat_flux=flat_flux, flat_err=flat_err, parallel=True, stack=False,
-        do_desnake=True, ref_pix=REF_PIX, do_smooth=False, do_ica=False,
-        spat_excl=SPAT_EXCL, return_ts=False, return_pix_flag_list=False,
-        table_save=False, plot=True, plot_ts=True,
-        reg_interest=REG_INTEREST, plot_flux=PLOT_FLUX, plot_show=False,
-        plot_save=PLOT_SAVE, analyze=ANALYZE)
+# flat_result = reduce_skychop(
+#         flat_header=FLAT_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
+#         array_map=array_map, obs_log=obs_log, pix_flag_list=[],
+#         parallel=True, return_ts=False, return_pix_flag_list=True,
+#         table_save=False, plot=True, plot_ts=True, reg_interest=REG_INTEREST,
+#         plot_flux=True, plot_show=False, plot_save=True)
+# flat_flux, flat_err, flat_wt, pix_flag_list = flat_result
+#
+# zobs_result = reduce_zobs(
+#         data_header=DATA_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
+#         array_map=array_map, obs_log=obs_log, pix_flag_list=pix_flag_list,
+#         flat_flux=flat_flux, flat_err=flat_err, parallel=True, stack=False,
+#         do_desnake=True, ref_pix=REF_PIX, do_smooth=False, do_ica=False,
+#         spat_excl=SPAT_EXCL, return_ts=False, return_pix_flag_list=False,
+#         table_save=False, plot=True, plot_ts=True,
+#         reg_interest=REG_INTEREST, plot_flux=PLOT_FLUX, plot_show=False,
+#         plot_save=PLOT_SAVE, analyze=ANALYZE)
 
 # ARRAY_MAP_PATH = "../example_data/array_map_excel_alternative_20211101.csv"
 # BAND = 400
@@ -74,9 +74,9 @@ zobs_result = reduce_zobs(
 
 eval_result = eval_performance(
         data_header=DATA_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
-        array_map=array_map, obs_log=obs_log, pix_flag_list=pix_flag_list,
+        array_map=array_map, obs_log=obs_log, pix_flag_list=[],
         parallel=True, return_ts=False, table_save=True, plot=True,
-        plot_ts=True, reg_interest=None, plot_psd=True, plot_specgram=True,
+        plot_ts=True, reg_interest=REG_INTEREST, plot_psd=True, plot_specgram=True,
         plot_flux=True, plot_show=False, plot_save=True)
 
 # TODO: change to flag flux - flux_median < SNR
