@@ -1432,11 +1432,12 @@ def read_beam(file_header, array_map=None, obs_log=None, flag_ts=True,
             beam = beam.to_obs_array(array_map=array_map)
     if flag_ts:
         beam = auto_flag_ts(beam, is_flat=is_flat)
-    with warnings.catch_warnings():
-        if is_flat or (obs_log is None):
-            warnings.filterwarnings("ignore", message=
-            "No entry is found in obs log.")
-        beam.match_obs_log(obs_log)  # find entry in obs_log
+    if (obs_log is not None) and (len(obs_log) > 0):
+        with warnings.catch_warnings():
+            if is_flat:
+                warnings.filterwarnings("ignore", message=
+                "No entry is found in obs log.")
+            beam.match_obs_log(obs_log)  # find entry in obs_log
 
     return beam
 
