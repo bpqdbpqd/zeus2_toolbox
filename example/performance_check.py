@@ -30,7 +30,7 @@ DATA_HEADER =  # dictionary of the header and beam numbers of the data, in the
 # w0533_191130_0000 through 0183, with orion_191130_0000 through 118 as the
 # input data
 
-PIX_FLAG_LIST  # list of pixels to flag, [[spat1, spec1], [spat2, spec2], ...]
+PIX_FLAG_LIST = []  # list of pixels to flag, [[spat1, spec1], [spat2, spec2], ...]
 PARALLEL = True  # flag whether to read in data in parallel mode
 TABLE_SAVE = True  # flag whether to save the average rms as csv table
 PLOT = True  # flag whether to plot the performance result
