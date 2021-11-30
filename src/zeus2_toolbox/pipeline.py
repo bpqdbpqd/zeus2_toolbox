@@ -63,9 +63,9 @@ warnings.filterwarnings("ignore", message="invalid value encountered in less")
 warnings.filterwarnings("ignore", message="divide by zero encountered in log10")
 
 
-def custom_formatwarning(msg, *args, **kwargs):
+def custom_formatwarning(message, category, *args, **kwargs):
     # ignore everything except the message
-    return str(msg) + '\n'
+    return "%s: %s\n" % (category, message)
 
 
 warnings.formatwarning = custom_formatwarning
@@ -1433,7 +1433,7 @@ def read_beam(file_header, array_map=None, obs_log=None, flag_ts=True,
     if flag_ts:
         beam = auto_flag_ts(beam, is_flat=is_flat)
     with warnings.catch_warnings():
-        if is_flat:
+        if is_flat or (obs_log is None):
             warnings.filterwarnings("ignore", message=
             "No entry is found in obs log.")
         beam.match_obs_log(obs_log)  # find entry in obs_log
@@ -2451,7 +2451,8 @@ def eval_performance(data_header, data_dir=None, write_dir=None, write_suffix=""
     result = (beams_rms,)
     if return_ts:
         result += (beams,)
-    return (beams_rms, beams, pix_flag_list)
+    result += (pix_flag_list,)
+    return result
 
 # def raster_map
 

@@ -46,14 +46,14 @@ obs_log = ObsLog.read_folder(folder=OBS_LOG_FD)  # read in obs_fft log
 #         reg_interest=REG_INTEREST, plot_flux=PLOT_FLUX, plot_show=False,
 #         plot_save=PLOT_SAVE, analyze=ANALYZE)
 
-# ARRAY_MAP_PATH = "../example_data/array_map_excel_alternative_20211101.csv"
-# BAND = 400
-# FLAT_HEADER = {"skychop_191128": [(64, 64)]}
-# DATA_HEADER = {"irc10216_191128": [(27, 51)]}
-#
-# array_map = ArrayMap.read(filename=ARRAY_MAP_PATH)  # read in array map
-# array_map.set_band(band=BAND)
-#
+ARRAY_MAP_PATH = "../example_data/array_map_excel_alternative_20211101.csv"
+BAND = 400
+FLAT_HEADER = {"skychop_191128": [(64, 64)]}
+DATA_HEADER = {"irc10216_191128": [(27, 51)]}
+
+array_map = ArrayMap.read(filename=ARRAY_MAP_PATH)  # read in array map
+array_map.set_band(band=BAND)
+
 # flat_result = reduce_skychop(
 #         flat_header=FLAT_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
 #         array_map=array_map, obs_log=obs_log, pix_flag_list=[],
