@@ -1064,9 +1064,9 @@ def plot_beam_ts(obs, title=None, pix_flag_list=[], reg_interest=None,
         title = obs0.obs_id_
     if write_header is None:
         write_header = obs0.obs_id_
-    if isinstance(obs, (Obs, ObsArray)) and (not obs.ts_.empty_flag_):
-        obs_t_len = obs.t_end_time_ - obs.t_start_time_
-        x_size = max((obs_t_len / units.hour).to(1), FigArray.x_size_)
+    if isinstance(obs0, (Obs, ObsArray)) and (not obs0.ts_.empty_flag_):
+        obs_t_len = obs0.t_end_time_ - obs0.t_start_time_
+        x_size = max((obs_t_len / units.hour).to(1).value, FigArray.x_size_)
     else:
         x_size = FigArray.x_size_
 
@@ -1196,9 +1196,8 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
                     plot_save=plot_save, write_header="%s_rms" %
                                                       write_header,
                     orientation=ORIENTATION))
-        plot_dict = {"rms": (beam_chop_rms, {"c": "k"})}
         if plot_ts:
-            plot_dict["raw data"] = (beam, {"twin_axes": True})
+            plot_dict = {"rms": (beam_chop_rms, {"c": "k"})}
             plt.close(plot_beam_ts(
                     plot_dict, title="%s rms" %
                                      write_header.split("/")[-1],
