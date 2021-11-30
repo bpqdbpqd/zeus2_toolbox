@@ -65,7 +65,7 @@ warnings.filterwarnings("ignore", message="divide by zero encountered in log10")
 
 def custom_formatwarning(message, category, *args, **kwargs):
     # ignore everything except the message
-    return "%s: %s\n" % (category, message)
+    return "%s: %s\n" % (category.__name__, message)
 
 
 warnings.formatwarning = custom_formatwarning
