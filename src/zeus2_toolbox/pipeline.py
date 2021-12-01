@@ -1817,7 +1817,7 @@ def reduce_beam_pairs(data_header, data_dir=None, write_dir=None,
                       do_smooth=False, do_ica=False, spat_excl=None,
                       return_ts=False, return_pix_flag_list=False, plot=False,
                       plot_ts=False, reg_interest=None, plot_flux=False,
-                      plot_show=False, plot_save=False):
+                      plot_show=False, plot_save=False, use_hk=True):
     """
     reduce the data files in data_header, and return in the beam pairs
     """
@@ -1850,7 +1850,8 @@ def reduce_beam_pairs(data_header, data_dir=None, write_dir=None,
                 beams_info.append(beam_info)
             nod = (np.arange(idxs[1] - idxs[0] + 1) % 2).astype(Chop.dtype_)
             if (NOD_COLNAME in beams_info.obs_info_.table_.colnames) and \
-                    ("obs_id" in beams_info.obs_info_.table_.colnames):
+                    ("obs_id" in beams_info.obs_info_.table_.colnames) and \
+                    use_hk:
                 for idx, obs_id in enumerate(beams_info.obs_id_arr_.data_):
                     if obs_id in beams_info.obs_info_.table_["obs_id"]:
                         tb_idx = np.nonzero(
@@ -2015,9 +2016,11 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                 ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
                 return_ts=False, return_pix_flag_list=True, table_save=True,
                 plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
-                plot_show=False, plot_save=True, analyze=False):
+                plot_show=False, plot_save=True, analyze=False, use_hk=True):
     """
     reduce the data from zobs command
+
+    :param bool use_hk: bool, flag whether to use hk file as nodding phase
     """
 
     if data_dir is None:
@@ -2055,7 +2058,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
             nod = np.concatenate((nod, (
                     np.arange(beam_num) % 2).astype(Chop.dtype_)))
         if (NOD_COLNAME in beams_flux.obs_info_.table_.colnames) and \
-                ("obs_id" in beams_flux.obs_info_.table_.colnames):
+                ("obs_id" in beams_flux.obs_info_.table_.colnames) and use_hk:
             for idx, obs_id in enumerate(beams_flux.obs_id_arr_.data_):
                 if obs_id in beams_flux.obs_info_.table_["obs_id"]:
                     tb_idx = np.nonzero(
