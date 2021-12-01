@@ -1820,6 +1820,8 @@ def reduce_beam_pairs(data_header, data_dir=None, write_dir=None,
                       plot_show=False, plot_save=False, use_hk=True):
     """
     reduce the data files in data_header, and return in the beam pairs
+
+    :raises RunTimeError: no beam pair is matched
     """
 
     if data_dir is None:
@@ -1872,6 +1874,8 @@ def reduce_beam_pairs(data_header, data_dir=None, write_dir=None,
                 for var_name in inspect.getfullargspec(reduce_beam_pair)[0]:
                     args += (locals()[var_name],)
                 args_list.append(args)
+        if len(args_list) == 0:
+            raise RuntimeError("No beam pair is matched, may not be nodding.")
 
     if parallel and check_parallel():
         gc.collect()
@@ -2021,6 +2025,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
     reduce the data from zobs command
 
     :param bool use_hk: bool, flag whether to use hk file as nodding phase
+    :raises RunTimeError: not nodding
     """
 
     if data_dir is None:
@@ -2066,6 +2071,8 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                     if not beams_flux.obs_info_.table_[NOD_COLNAME].mask[tb_idx]:
                         nod[idx] = \
                             beams_flux.obs_info_.table_[NOD_COLNAME][tb_idx]
+        if (nod.sum() == 0) or (~nod.sum() == 0):
+            raise RuntimeError("The data is not nodding.")
         beams_flux.update_chop(nod)
         beams_err.update_chop(nod)
         beams_wt.update_chop(nod)

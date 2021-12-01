@@ -1,3 +1,8 @@
+1.5
+
+- Add flag use_hk in reduce_zobs and reduce_beam_pairs forcing using manual nodding phase, it will raise an error if no
+  nodding phase is found
+
 1.4
 
 - Add the missing dependence of beautifulsoup4
