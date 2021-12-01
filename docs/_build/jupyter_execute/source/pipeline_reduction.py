@@ -71,7 +71,6 @@ flat_result = z2pipl.reduce_skychop(
         plot_flux=True, plot_show=False, plot_save=True)
 flat_flux, flat_err, pix_flag_list = flat_result[:2] + flat_result[-1:]
 
-
 # Because I set `table_save=True, plot_show=False, plot_save=True`, the tables and figures containing the result can be checked in the set `WRITE_DIR`. It is not recommended to set `plot_show=True` as it would take extra time for jupyter to display the figure (minutes if the figure is big) and slow down the reduction process. We then proceed to the next step of reducing the science data. Following a similar logic, we call `z2pipl.reduce_zobs()` function with `data_header={"plck_191128": [(0, 39)]}` to reduce data stored in files "plck_191128_0000" through "plck_191128_0039". And we only use "desnake" to reduce the long term noise in the timeseries. The line pixel \[1, 11\] is used as the reference pixel to select other good pixels, which are averaged together to build a high SNR snake model.
 
 # In[8]:
@@ -80,7 +79,7 @@ flat_flux, flat_err, pix_flag_list = flat_result[:2] + flat_result[-1:]
 DATA_HEADER = {"plck_191128": [(0, 39)]}
 REF_PIX = [1, 11]
 
-# In[9]:
+# In[ ]:
 
 
 zobs_result = z2pipl.reduce_zobs(
@@ -105,7 +104,6 @@ fig = z2pipl.FigSpec.plot_spec(zobs_flux, yerr=zobs_err,
 fig.plot_all_spat([0, 19], [0, 0], ls=":", c="k")
 plt.show(fig)
 
-
 # Now let's try to use ICA decomposition to reduce the correlated noise. Remember to set `stack=True` to stack beams of opposite nodding phase to exclude flux due to temperature gradient. Also remember to set `spat_excl` as the spatial position excluded from ICA decomposition. In this case it is set to `[0, 2]` as the potential spatial position of the target.
 
 # In[11]:
@@ -113,7 +111,7 @@ plt.show(fig)
 
 SPAT_EXCL = [0, 2]
 
-# In[12]:
+# In[ ]:
 
 
 zobs_ica_result = z2pipl.reduce_zobs(
@@ -141,12 +139,14 @@ fig.plot_all_spat([0, 19], [0, 0], ls=":", color="k")
 fig.legend()
 plt.show(fig)
 
+
 # The flux of each beam pair (black) and the convergence of cumulative flux (cyan) is presented in the "{header}\_beam\_pairs\_flux.png". The black data point with errorbar represents the flux of pixel in each beam pair, with the cyan point showing the cumulative flux throughout the integration. The value of the data points are in the y-axis on the left side. The red dash line corresponding to the right y-axis is the PWV along the time.
 
 # In[14]:
 
 
 Image(os.path.join(WRITE_DIR, "plck_191128_0000-0039_ica_beam_pairs_flux.png"))
+
 
 # We can also compare the power spectrum and dynamical spectrum after desnaking and ICA decomposition, it can be seen that correlated noise is suppressed significantly after ICA.
 
@@ -155,6 +155,7 @@ Image(os.path.join(WRITE_DIR, "plck_191128_0000-0039_ica_beam_pairs_flux.png"))
 
 Image(os.path.join(WRITE_DIR, "plck_191128_0000-0039_desnake_psd.png"))
 
+
 # In[16]:
 
 
@@ -162,7 +163,7 @@ Image(os.path.join(WRITE_DIR, "plck_191128_0000-0039_ica_psd.png"))
 
 # For the convenience I show another example with a single block of code that reduces w0533_191130_0084-0143 with ICA. I will not read array map or observation log again.
 
-# In[17]:
+# In[ ]:
 
 
 DATA_DIR = "/data2/share/zeus-2/all_apex_2019/20191130/"
@@ -221,7 +222,7 @@ Image(os.path.join(WRITE_DIR, "%s_ica_beam_pairs_flux.png" % z2pipl.build_header
 
 # All observations taken with the commands other than `zobs`, `zpold` and `zpoldbig` are just continuous beams without nodding or special ordering. Most of the information is in the flux variation in different beams. Here for example, let's reduce uranus_191128 beam 26 through 36, which is an `zpoint` observation for that night. Because this scan doesn't have a skychop, we will skip the flat reduction step and leave the default value for flat, which are `flat_flux=1` and `flat_err=0`. Because the line is put at [1, 6], we would like to plot the spatial range [0, 2] and spectral range [5, 9].
 
-# In[20]:
+# In[ ]:
 
 
 DATA_DIR = "/data2/share/zeus-2/all_apex_2019/20191128/"
@@ -327,7 +328,7 @@ zpoldbig_flux, zpoldbig_err, zpoldbig_pix_flag_list = zpoldbig_result[:2] + zpol
 
 # The result is saved in "{data_header}\_raster.png". In the figure, all the pixels without any 2-sigma detection in any beam are flagged. The pointing target Uranus clearly shows up as a point source at different location for pixels at different spatial position. It also shows the alignment of the array on the sky.
 
-# In[ ]:
+# In[24]:
 
 
 Image(os.path.join(WRITE_DIR, "%s_raster.png" % z2pipl.build_header(DATA_HEADER)))

@@ -5,7 +5,7 @@
 <head>
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-    <title>zeus2_toolbox &#8212; zeus2_toolbox 1.3 documentation</title>
+    <title>zeus2_toolbox &#8212; zeus2_toolbox 1.4 documentation</title>
 
     <link href="_static/css/theme.css" rel="stylesheet">
     <link href="_static/css/index.ff1ffe594081f20da1ef19478df9384b.css" rel="stylesheet">
@@ -58,7 +58,7 @@
                 <a class="navbar-brand text-wrap" href="#">
 
 
-                    <h1 class="site-logo" id="site-title">zeus2_toolbox 1.3 documentation</h1>
+                    <h1 class="site-logo" id="site-title">zeus2_toolbox 1.4 documentation</h1>
 
                 </a>
             </div>
@@ -260,6 +260,16 @@
                         <div class="section" id="changelog">
                             <h1>Changelog<a class="headerlink" href="#changelog"
                                             title="Permalink to this headline">¶</a></h1>
+                            <p>1.4</p>
+                            <ul class="simple">
+                                <li><p>Add the missing dependence of beautifulsoup4</p></li>
+                                <li><p>Change the figures to be plotted with analyze_performance, and save obs_info
+                                    table</p></li>
+                                <li><p>Fix a bug in calculating nfft and noverlap in pipeline.analyze_performance()</p>
+                                </li>
+                                <li><p>Fix a bug with proc_along_axis() on empty ObsArray</p></li>
+                                <li><p>Fix a bug for get_chop_flux in beam with only one chop phase</p></li>
+                            </ul>
                             <p>1.3</p>
                             <ul class="simple">
                                 <li><p>Add function double_nanmad_flag and method DataObj.get_double_nanmad_flag, which
@@ -278,7 +288,7 @@
                                 <li><p>Fix a bug in rebuilding time stamp</p></li>
                                 <li><p>Fix a bug in desnaking to deal with the case that ref_pix is in pix_flag_list</p>
                                 </li>
-                                <li><p>Fix a bug in FigFlux.imshow_flag which doesn’t accept empty list</p></li>
+                                <li><p>Fix a bug in FigFlux.imshow_flag() which doesn’t accept empty list</p></li>
                             </ul>
                             <p>1.2</p>
                             <ul class="simple">

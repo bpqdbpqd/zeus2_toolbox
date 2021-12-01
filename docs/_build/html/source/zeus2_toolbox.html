@@ -5,7 +5,7 @@
 <head>
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-    <title>API &#8212; zeus2_toolbox 1.3 documentation</title>
+    <title>API &#8212; zeus2_toolbox 1.4 documentation</title>
 
     <link href="../_static/css/theme.css" rel="stylesheet">
     <link href="../_static/css/index.ff1ffe594081f20da1ef19478df9384b.css" rel="stylesheet">
@@ -58,7 +58,7 @@
                 <a class="navbar-brand text-wrap" href="../index.html">
 
 
-                    <h1 class="site-logo" id="site-title">zeus2_toolbox 1.3 documentation</h1>
+                    <h1 class="site-logo" id="site-title">zeus2_toolbox 1.4 documentation</h1>
 
                 </a>
             </div>
@@ -9704,13 +9704,15 @@
                                             class="sig-name descname"><span
                                             class="pre">custom_formatwarning</span></span><span
                                             class="sig-paren">(</span><em class="sig-param"><span class="n"><span
-                                            class="pre">msg</span></span></em>, <em class="sig-param"><span
-                                            class="o"><span class="pre">*</span></span><span class="n"><span
-                                            class="pre">args</span></span></em>, <em class="sig-param"><span
-                                            class="o"><span class="pre">**</span></span><span class="n"><span
-                                            class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a
-                                            class="headerlink" href="#zeus2_toolbox.pipeline.custom_formatwarning"
-                                            title="Permalink to this definition">¶</a></dt>
+                                            class="pre">message</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">category</span></span></em>, <em
+                                            class="sig-param"><span class="o"><span class="pre">*</span></span><span
+                                            class="n"><span class="pre">args</span></span></em>, <em
+                                            class="sig-param"><span class="o"><span class="pre">**</span></span><span
+                                            class="n"><span class="pre">kwargs</span></span></em><span
+                                            class="sig-paren">)</span><a class="headerlink"
+                                                                         href="#zeus2_toolbox.pipeline.custom_formatwarning"
+                                                                         title="Permalink to this definition">¶</a></dt>
                                     <dd></dd>
                                 </dl>
 
@@ -11167,7 +11169,7 @@
                                                         – Obs or ObsArray, with time series data</p></li>
                                                     <li><p><strong>write_header</strong> (<em>str</em>) – str, full path
                                                         to the title to save files/figures,
-                                                        if left None, will write to current folder with obs_id as the
+                                                        if left None, will write to current folder with {obs_id} as the
                                                         title</p></li>
                                                     <li><p><strong>is_flat</strong> (<em>bool</em>) – bool, flag
                                                         indicating this beam is flat field, which will
@@ -11251,6 +11253,82 @@
                                             </dd>
                                             <dt class="field-odd">Return type</dt>
                                             <dd class="field-odd"><p>tuple</p>
+                                            </dd>
+                                        </dl>
+                                    </dd>
+                                </dl>
+
+                                <dl class="py function">
+                                    <dt class="sig sig-object py" id="zeus2_toolbox.pipeline.stack_raster">
+                                        <span class="sig-prename descclassname"><span class="pre">zeus2_toolbox.pipeline.</span></span><span
+                                            class="sig-name descname"><span class="pre">stack_raster</span></span><span
+                                            class="sig-paren">(</span><em class="sig-param"><span class="n"><span
+                                            class="pre">raster</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">raster_wt</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">write_header</span></span><span class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">None</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span
+                                            class="pre">pix_flag_list</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span
+                                            class="pre">[]</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">plot</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">plot_show</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">False</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">plot_save</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span
+                                            class="sig-paren">)</span><a class="headerlink"
+                                                                         href="#zeus2_toolbox.pipeline.stack_raster"
+                                                                         title="Permalink to this definition">¶</a></dt>
+                                    <dd><p>Stack the raster along spatial dimension to get a high SNR raster, used for
+                                        analyzing data taken with zpold or zpoldbig</p>
+                                        <dl class="field-list simple">
+                                            <dt class="field-odd">Parameters</dt>
+                                            <dd class="field-odd">
+                                                <ul class="simple">
+                                                    <li><p><strong>raster</strong> (<a class="reference internal"
+                                                                                       href="#zeus2_toolbox.zeus2_io.ObsArray"
+                                                                                       title="zeus2_toolbox.zeus2_io.ObsArray"><em>ObsArray</em></a>)
+                                                        – ObsArray, object containing the raster in the last
+                                                        two dimensions</p></li>
+                                                    <li><p><strong>raster_wt</strong>
+                                                        (<em>Union</em><em>[</em><em>int</em><em>, </em><em>float</em><em>, </em><em>numpy.ndarray</em><em>, </em><a
+                                                                class="reference internal"
+                                                                href="#zeus2_toolbox.zeus2_io.Obs"
+                                                                title="zeus2_toolbox.zeus2_io.Obs"><em>Obs</em></a><em>, </em><a
+                                                                class="reference internal"
+                                                                href="#zeus2_toolbox.zeus2_io.ObsArray"
+                                                                title="zeus2_toolbox.zeus2_io.ObsArray"><em>ObsArray</em></a><em>]</em>)
+                                                        – weight of the raster, raster * raster_wt will be stacked</p>
+                                                    </li>
+                                                    <li><p><strong>write_header</strong> (<em>str</em>) – str, full path
+                                                        to the title to save files/figures,
+                                                        if left None, will write to current folder with
+                                                        {obs_id}_raster_stack
+                                                        as file header</p></li>
+                                                    <li><p><strong>pix_flag_list</strong> (<em>list</em>) – list, a list
+                                                        including pixels to be flagged, these
+                                                        pixels will not be used in stacking</p></li>
+                                                    <li><p><strong>plot</strong> (<em>bool</em>) – bool, flag whether to
+                                                        make the figure of the stacked raster</p></li>
+                                                    <li><p><strong>plot_show</strong> (<em>bool</em>) – bool, flag
+                                                        whether to show the figure</p></li>
+                                                    <li><p><strong>plot_save</strong> (<em>bool</em>) – bool, flag
+                                                        whether to save the figure</p></li>
+                                                </ul>
+                                            </dd>
+                                            <dt class="field-even">Returns</dt>
+                                            <dd class="field-even"><p>ObsArray object containing the stacked raster</p>
+                                            </dd>
+                                            <dt class="field-odd">Return type</dt>
+                                            <dd class="field-odd"><p><a class="reference internal"
+                                                                        href="#zeus2_toolbox.zeus2_io.ObsArray"
+                                                                        title="zeus2_toolbox.zeus2_io.ObsArray">ObsArray</a>
+                                            </p>
                                             </dd>
                                         </dl>
                                     </dd>
