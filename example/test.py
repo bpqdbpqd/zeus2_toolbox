@@ -54,29 +54,29 @@ DATA_HEADER = {"irc10216_191128": [(27, 51)]}
 array_map = ArrayMap.read(filename=ARRAY_MAP_PATH)  # read in array map
 array_map.set_band(band=BAND)
 
-flat_result = reduce_skychop(
-        flat_header=FLAT_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
-        array_map=array_map, obs_log=obs_log, pix_flag_list=[],
-        parallel=True, return_ts=False, return_pix_flag_list=True,
-        table_save=False, plot=False, plot_ts=False, reg_interest=REG_INTEREST,
-        plot_flux=True, plot_show=False, plot_save=True)
-flat_flux, flat_err, flat_wt, pix_flag_list = flat_result
-
-zpoldbig_result = reduce_zpoldbig(
-        data_header=DATA_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
-        array_map=array_map, obs_log=obs_log, is_flat=False,
-        pix_flag_list=pix_flag_list, flat_flux=flat_flux, flat_err=flat_err,
-        parallel=True, do_desnake=False, ref_pix=None, do_smooth=False,
-        do_ica=False, spat_excl=(0, 5), return_ts=False,
-        return_pix_flag_list=True, table_save=True, plot=True, plot_ts=False,
-        reg_interest=None, plot_flux=True, plot_show=False, plot_save=True,
-        analyze=ANALYZE)
-
-# eval_result = eval_performance(
-#         data_header=DATA_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
+# flat_result = reduce_skychop(
+#         flat_header=FLAT_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
 #         array_map=array_map, obs_log=obs_log, pix_flag_list=[],
-#         parallel=True, return_ts=False, table_save=True, plot=True,
-#         plot_ts=True, reg_interest=REG_INTEREST, plot_psd=True, plot_specgram=True,
+#         parallel=True, return_ts=False, return_pix_flag_list=True,
+#         table_save=False, plot=False, plot_ts=False, reg_interest=REG_INTEREST,
 #         plot_flux=True, plot_show=False, plot_save=True)
+# flat_flux, flat_err, flat_wt, pix_flag_list = flat_result
+#
+# zpoldbig_result = reduce_zpoldbig(
+#         data_header=DATA_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
+#         array_map=array_map, obs_log=obs_log, is_flat=False,
+#         pix_flag_list=pix_flag_list, flat_flux=flat_flux, flat_err=flat_err,
+#         parallel=True, do_desnake=False, ref_pix=None, do_smooth=False,
+#         do_ica=False, spat_excl=(0, 5), return_ts=False,
+#         return_pix_flag_list=True, table_save=True, plot=True, plot_ts=False,
+#         reg_interest=None, plot_flux=True, plot_show=False, plot_save=True,
+#         analyze=ANALYZE)
+
+eval_result = eval_performance(
+        data_header=DATA_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
+        array_map=array_map, obs_log=obs_log, pix_flag_list=[],
+        parallel=True, return_ts=False, table_save=True, plot=True,
+        plot_ts=True, reg_interest=REG_INTEREST, plot_psd=True, plot_specgram=True,
+        plot_flux=True, plot_show=False, plot_save=True)
 
 # TODO: change to flag flux - flux_median < SNR

@@ -3494,11 +3494,13 @@ class ObsArray(Obs):
         """
 
         axis = self.__check_axis__(axis=axis)
-        if axis == self.ndim_ - 1:
-            obs_array_proc = self.proc_along_time(method=method, **kwargs)
-        elif axis == 0:
+        if axis == 0:
+            if "array_map" not in kwargs:
+                kwargs["array_map"] = None
             obs_array_proc = super(Obs, self).proc_along_axis(
                     method=method, axis=axis, **kwargs)
+        elif axis == self.ndim_ - 1:
+            obs_array_proc = self.proc_along_time(method=method, **kwargs)
         else:
             obs_array_proc = super(Obs, self).proc_along_axis(
                     method=method, axis=axis, array_map=self.array_map_,

@@ -739,21 +739,30 @@ def get_chop_flux(obs, chunk_method="nanmedian", method="nanmean",
         flag_arr1, flag_arr2 = get_match_phase_flags(
                 chop1=obs_chunk_on.chop_, chop2=obs_chunk_off.chop_,
                 match_same_phase=False)
-        obs_chunk_on_match = obs_chunk_on.take_by_flag_along_time(
-                flag_arr=flag_arr1)
-        obs_chunk_off_match = obs_chunk_off.take_by_flag_along_time(
-                flag_arr=flag_arr2)
-        wt_chunk_on_match = wt_chunk_on.take_by_flag_along_time(
-                flag_arr=flag_arr1)
-        wt_chunk_off_match = wt_chunk_off.take_by_flag_along_time(
-                flag_arr=flag_arr2)
-        obs_chunk_diff = obs_chunk_on_match - obs_chunk_off_match
-        wt_chunk_diff = 1 / (1 / wt_chunk_on_match + 1 / wt_chunk_off_match)
-        wt_chunk_diff.fill_by_mask(mask=~np.isfinite(wt_chunk_diff.data_),
-                                   fill_value=np.nan)
-        obs_flux, obs_err, obs_wt = weighted_proc_along_axis(
-                obs=obs_chunk_diff, method=method, weight=wt_chunk_diff,
-                axis=-1)
+        if (len(flag_arr1) != 0) and (len(flag_arr2) != 0):
+            obs_chunk_on_match = obs_chunk_on.take_by_flag_along_time(
+                    flag_arr=flag_arr1)
+            obs_chunk_off_match = obs_chunk_off.take_by_flag_along_time(
+                    flag_arr=flag_arr2)
+            wt_chunk_on_match = wt_chunk_on.take_by_flag_along_time(
+                    flag_arr=flag_arr1)
+            wt_chunk_off_match = wt_chunk_off.take_by_flag_along_time(
+                    flag_arr=flag_arr2)
+            obs_chunk_diff = obs_chunk_on_match - obs_chunk_off_match
+            wt_chunk_diff = 1 / (1 / wt_chunk_on_match + 1 / wt_chunk_off_match)
+            wt_chunk_diff.fill_by_mask(mask=~np.isfinite(wt_chunk_diff.data_),
+                                       fill_value=np.nan)
+            obs_flux, obs_err, obs_wt = weighted_proc_along_axis(
+                    obs=obs_chunk_diff, method=method, weight=wt_chunk_diff,
+                    axis=-1)
+        else:
+            obs_flux, obs_err, obs_wt = (
+                mean_obs.replace(
+                        arr_in=np.full(mean_obs.shape_, fill_value=np.nan)),
+                mean_obs.replace(
+                        arr_in=np.full(mean_obs.shape_, fill_value=np.nan)),
+                mean_obs.replace(
+                        arr_in=np.full(mean_obs.shape_, fill_value=0)))
     else:
         raise ValueError("Invalid value for err_type.")
     if not on_off:
@@ -1190,6 +1199,7 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
 
     if plot:
         if plot_rms:
+            print("Plotting rms.")
             plt.close(plot_beam_flux(
                     beam_rms, title="%s rms" %
                                     write_header.split("/")[-1],
@@ -1197,42 +1207,45 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
                     plot_save=plot_save, write_header="%s_rms" %
                                                       write_header,
                     orientation=ORIENTATION))
+        print("Plotting rms time series.")
+        plot_dict = {"rms": (beam_chop_rms, {"c": "k"})}
+        if plot_ts and beam.len_ < 10 * 30 * 400:
+            plot_dict["raw data"] = (beam, {"twin_axes": True})
+        plt.close(plot_beam_ts(
+                plot_dict, title="%s rms" %
+                                 write_header.split("/")[-1],
+                pix_flag_list=pix_flag_list, reg_interest=reg_interest,
+                plot_show=plot_show, plot_save=plot_save,
+                write_header="%s_rms_ts" % write_header,
+                orientation=ORIENTATION))
         if plot_ts:
-            plot_dict = {"rms": (beam_chop_rms, {"c": "k"})}
+            plot_dict = {"raw_data": beam}
+            if ("UTC" in beam.obs_info_.table_.colnames) and \
+                    ("mm PWV" in beam.obs_info_.table_.colnames):
+                tb_use = beam.obs_info_.table_[
+                    ~beam.obs_info_.table_.mask["UTC"]]
+                tb_use.sort("UTC")
+                t_arr = Time.strptime(tb_use["UTC"],
+                                      format_string="%Y-%m-%dU%H:%M:%S"). \
+                    to_value(format="unix")
+                t_arr += tb_use["Scan duration"] / 2
+                pwv_arr = tb_use["mm PWV"]
+                beam_pwv = beam.replace(
+                        arr_in=np.tile(pwv_arr, beam.shape_[:-1] + (1,)),
+                        ts=t_arr, chop=None)
+                plot_dict["PWV"] = [beam_pwv, {
+                    "ls": "--", "c": "r", "marker": ".", "markersize": 3,
+                    "twin_axes": True}]
+            print("Plotting time series.")
             plt.close(plot_beam_ts(
-                    plot_dict, title="%s rms" %
+                    plot_dict, title="%s time series" %
                                      write_header.split("/")[-1],
                     pix_flag_list=pix_flag_list, reg_interest=reg_interest,
                     plot_show=plot_show, plot_save=plot_save,
-                    write_header="%s_rms_ts" % write_header,
-                    orientation=ORIENTATION))
-        if ("UTC" in beam.obs_info_.table_.colnames) and \
-                ("mm PWV" in beam.obs_info_.table_.colnames):
-            tb_use = beam.obs_info_.table_[
-                ~beam.obs_info_.table_.mask["UTC"]]
-            tb_use.sort("UTC")
-            t_arr = Time.strptime(tb_use["UTC"],
-                                  format_string="%Y-%m-%dU%H:%M:%S"). \
-                to_value(format="unix")
-            t_arr += tb_use["Scan duration"] / 2
-            pwv_arr = tb_use["mm PWV"]
-            beam_pwv = beam.replace(
-                    arr_in=np.tile(pwv_arr, beam.shape_[:-1] + (1,)),
-                    ts=t_arr, chop=None)
-            plot_dict = {"PWV": [beam_pwv, {"ls": "--", "c": "r", "marker": ".",
-                                            "markersize": 3}]}
-            if plot_ts:
-                plot_dict["raw_data"] = (beam, {"twin_axes": True})
-            else:
-                plot_dict["rms"] = (beam_chop_rms, {"c": "k", "twin_axes": True})
-            plt.close(plot_beam_ts(
-                    plot_dict, title="%s PWV curve" %
-                                     write_header.split("/")[-1],
-                    pix_flag_list=pix_flag_list, reg_interest=reg_interest,
-                    plot_show=plot_show, plot_save=plot_save,
-                    write_header="%s_pwv_ts" % write_header,
+                    write_header="%s_ts" % write_header,
                     orientation=ORIENTATION))
         if plot_psd:
+            print("Plotting power spectral diagram.")
             fig = FigArray.plot_psd(
                     beam if reg_interest is None else
                     ObsArray(beam).take_where(**reg_interest),
@@ -1479,15 +1492,15 @@ def read_beam(file_header, array_map=None, obs_log=None, flag_ts=True,
         beam = Obs.read_header(filename=file_header)  # read in data
     except Exception:
         warnings.warn("fail to read in %s." % file_header, UserWarning)
-        beam = Obs()
+        beam = Obs(obs_id=file_header.split("/")[-1])
     if array_map is not None:  # transform into ObsArray
         if beam.empty_flag_:
             beam = beam.to_obs_array(array_map=None)
         else:
             beam = beam.to_obs_array(array_map=array_map)
-    if flag_ts:
+    if flag_ts and (not beam.empty_flag_):
         beam = auto_flag_ts(beam, is_flat=is_flat)
-    if (obs_log is not None) and (len(obs_log) > 0):
+    if (obs_log is not None) and (len(obs_log) > 0) and (not beam.empty_flag_):
         with warnings.catch_warnings():
             if is_flat:
                 warnings.filterwarnings("ignore", message=
@@ -1565,7 +1578,7 @@ def reduce_beam(file_header, write_dir=None, write_suffix="", array_map=None,
     print("Processing beam %s." % file_header)
     beam = read_beam(file_header=file_header, array_map=array_map,
                      obs_log=obs_log, flag_ts=True, is_flat=is_flat)  # read data
-    if not beam.empty_flag_:
+    if (not beam.empty_flag_) and beam.len_ > 0:
         write_header = os.path.join(write_dir, beam.obs_id_ + write_suffix)
         result = proc_beam(
                 beam, write_header=write_header, is_flat=is_flat,
@@ -1623,7 +1636,7 @@ def reduce_beam_pair(file_header1, file_header2, write_dir=None, write_suffix=""
         if idx < len(split_header2):
             header += "-" + "_".join(split_header2[idx:])
 
-    if not beam_pair.empty_flag_:
+    if (not beam_pair.empty_flag_) and (beam_pair.len_ > 0):
         write_header = os.path.join(write_dir, header + write_suffix)
         result = proc_beam(
                 beam_pair, write_header=write_header, is_flat=is_flat,
@@ -1979,7 +1992,7 @@ def reduce_skychop(flat_header, data_dir=None, write_dir=None, write_suffix="",
     if analyze:
         beams_rms = analyze_performance(
                 flat_beams_ts, write_header=
-                os.path.join(write_dir, data_file_header),
+                os.path.join(write_dir, flat_file_header),
                 pix_flag_list=pix_flag_list, plot=plot, plot_rms=plot_flux,
                 plot_ts=False, reg_interest=reg_interest, plot_psd=plot_ts,
                 plot_specgram=False, plot_show=plot_show, plot_save=plot_save)
@@ -2511,6 +2524,8 @@ def eval_performance(data_header, data_dir=None, write_dir=None, write_suffix=""
     if table_save:
         beams_rms.to_table(orientation=ORIENTATION).write(os.path.join(
                 write_dir, "%s_rms.csv" % data_file_header), overwrite=True)
+        beams_rms.obs_info_.table_.write(os.path.join(
+                write_dir, "%s_info.csv" % data_file_header), overwrite=True)
 
     result = (beams_rms,)
     if return_ts:

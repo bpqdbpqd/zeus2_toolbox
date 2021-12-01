@@ -68,12 +68,12 @@ if BAND is not None:
     array_map.set_band(BAND)
 obs_log = z2pipl.ObsLog.read_folder(OBS_LOG_DIR)
 
-performance_result = z2pipl.eval_performance(
+check_result = z2pipl.eval_performance(
         data_header=DATA_HEADER, data_dir=DATA_DIR, write_dir=WRITE_DIR,
         array_map=array_map, obs_log=obs_log, pix_flag_list=PIX_FLAG_LIST,
         parallel=PARALLEL, table_save=TABLE_SAVE, plot=PLOT, plot_ts=PLOT_TS,
         reg_interest=REG_INTEREST, plot_psd=PLOT_PSD,
         plot_specgram=PLOT_SPECGRAM, plot_flux=PLOT_FLUX, plot_show=PLOT_SHOW,
         plot_save=PLOT_SAVE)
-performance_rms, performance_pix_flag_list = \
-    performance_result[0], performance_result[-1]
+check_rms, check_pix_flag_list = \
+    check_result[0], check_result[-1]

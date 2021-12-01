@@ -1,6 +1,10 @@
 1.4
 
+- Add the missing dependence of beautifulsoup4
+- Change the figures to be plotted with analyze_performance, and save obs_info table
 - Fix a bug in calculating nfft and noverlap in pipeline.analyze_performance()
+- Fix a bug with proc_along_axis() on empty ObsArray
+- Fix a bug for get_chop_flux in beam with only one chop phase
 
 1.3
 
