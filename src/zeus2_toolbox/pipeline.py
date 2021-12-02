@@ -1385,10 +1385,10 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flu
         plot_dict["ica"] = (noise_beam, {"c": "gray"})
 
     if cross:
-        beam_chunk_flux = beam.chunk_proc(
+        beam_chunk_flux = beam_use.chunk_proc(
                 method=CHUNK_METHOD if CHUNK_METHOD is not None else "nanmean")
-        beam_chunk_err = beam.chunk_proc(method="nanstd")
-        beam_chunk_wt = beam.chunk_proc(method="num_is_finite")
+        beam_chunk_err = beam_use.chunk_proc(method="nanstd")
+        beam_chunk_wt = beam_use.chunk_proc(method="num_is_finite")
         beam_chunk_err /= beam_chunk_wt.sqrt()
         beam_chop_flux_on, beam_chop_flux_off = \
             get_match_phase_pair(beam_chunk_flux)
