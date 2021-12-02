@@ -938,6 +938,8 @@ def desnake_beam(obs, ref_pix=None, pix_flag_list=[], corr_thre=CORR_THRE,
             stacked_best_pixels_obs, freq_sigma=freq_sigma,
             edge_chunks_ncut=edge_chunks_ncut,
             chunk_edges_ncut=chunk_edges_ncut)
+    if np.isfinite(snake_model.data_).sum() == 0:
+        warnings.warn("Data is too short for desnaking!", UserWarning)
 
     snake_model.expand(snake_model * 0 + 1)  # fit snake model to each pixel
     amp_snake = fit_obs(obs, features=snake_model)

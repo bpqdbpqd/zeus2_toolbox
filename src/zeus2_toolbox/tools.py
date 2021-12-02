@@ -215,7 +215,10 @@ def nanmad_flag(arr, thre=20, axis=-1):
                 "ignore", message="All-NaN slice encountered")
         warnings.filterwarnings(
                 "ignore", message="Mean of empty slice")
-        med = np.nanmedian(arr, axis=axis, keepdims=True)
+        if ((np.isfinite(arr)).sum() == 0) and (axis is None):
+            med = np.full(arr.shape, fill_value=np.nan)
+        else:
+            med = np.nanmedian(arr, axis=axis, keepdims=True)
     abs_div = np.abs(arr - med)
     with warnings.catch_warnings():
         warnings.filterwarnings(
@@ -224,7 +227,10 @@ def nanmad_flag(arr, thre=20, axis=-1):
                 "ignore", message="All-NaN slice encountered")
         warnings.filterwarnings(
                 "ignore", message="Mean of empty slice")
-        mad = np.nanmedian(abs_div, axis=axis, keepdims=True)
+        if ((np.isfinite(arr)).sum() == 0) and (axis is None):
+            mad = np.full(arr.shape, fill_value=np.nan)
+        else:
+            mad = np.nanmedian(abs_div, axis=axis, keepdims=True)
     with warnings.catch_warnings():
         warnings.filterwarnings(
                 "ignore", message="invalid value encountered in greater")
