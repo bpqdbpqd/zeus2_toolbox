@@ -1264,6 +1264,7 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
                 fig.savefig("%s_psd.png" % write_header)
             plt.close(fig)
         if plot_specgram:
+            print("Plotting dynamical spectrum.")
             if not beam.ts_.empty_flag_:
                 beam_t_len = beam.t_end_time_ - beam.t_start_time_
                 x_size = max((beam_t_len / units.hour).to(1), FigArray.x_size_)
@@ -2553,7 +2554,9 @@ def eval_performance(data_header, data_dir=None, write_dir=None, write_suffix=""
                         for header in data_header
                         for beam_ran in data_header[header]
                         for beam_num in range(beam_ran[0], beam_ran[1] + 1)]
-    beams = read_beams(file_header_list, array_map=array_map, obs_log=obs_log,
+    beams = read_beams(file_header_list, array_map=array_map if
+    (array_map is None) or (reg_interest is None) else
+    array_map.take_where(**reg_interest), obs_log=obs_log,
                        flag_ts=True, parallel=parallel)
     print("Analyzing data.")
     beams_rms = analyze_performance(
