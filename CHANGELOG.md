@@ -1,7 +1,9 @@
 1.5
 
+- Add cross flag to reduce_beam(), reduce_beams(), reduce_calibration() to accommodate cross scan
 - Add flag use_hk in reduce_zobs and reduce_beam_pairs forcing using manual nodding phase, it will raise an error if no
   nodding phase is found
+- Fix a bug dealing with np.nanmedian(aixs=None) with all nan data
 
 1.4
 

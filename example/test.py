@@ -62,15 +62,25 @@ flat_result = reduce_skychop(
         plot_flux=True, plot_show=False, plot_save=True)
 flat_flux, flat_err, flat_wt, pix_flag_list = flat_result
 
-zpoldbig_result = reduce_zpoldbig(
+calibration_result = reduce_calibration(
         data_header=DATA_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
         array_map=array_map, obs_log=obs_log, is_flat=False,
-        pix_flag_list=pix_flag_list, flat_flux=flat_flux, flat_err=flat_err,
-        parallel=True, do_desnake=False, ref_pix=[1, 11], do_smooth=True,
-        do_ica=False, spat_excl=(0, 5), return_ts=False,
-        return_pix_flag_list=True, table_save=True, plot=True, plot_ts=False,
-        reg_interest=None, plot_flux=True, plot_show=False, plot_save=True,
-        analyze=ANALYZE)
+        pix_flag_list=pix_flag_list, flat_flux=flat_flux, flat_err=flat_err, cross=True,
+        parallel=True, do_desnake=False, ref_pix=[1, 11],
+        do_smooth=False, do_ica=False, spat_excl=None, return_ts=False,
+        return_pix_flag_list=True, table_save=True, plot=True,
+        plot_ts=True, reg_interest=None, plot_flux=True, plot_show=False,
+        plot_save=True, analyze=False)
+
+# zpoldbig_result = reduce_zpoldbig(
+#         data_header=DATA_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
+#         array_map=array_map, obs_log=obs_log, is_flat=False,
+#         pix_flag_list=pix_flag_list, flat_flux=flat_flux, flat_err=flat_err,
+#         parallel=True, do_desnake=False, ref_pix=[1, 11], do_smooth=True,
+#         do_ica=False, spat_excl=(0, 5), return_ts=False,
+#         return_pix_flag_list=True, table_save=True, plot=True, plot_ts=False,
+#         reg_interest=None, plot_flux=True, plot_show=False, plot_save=True,
+#         analyze=ANALYZE)
 
 # eval_result = eval_performance(
 #         data_header=DATA_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,

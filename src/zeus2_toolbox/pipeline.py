@@ -1299,8 +1299,8 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
 
 
 def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flux=1,
-              flat_err=0, do_desnake=False, ref_pix=None, do_smooth=False,
-              do_ica=False, spat_excl=None, return_ts=False,
+              flat_err=0, cross=False, do_desnake=False, ref_pix=None,
+              do_smooth=False, do_ica=False, spat_excl=None, return_ts=False,
               return_pix_flag_list=False, plot=False, plot_ts=False,
               reg_interest=None, plot_flux=False, plot_show=False,
               plot_save=False, chunk_method=CHUNK_METHOD, method=METHOD):
@@ -1325,6 +1325,9 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flu
     :param flat_err: Obs or ObsArray, the flat field flux err used in computing the
         beam error, having the same behaviour as flat; default is 0
     :type flat_err: Union[Obs, ObsArray, int, float]
+    :param bool cross: bool, flag whether the beam is a cross scan; if True, will
+        process the beam to get the flux in each chop chunk pair, instead the
+        whole scan
     :param bool do_desnake: bool, flag whether to perform desnaking
     :param list ref_pix: list of 2, [spat, spec] for ObsArray input or
         [row, col] for Obs input, the reference pixel to use in desnaking; will
@@ -1381,19 +1384,38 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flu
         noise_beam += ica_noise_beam
         plot_dict["ica"] = (noise_beam, {"c": "gray"})
 
+    if cross:
+        beam_chunk_flux = beam.chunk_proc(
+                method=CHUNK_METHOD if CHUNK_METHOD is not None else "nanmean")
+        beam_chunk_err = beam.chunk_proc(method="nanstd")
+        beam_chunk_wt = beam.chunk_proc(method="num_is_finite")
+        beam_chop_flux_on, beam_chop_flux_off = \
+            get_match_phase_pair(beam_chunk_flux)
+        beam_chop_err_on, beam_chop_err_off = \
+            get_match_phase_pair(beam_chunk_err)
+        beam_chop_wt_on, beam_chop_wt_off = \
+            get_match_phase_pair(beam_chunk_wt)
+        beam_cross_flux = beam_chop_flux_on - beam_chop_flux_off
+        beam_cross_err = (beam_chop_err_on ** 2 + beam_chop_err_off ** 2).sqrt()
+        beam_cross_wt = beam_chop_wt_on + beam_chop_wt_off
+        beam_cross_flux, beam_cross_err = \
+            beam_cross_flux / flat_flux, abs(beam_cross_flux / flat_flux) * \
+            ((beam_cross_err / beam_cross_flux) ** 2 +
+             (flat_err / flat_flux) ** 2).sqrt()
     beam_flux, beam_err, beam_wt = get_chop_flux(  # compute flux and error
             beam_use, chunk_method=chunk_method, method=method,
-            weight=(None if is_flat else
-                    1 / (beam_use.chunk_proc("nanstd", keep_shape=True) ** 2 /
-                         beam_use.chunk_proc("num_is_finite", keep_shape=True) +
-                         (beam_use.chunk_proc("nanmedian", keep_shape=True) -
-                          beam_use.chunk_proc("nanmean", keep_shape=True)) ** 2)),
+            weight=(
+                None if is_flat else
+                1 / (beam_use.chunk_proc("nanstd", keep_shape=True) ** 2 /
+                     beam_use.chunk_proc("num_is_finite", keep_shape=True) +
+                     (beam_use.chunk_proc("nanmedian", keep_shape=True) -
+                      beam_use.chunk_proc("nanmean", keep_shape=True)) ** 2)),
             err_type="external")
+    pix_flag_list = auto_flag_pix_by_flux(  # auto flag
+            beam_flux, beam_err, pix_flag_list=pix_flag_list, is_flat=is_flat)
     beam_flux, beam_err = beam_flux / flat_flux, abs(beam_flux / flat_flux) * \
                           ((beam_err / beam_flux) ** 2 +
                            (flat_err / flat_flux) ** 2).sqrt()
-    pix_flag_list = auto_flag_pix_by_flux(  # auto flag
-            beam_flux, beam_err, pix_flag_list=pix_flag_list, is_flat=is_flat)
 
     if plot and plot_flux:
         plt.close(plot_beam_flux(
@@ -1402,13 +1424,19 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flu
                 plot_save=plot_save, write_header="%s_flux" % write_header,
                 orientation=ORIENTATION))
     if plot and plot_ts:
+        if cross:
+            plot_dict["chop flux"] = [beam_cross_flux, beam_cross_err,
+                                      {"c": "k", "ls": "--", "twin_axes": True}]
         plt.close(plot_beam_ts(
                 plot_dict, title="%s time series" % write_header.split("/")[-1],
                 pix_flag_list=pix_flag_list, reg_interest=reg_interest,
                 plot_show=plot_show, plot_save=plot_save,
                 write_header="%s_ts" % write_header, orientation=ORIENTATION))
 
-    result = (beam_flux, beam_err, beam_wt)
+    if cross:
+        result = (beam_cross_flux, beam_cross_err, beam_cross_wt)
+    else:
+        result = (beam_flux, beam_err, beam_wt)
     if return_ts:
         result += (beam_use,)
     if return_pix_flag_list:
@@ -1558,8 +1586,8 @@ def read_beam_pair(file_header1, file_header2, array_map=None, obs_log=None,
 
 def reduce_beam(file_header, write_dir=None, write_suffix="", array_map=None,
                 obs_log=None, is_flat=False, pix_flag_list=[], flat_flux=1,
-                flat_err=0, do_desnake=False, ref_pix=None, do_smooth=False,
-                do_ica=False, spat_excl=None, return_ts=False,
+                flat_err=0, cross=False, do_desnake=False, ref_pix=None,
+                do_smooth=False, do_ica=False, spat_excl=None, return_ts=False,
                 return_pix_flag_list=False, plot=False, plot_ts=False,
                 reg_interest=None, plot_flux=False, plot_show=False,
                 plot_save=False):
@@ -1585,11 +1613,11 @@ def reduce_beam(file_header, write_dir=None, write_suffix="", array_map=None,
         result = proc_beam(
                 beam, write_header=write_header, is_flat=is_flat,
                 pix_flag_list=pix_flag_list, flat_flux=flat_flux, flat_err=flat_err,
-                do_desnake=do_desnake, ref_pix=ref_pix, do_smooth=do_smooth,
-                do_ica=do_ica, spat_excl=spat_excl, return_ts=return_ts,
-                return_pix_flag_list=return_pix_flag_list, plot=plot,
-                plot_ts=plot_ts, reg_interest=reg_interest, plot_flux=plot_flux,
-                plot_show=plot_show, plot_save=plot_save)
+                cross=cross, do_desnake=do_desnake, ref_pix=ref_pix,
+                do_smooth=do_smooth, do_ica=do_ica, spat_excl=spat_excl,
+                return_ts=return_ts, return_pix_flag_list=return_pix_flag_list,
+                plot=plot, plot_ts=plot_ts, reg_interest=reg_interest,
+                plot_flux=plot_flux, plot_show=plot_show, plot_save=plot_save)
     else:
         result = (beam.copy(), beam.copy(), beam.copy())
         if return_ts:
@@ -1731,10 +1759,10 @@ def read_beams(file_header_list, array_map=None, obs_log=None, flag_ts=True,
 
 def reduce_beams(data_header, data_dir=None, write_dir=None, write_suffix="",
                  array_map=None, obs_log=None, is_flat=False, pix_flag_list=[],
-                 flat_flux=1, flat_err=0, parallel=False, do_desnake=False,
-                 ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
-                 return_ts=False, return_pix_flag_list=False, plot=False,
-                 plot_ts=False, reg_interest=None, plot_flux=False,
+                 flat_flux=1, flat_err=0, cross=False, parallel=False,
+                 do_desnake=False, ref_pix=None, do_smooth=False, do_ica=False,
+                 spat_excl=None, return_ts=False, return_pix_flag_list=False,
+                 plot=False, plot_ts=False, reg_interest=None, plot_flux=False,
                  plot_show=False, plot_save=False):
     """
     reduce the data of beam in data_header, and return the flux of beams
@@ -2255,12 +2283,12 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
 def reduce_calibration(data_header, data_dir=None, write_dir=None,
                        write_suffix="", array_map=None, obs_log=None,
                        is_flat=False, pix_flag_list=[], flat_flux=1, flat_err=0,
-                       parallel=False, do_desnake=False, ref_pix=None,
-                       do_smooth=False, do_ica=False, spat_excl=None,
-                       return_ts=False, return_pix_flag_list=True,
-                       table_save=True, plot=True, plot_ts=True,
-                       reg_interest=None, plot_flux=True, plot_show=False,
-                       plot_save=True, analyze=False):
+                       cross=False, parallel=False, do_desnake=False,
+                       ref_pix=None, do_smooth=False, do_ica=False,
+                       spat_excl=None, return_ts=False,
+                       return_pix_flag_list=True, table_save=True, plot=True,
+                       plot_ts=True, reg_interest=None, plot_flux=True,
+                       plot_show=False, plot_save=True, analyze=False):
     """
     reduce data for general calibration that does not involve nodding or raster,
     but just continuous chop observations like pointing or focus
@@ -2280,9 +2308,9 @@ def reduce_calibration(data_header, data_dir=None, write_dir=None,
             data_header=data_header, data_dir=data_dir, write_dir=write_dir,
             write_suffix=write_suffix, array_map=array_map, obs_log=obs_log,
             is_flat=is_flat, pix_flag_list=pix_flag_list, flat_flux=flat_flux,
-            flat_err=flat_err, parallel=parallel, do_desnake=do_desnake,
-            ref_pix=ref_pix, do_smooth=do_smooth, do_ica=do_ica,
-            spat_excl=spat_excl, return_ts=return_ts | analyze,
+            flat_err=flat_err, cross=cross, parallel=parallel,
+            do_desnake=do_desnake, ref_pix=ref_pix, do_smooth=do_smooth,
+            do_ica=do_ica, spat_excl=spat_excl, return_ts=return_ts | analyze,
             return_pix_flag_list=True, plot=plot, plot_ts=plot_ts,
             reg_interest=reg_interest, plot_flux=plot_flux, plot_show=plot_show,
             plot_save=plot_save)
@@ -2543,6 +2571,99 @@ def eval_performance(data_header, data_dir=None, write_dir=None, write_suffix=""
     if return_ts:
         result += (beams,)
     result += (pix_flag_list,)
+    return result
+
+
+def reduce_cross(data_header, data_dir=None, write_dir=None, write_suffix="",
+                 array_map=None, obs_log=None, is_flat=False, pix_flag_list=[],
+                 flat_flux=1, flat_err=0, parallel=False, do_desnake=False,
+                 ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
+                 return_ts=False, return_pix_flag_list=True, table_save=True,
+                 plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
+                 plot_show=False, plot_save=True, analyze=False):
+    """
+    Reduce cross scan beams
+    """
+
+    if data_dir is None:
+        data_dir = os.getcwd()
+    if write_dir is None:
+        write_dir = os.getcwd()
+    if (write_suffix != "") and (write_suffix[0] != "_"):
+        write_suffix = "_" + write_suffix
+    for flag, method in zip((do_desnake, do_smooth, do_ica),
+                            ("desnake", "smooth", "ica")):
+        if flag and method not in write_suffix:
+            write_suffix += "_" + method
+    result = reduce_beams(
+            data_header=data_header, data_dir=data_dir, write_dir=write_dir,
+            write_suffix=write_suffix, array_map=array_map, obs_log=obs_log,
+            is_flat=is_flat, pix_flag_list=pix_flag_list, flat_flux=flat_flux,
+            flat_err=flat_err, parallel=parallel, do_desnake=do_desnake,
+            ref_pix=ref_pix, do_smooth=do_smooth, do_ica=do_ica,
+            spat_excl=spat_excl, return_ts=return_ts | analyze,
+            return_pix_flag_list=True, plot=plot, plot_ts=plot_ts,
+            reg_interest=reg_interest, plot_flux=plot_flux, plot_show=plot_show,
+            plot_save=plot_save)
+    beams_flux, beams_err, beams_wt = result[:3]
+    if return_ts or analyze:
+        beams_ts = result[3]
+    pix_flag_list = result[-1]
+
+    data_file_header = build_header(data_header) + write_suffix
+    if table_save:  # save to csv
+        for obs, name in zip((beams_flux, beams_err),
+                             ("beams_flux", "beams_err")):
+            obs.to_table(orientation=ORIENTATION).write(os.path.join(
+                    write_dir, "%s_%s.csv" % (data_file_header, name)),
+                    overwrite=True)
+        beams_flux.obs_info_.table_.write(os.path.join(
+                write_dir, "%s_beams_info.csv" % data_file_header),
+                overwrite=True)
+    if plot:  # plot beam flux
+        plot_dict = {"beam flux": [beams_flux, beams_err,
+                                   {"c": "y", "ls": ":", "lw": 0.5}]}
+        # plot PWV over beam flux
+        if ("UTC" in beams_flux.obs_info_.table_.colnames) and \
+                ("mm PWV" in beams_flux.obs_info_.table_.colnames):
+            tb_use = beams_flux.obs_info_.table_[
+                ~beams_flux.obs_info_.table_.mask["UTC"]]
+            tb_use.sort("UTC")
+            t_arr = Time.strptime(tb_use["UTC"],
+                                  format_string="%Y-%m-%dU%H:%M:%S"). \
+                to_value(format="unix")
+            t_arr += tb_use["Scan duration"] / 2
+            pwv_arr = tb_use["mm PWV"]
+            obs_pwv = beams_flux.replace(
+                    arr_in=np.tile(pwv_arr, beams_flux.shape_[:-1] + (1,)),
+                    ts=t_arr, chop=None)
+            plot_dict["PWV"] = [obs_pwv, {"ls": "--", "twin_axes": True,
+                                          "c": "r", "marker": ".",
+                                          "markersize": 3}]
+        plt.close(plot_beam_ts(
+                plot_dict, title=(data_file_header + " beam flux"),
+                pix_flag_list=pix_flag_list, reg_interest=reg_interest,
+                plot_show=plot_show, plot_save=plot_save,
+                write_header=os.path.join(
+                        write_dir, "%s_beams_flux" % data_file_header),
+                orientation=ORIENTATION))
+
+    if analyze:
+        beams_rms = analyze_performance(
+                beams_ts, write_header=os.path.join(write_dir, data_file_header),
+                pix_flag_list=pix_flag_list, plot=plot, plot_rms=plot_flux,
+                plot_ts=False, reg_interest=reg_interest, plot_psd=plot_ts,
+                plot_specgram=False, plot_show=plot_show, plot_save=plot_save)
+        if table_save:
+            beams_rms.to_table(orientation=ORIENTATION).write(os.path.join(
+                    write_dir, "%s_rms.csv" % data_file_header), overwrite=True)
+
+    result = (beams_flux, beams_err, beams_wt)
+    if return_ts:
+        result += (beams_ts,)
+    if return_pix_flag_list:
+        result += (pix_flag_list,)
+
     return result
 
 # def raster_map
