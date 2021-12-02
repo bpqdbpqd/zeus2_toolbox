@@ -2139,7 +2139,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                 spat_excl=spat_excl, return_ts=return_ts | analyze,
                 return_pix_flag_list=True, plot=plot, plot_ts=plot_ts,
                 reg_interest=reg_interest, plot_flux=plot_flux,
-                plot_show=plot_show, plot_save=plot_save)
+                plot_show=plot_show, plot_save=plot_save, use_hk=use_hk)
         beam_pairs_flux, beam_pairs_err, beam_pairs_wt = result[:3]
         beam_pairs_flux *= NOD_PHASE
     plot_dict["beam pair flux"] = (beam_pairs_flux, beam_pairs_err, {"c": "k"})
@@ -2384,7 +2384,7 @@ def reduce_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
                  return_ts=False, return_pix_flag_list=True, table_save=True,
                  plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
                  plot_show=False, plot_save=True, analyze=False,
-                 zpold_shape=ZPOLD_SHAPE):
+                 zpold_shape=ZPOLD_SHAPE, nod=False):
     """
     plot raster of zpold
     """
