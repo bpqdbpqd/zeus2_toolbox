@@ -163,6 +163,9 @@ def gaussian_filter_obs(obs, freq_sigma=0.3, freq_center=0,
         raise TypeError("Invalid input type for edge_chunks_ncut.")
     flag_arr = obs.chop_.get_flag_edge_chunks(ncut=edge_chunks_ncut)
     flag_arr = flag_arr | obs.chop_.get_flag_chunk_edges(chunk_edges_ncut)
+    if flag_arr.sum() > obs.len_ / 2:
+        warnings.warn("More than half of the data is flagged in smoothing.",
+                      UserWarning)
     obs_smoothed.fill_by_flag_along_axis(flag_arr=flag_arr, axis=-1,
                                          fill_value=np.nan)
 
@@ -2388,6 +2391,9 @@ def reduce_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
                  zpold_shape=ZPOLD_SHAPE, nod=False):
     """
     plot raster of zpold
+
+    :param bool nod: bool, flag whether the zpold is nodding, if True, it means
+        there should be
     """
 
     if data_dir is None:
