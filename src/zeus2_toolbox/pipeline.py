@@ -1994,8 +1994,7 @@ def reduce_skychop(flat_header, data_dir=None, write_dir=None, write_suffix="",
                             np.cumsum(beam_num_list)):
         group_flux, group_err_ex, group_wt = weighted_proc_along_axis(
                 flat_beams_flux.take_by_idx_along_time(range(idx_i, idx_e)),
-                weight=1 / flat_beams_err.take_by_idx_along_time(
-                        range(idx_i, idx_e)) ** 2)
+                weight=None)
         group_err_in = ((flat_beams_err ** 2).proc_along_time(
                 method="nanmean")).sqrt()
         group_err = group_err_ex.replace(
