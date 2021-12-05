@@ -9,6 +9,8 @@ as objects that contain methods for data selection and simple reduction.
 """
 
 import copy
+import gc
+
 import astropy
 from datetime import datetime, timezone
 from collections import Counter
@@ -3960,6 +3962,7 @@ def nfft_obs(obs, nfft=5., noverlap=4.):
     nfft_arr = np.full(obs_interp.shape_[:-1] + (nfft, nblock),
                        dtype="complex128", fill_value=np.nan)
     for i in range(nblock):
+        gc.collect()
         idx_i = i * (nfft - noverlap)
         idx_e = idx_i + nfft
         ts_arr[i] = ts_new.data_[idx_i:idx_e].mean()

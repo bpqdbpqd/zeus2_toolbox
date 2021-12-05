@@ -1214,7 +1214,7 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
                     orientation=ORIENTATION))
         print("Plotting rms time series.")
         plot_dict = {"rms": (beam_chop_rms, {"c": "k"})}
-        if plot_ts and beam.len_ < 10 * 30 * 400:
+        if plot_ts and np.prod(beam.shape_) < 3 * 10 * 10000:
             plot_dict["raw data"] = (beam, {"twin_axes": True})
         plt.close(plot_beam_ts(
                 plot_dict, title="%s rms" %
@@ -1448,6 +1448,68 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flu
         result += (pix_flag_list,)
 
     return result
+
+
+def make_raster(beams, beams_err=None, write_header=None, pix_flag_list=[],
+                raster_shape=ZPOLDBIG_SHAPE, return_ts=False,
+                return_pix_flag_list=False, plot=False, reg_interest=None,
+                plot_show=False):
+    """
+    format the last dimension of the input object recording beams flux into 2-d
+    raster, then plot the raster
+
+    :param beams: Obs or ObsArray, with flux of all the beams in the last
+        dimension
+    :type beams: Union[Obs, ObsArray]
+    :param beams_err: Obs or ObsArray, with error of all the beams in the last
+        dimension, used for flagging pixels
+    :type beams_err: Union[Obs, ObsArray]
+    :param str write_header: str, full path to the title to save files/figures,
+        if left None, will write to current folder with {obs_id} as the title
+    :param bool is_flat: bool, flag indicating this beam is flat field, which will
+        use much larger mad flag threshold, flag pixel by SNR, and will not use
+        weighted mean in calculating flux
+    :param list pix_flag_list: list, a list including pixels to be flagged, will
+        be combined with auto flagged pixels in making figures and in the returned
+        pix_flag_list, the pixels will be flagged in the figure and the process of
+        modelling noise
+    :param flat_flux: Obs or ObsArray, the flat field flux to divide in computing the
+        beam flux, must have the same shape and array_map; will ignore if is_flat
+        is True; default is 1
+    :type flat_flux: Union[Obs, ObsArray, int, float]
+    :param flat_err: Obs or ObsArray, the flat field flux err used in computing the
+        beam error, having the same behaviour as flat; default is 0
+    :type flat_err: Union[Obs, ObsArray, int, float]
+    :param bool cross: bool, flag whether the beam is a cross scan; if True, will
+        process the beam to get the flux in each chop chunk pair, instead the
+        whole scan
+    :param bool do_desnake: bool, flag whether to perform desnaking
+    :param list ref_pix: list of 2, [spat, spec] for ObsArray input or
+        [row, col] for Obs input, the reference pixel to use in desnaking; will
+        automatically determine the best correlated pixel if left None
+    :param bool do_smooth: bool, flag whether to smooth data with a gaussian
+        kernel of FREQ_SIGMA
+    :param bool do_ica: bool, flag whether to perform ica
+    :param list spat_excl: list, the spatial position range excluded in building
+        noise model using ICA, e.g. spat_excl=[0, 2] means pixels at spat=0,1,2
+        will not be used; will use all pixels if let None
+    :param bool return_ts: bool, flag whether to return time series object
+    :param bool return_pix_flag_list: bool, bool, flag whether to return
+        pix_flag_list
+    :param bool plot: bool, flag whether to make figure
+    :param bool plot_ts: bool, flag whether to plot time series
+    :param dict reg_interest: dict, region of interest of array passed to
+        ArrayMap.take_where() for plotting
+    :param bool plot_flux: bool, flag whether to plot flux
+    :param bool plot_show: bool, flag whether to call plt.show() and show figure
+    :param bool plot_save: bool, flag whether to save the figure
+    :return: tuple (flat_flux, flat_err, flat_wt, [flat_beam], [pix_flag_list]),
+        are (Obs/ObsArray recording flat flux, Obs/ObsArray recording flat flux
+        error, Obs/ObsArray recording flat weight, [optional, Obs/ObsArray
+        recording processed time series after flagging], [optional, list of auto
+        flagged pixels])
+    :rtype: tuple
+    """
 
 
 def stack_raster(raster, raster_wt=None, write_header=None, pix_flag_list=[],
