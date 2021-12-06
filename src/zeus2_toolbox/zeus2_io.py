@@ -3961,14 +3961,15 @@ def nfft_obs(obs, nfft=5., noverlap=4.):
     ts_arr = np.empty(nblock, dtype=np.double)
     nfft_arr = np.full(obs_interp.shape_[:-1] + (nfft, nblock),
                        dtype="complex128", fill_value=np.nan)
+    gc.collect()
     for i in range(nblock):
-        gc.collect()
         idx_i = i * (nfft - noverlap)
         idx_e = idx_i + nfft
         ts_arr[i] = ts_new.data_[idx_i:idx_e].mean()
         nfft_arr[..., i] = np.fft.fft(obs_interp.data_[..., idx_i:idx_e],
                                       axis=-1)
 
+    gc.collect()
     obs_nfft = obs.replace(
             arr_in=nfft_arr, ts=ts_arr, chop=None, obs_id_arr=None)
     freq_ts = TimeStamps(arr_in=freq_arr)
