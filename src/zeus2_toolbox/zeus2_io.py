@@ -369,11 +369,11 @@ class DataObj(BaseObj):
         if shape_flag:  # the shapes match
             pass
         elif self.ndim_ == other.ndim_:  # ndim match, will try to reshape
-            for i in reversed(range(self.ndim_)):
-                if ((shape1[i] == 1) or (shape2[i] == 1)) and \
-                        (shape1[:i] == shape2[:i]) and \
-                        (shape1[i + 1:] == shape2[i + 1:]):
-                    shape_flag = True
+            shape_flag = True
+            for i in range(self.ndim_):
+                if (shape1[i] != 1) and (shape2[i] != 1) and \
+                        (shape1[i] != shape2[i]):
+                    shape_flag = False
         else:
             axis_new = None
             if (self.ndim_ - other.ndim_) == 1:  # other ndim smaller
@@ -904,8 +904,7 @@ class DataObj(BaseObj):
                         "ignore", message="Degrees of freedom <= 0 for slice.")
                 if keep_shape:
                     chunk_arr[..., idx_i:idx_e] = \
-                        func(self.data_[..., idx_i:idx_e], axis=-1).reshape(
-                                *self.shape_[:-1], 1)
+                        func(self.data_[..., idx_i:idx_e], axis=-1)[..., None]
                 else:
                     chunk_arr[..., i] = \
                         func(self.data_[..., idx_i:idx_e], axis=-1)
@@ -1985,8 +1984,8 @@ class TimeStamps(DataObj):
         if self.empty_flag_:
             self.t_start_ = self.t_end_ = np.double(-1.)
         else:
-            self.t_start_ = self.data_[0]
-            self.t_end_ = self.data_[-1]
+            self.t_start_ = np.nanmin(self.data_)
+            self.t_end_ = np.nanmax(self.data_)
         self.t_mid_ = (self.t_start_ + self.t_end_) / 2
         self.t_start_time_ = Time(self.t_start_, format="unix")
         self.t_end_time_ = Time(self.t_end_, format="unix")
@@ -2159,8 +2158,8 @@ class TimeStamps(DataObj):
             ts_new[:idx_i] = self.data_[:idx_i]
             ts_new[idx_i:] = \
                 t_start + (idxs[idx_i:] - idx_i + 1) * interv + chunk_interv * \
-                (idxs[idx_i:].reshape(-1, 1) >=
-                 chop_chunk_edge_idxs[idx_chunk_i:].reshape(1, -1)).sum(axis=-1)
+                (idxs[idx_i:, None] >=
+                 chop_chunk_edge_idxs[None, idx_chunk_i:]).sum(axis=-1)
 
         warnings.warn("Times stamp is rebuilt.", UserWarning)
         return TimeStamps(arr_in=ts_new)
@@ -2703,7 +2702,7 @@ class Obs(DataObj):
         else:
             data_use = self.data_
             if array_map.empty_flag_:
-                data_use = self.data_.reshape(1, -1) if self.ndim_ < 2 else \
+                data_use = self.data_[None, ...] if self.ndim_ < 2 else \
                     self.data_
                 col_idxs, row_idxs = np.meshgrid(range(self.shape_[1]),
                                                  range(self.shape_[0]))

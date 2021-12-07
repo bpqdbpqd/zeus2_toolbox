@@ -103,5 +103,5 @@ zobs_result = z2pipl.reduce_zobs(
         do_ica=DO_ICA, spat_excl=SPAT_EXCL, return_pix_flag_list=True,
         table_save=TABLE_SAVE, plot=PLOT, plot_ts=PLOT_TS,
         reg_interest=REG_INTEREST, plot_flux=PLOT_FLUX,
-        plot_show=PLOT_SHOW, plot_save=PLOT_SAVE, analyze=ANALYZE)
+        plot_show=PLOT_SHOW, plot_save=PLOT_SAVE, analyze=ANALYZE, use_hk=True)
 zobs_flux, zobs_err, zobs_pix_flag_list = zobs_result[:2] + zobs_result[-1:]

@@ -28,49 +28,49 @@ array_map.set_band(band=BAND)
 
 obs_log = ObsLog.read_folder(folder=OBS_LOG_FD)  # read in obs_fft log
 
-# flat_result = reduce_skychop(
-#         flat_header=FLAT_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
-#         array_map=array_map, obs_log=obs_log, pix_flag_list=[],
-#         parallel=True, return_ts=False, return_pix_flag_list=True,
-#         table_save=False, plot=True, plot_ts=True, reg_interest=REG_INTEREST,
-#         plot_flux=True, plot_show=False, plot_save=True)
-# flat_flux, flat_err, flat_wt, pix_flag_list = flat_result
-#
-# zobs_result = reduce_zobs(
-#         data_header=DATA_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
-#         array_map=array_map, obs_log=obs_log, pix_flag_list=pix_flag_list,
-#         flat_flux=flat_flux, flat_err=flat_err, parallel=True, stack=False,
-#         do_desnake=True, ref_pix=REF_PIX, do_smooth=False, do_ica=False,
-#         spat_excl=SPAT_EXCL, return_ts=False, return_pix_flag_list=False,
-#         table_save=False, plot=True, plot_ts=True,
-#         reg_interest=REG_INTEREST, plot_flux=PLOT_FLUX, plot_show=False,
-#         plot_save=PLOT_SAVE, analyze=ANALYZE)
-
-ARRAY_MAP_PATH = "../example_data/array_map_excel_alternative_20211101.csv"
-BAND = 400
-FLAT_HEADER = {"skychop_191128": [(64, 64)]}
-DATA_HEADER = {"irc10216_191128": [(27, 28)]}
-
-array_map = ArrayMap.read(filename=ARRAY_MAP_PATH)  # read in array map
-array_map.set_band(band=BAND)
-
 flat_result = reduce_skychop(
         flat_header=FLAT_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
         array_map=array_map, obs_log=obs_log, pix_flag_list=[],
         parallel=True, return_ts=False, return_pix_flag_list=True,
-        table_save=False, plot=False, plot_ts=False, reg_interest=REG_INTEREST,
+        table_save=False, plot=True, plot_ts=True, reg_interest=REG_INTEREST,
         plot_flux=True, plot_show=False, plot_save=True)
 flat_flux, flat_err, flat_wt, pix_flag_list = flat_result
 
-calibration_result = reduce_calibration(
+zobs_result = reduce_zobs(
         data_header=DATA_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
-        array_map=array_map, obs_log=obs_log, is_flat=False,
-        pix_flag_list=pix_flag_list, flat_flux=flat_flux, flat_err=flat_err, cross=True,
-        parallel=True, do_desnake=False, ref_pix=[1, 11],
-        do_smooth=False, do_ica=False, spat_excl=None, return_ts=False,
-        return_pix_flag_list=True, table_save=True, plot=True,
-        plot_ts=True, reg_interest=None, plot_flux=True, plot_show=False,
-        plot_save=True, analyze=False)
+        array_map=array_map, obs_log=obs_log, pix_flag_list=pix_flag_list,
+        flat_flux=flat_flux, flat_err=flat_err, parallel=True, stack=True,
+        do_desnake=False, ref_pix=REF_PIX, do_smooth=False, do_ica=True,
+        spat_excl=[0, 3], return_ts=False, return_pix_flag_list=False,
+        table_save=False, plot=True, plot_ts=True,
+        reg_interest=REG_INTEREST, plot_flux=PLOT_FLUX, plot_show=False,
+        plot_save=PLOT_SAVE, analyze=ANALYZE, use_hk=False)
+
+# ARRAY_MAP_PATH = "../example_data/array_map_excel_alternative_20211101.csv"
+# BAND = 400
+# FLAT_HEADER = {"skychop_191128": [(64, 64)]}
+# DATA_HEADER = {"irc10216_191128": [(27, 51)]}
+#
+# array_map = ArrayMap.read(filename=ARRAY_MAP_PATH)  # read in array map
+# array_map.set_band(band=BAND)
+#
+# flat_result = reduce_skychop(
+#         flat_header=FLAT_HEADER,  data_dir=DATA_PATH, write_dir=WRITE_PATH,
+#         array_map=array_map, obs_log=obs_log, pix_flag_list=[],
+#         parallel=True, return_ts=False, return_pix_flag_list=True,
+#         table_save=False, plot=False, plot_ts=False, reg_interest=REG_INTEREST,
+#         plot_flux=True, plot_show=False, plot_save=True)
+# flat_flux, flat_err, flat_wt, pix_flag_list = flat_result
+
+# calibration_result = reduce_calibration(
+#         data_header=DATA_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
+#         array_map=array_map, obs_log=obs_log, is_flat=False,
+#         pix_flag_list=pix_flag_list, flat_flux=flat_flux, flat_err=flat_err, cross=True,
+#         parallel=True, do_desnake=False, ref_pix=[1, 11],
+#         do_smooth=False, do_ica=False, spat_excl=None, return_ts=False,
+#         return_pix_flag_list=True, table_save=True, plot=True,
+#         plot_ts=True, reg_interest=None, plot_flux=True, plot_show=False,
+#         plot_save=True, analyze=False)
 
 # zpoldbig_result = reduce_zpoldbig(
 #         data_header=DATA_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,

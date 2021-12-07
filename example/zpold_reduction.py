@@ -31,6 +31,23 @@ FLAT_HEADER =  # dictionary of the header and beam numbers of the flat field
 DATA_HEADER =  # dictionary of the header and beam numbers of the science data
 # in the same format as FLAT_HEADER
 
+DO_DESNAKE = False  # flag whether to perform desnaking
+REF_PIX = None  # [spat_pos, spec_idx] of the reference pixel used to select
+# other good pixels to build the snake model, e.g. [1, 11] means
+# the pixel at spatial position 1 and spectral index 11 will be
+# used as the reference, only matters if DO_DESNAKE=True
+DO_SMOOTH = False  # flag whether to use a gaussian kernel to smooth the time
+# series to remove the long term structure, an alternative
+# de-trending process to desnaking
+DO_ICA = False  # flag whether to use ICA decomposition to remove the correlated
+# noise
+SPAT_EXCL = None  # list of the range of the spatial positions to be excluded
+# from being used to build correlated noise model by ICA,
+# should include at least +/- one spatial position to the
+# target, e.g. if the source is placed at spat_pos=1,
+# SPAT_EXCL should be [0, 2], or even [0, 3] or broader range
+# if it appears extended
+
 PARALLEL = True  # flag whether to run the reduction in parallel mode
 TABLE_SAVE = True  # flag whether to save the reduction result as csv table
 PLOT = True  # flag whether to plot the reduction result
@@ -82,7 +99,9 @@ zpold_result = z2pipl.reduce_zpold(
         data_header=DATA_HEADER, data_dir=DATA_DIR, write_dir=WRITE_DIR,
         array_map=array_map, obs_log=obs_log, pix_flag_list=pix_flag_list,
         flat_flux=flat_flux, flat_err=flat_err, parallel=PARALLEL,
-        return_pix_flag_list=True, table_save=TABLE_SAVE, plot=PLOT,
-        plot_ts=PLOT_TS, reg_interest=REG_INTEREST, plot_flux=PLOT_FLUX,
-        plot_show=PLOT_SHOW, plot_save=PLOT_SAVE, analyze=ANALYZE)
-zpold_flux, zpold_err, zpold_pix_flag_list = zpold_result[:2] + zpold_result[-1:]
+        do_desnake=DO_DESNAKE, ref_pix=REF_PIX, do_smooth=DO_SMOOTH,
+        do_ica=DO_ICA, spat_excl=SPAT_EXCL, return_pix_flag_list=True,
+        table_save=TABLE_SAVE, plot=PLOT, plot_ts=PLOT_TS,
+        reg_interest=REG_INTEREST, plot_flux=PLOT_FLUX, plot_show=PLOT_SHOW,
+        plot_save=PLOT_SAVE, analyze=ANALYZE, nod=False, use_hk=False)
+zpold_flux, zpold_pix_flag_list = zpold_result[:1] + zpold_result[-1:]

@@ -213,7 +213,7 @@ class FigFlux(Figure):
         if ndim == 3:
             arr = arr.reshape(shape[:2])
         elif ndim == 1:
-            arr = arr.reshape(1, -1)
+            arr = arr[None, ...]
         shape = arr.shape
         if orientation is None:
             orientation = self.orientation_
@@ -303,7 +303,7 @@ class FigFlux(Figure):
         if ndim == 3:
             arr = arr.reshape(shape[:2])
         elif ndim == 1:
-            arr = arr.reshape(1, -1)
+            arr = arr[None, ...]
 
         if orientation is None:
             orientation  = self.orientation_
@@ -2120,7 +2120,7 @@ def get_chop_color(chop):
     if not chop.empty_flag_:
         blue_arr = np.repeat([colors.to_rgba("blue")], chop.len_, axis=0)
         red_arr = np.repeat([colors.to_rgba("red")], chop.len_, axis=0)
-        color = np.choose(chop.data_.reshape(-1, 1),
+        color = np.choose(chop.data_[..., None],
                           (blue_arr, red_arr))
     else:
         color = "black"
