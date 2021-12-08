@@ -147,7 +147,7 @@ def gaussian_filter_obs(obs, freq_sigma=0.3, freq_center=0,
     obs_fft.update_data(obs_fft.data_ * gaussian_kern)
     obs_ifft = ifft_obs(obs_fft)
     obs_smoothed = obs_ifft.resample_by_ts(
-            ts_new=ts, method="interpolation", fill_value=0)
+            ts_new=ts, method="interpolation", fill_value=0.)
 
     chop_freq = obs.get_chop_freq()
     if edge_chunks_ncut is None:
