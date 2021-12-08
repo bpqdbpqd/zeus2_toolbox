@@ -9,6 +9,7 @@
 - Change the way multiple skychop are averaged, use nanmean instead of weighted mean
 - Fix a bug dealing with np.nanmedian(axis=None) with all nan data
 - Fix a bug in Obs.naninterp()
+- Fix a bug in z2io.fft_obs()
 
 1.4
 

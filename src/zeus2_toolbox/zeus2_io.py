@@ -3832,13 +3832,13 @@ def fft_obs(obs):
 
     ts = obs.ts_
     if np.all(abs(np.diff(np.diff(obs.ts_.data_))) < obs.ts_.interv_ * 1E-3):
-        interv, ts_new, obs_interp = ts.interv_, ts, obs
+        interv, ts_new = ts.interv_, ts
     else:
         interv = ts.interv_ / 2
         ts_new = TimeStamps(arr_in=np.arange(ts.t_start_ - 2 * interv,
                                              ts.t_end_ + 2 * interv, interv))
-        obs_interp = obs.resample_by_ts(ts_new=ts_new, method="interpolation",
-                                        fill_value=0)
+    obs_interp = obs.resample_by_ts(ts_new=ts_new, method="interpolation",
+                                    fill_value=0)
 
     data_fft = np.fft.fft(obs_interp.data_, axis=-1)
     freq_arr = np.fft.fftfreq(n=obs_interp.len_, d=interv)
