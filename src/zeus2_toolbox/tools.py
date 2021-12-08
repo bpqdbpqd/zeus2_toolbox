@@ -295,7 +295,7 @@ def naninterp(x, xp, fp, fill_value=np.nan):
     """
 
     finite_mask = np.isfinite(xp) & np.isfinite(fp)
-    if finite_mask.sum() = 0:
+    if finite_mask.sum() == 0:
         return np.full(x.shape, fill_value=fill_value)
     else:
         return np.interp(x, xp[finite_mask], fp[finite_mask])
