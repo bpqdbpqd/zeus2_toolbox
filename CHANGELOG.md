@@ -7,7 +7,8 @@
 - Change make_raster() so that it can accept nodding observation
 - Change reduce_beam_pairs() and reduce_zobs, so that NOD_PHASE is moved to be applied in reduce_beam_pairs()
 - Change the way multiple skychop are averaged, use nanmean instead of weighted mean
-- Fix a bug dealing with np.nanmedian(aixs=None) with all nan data
+- Fix a bug dealing with np.nanmedian(axis=None) with all nan data
+- Fix a bug in Obs.naninterp()
 
 1.4
 
