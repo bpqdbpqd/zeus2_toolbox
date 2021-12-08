@@ -1641,7 +1641,10 @@ def read_beam(file_header, array_map=None, obs_log=None, flag_ts=True,
         beam = Obs(obs_id=file_header.split("/")[-1])
     if array_map is not None:  # transform into ObsArray
         if beam.empty_flag_:
-            beam = beam.to_obs_array(array_map=None)
+            beam = ObsArray(
+                    np.empty((array_map.len_, 0), dtype=ObsArray.dtype_),
+                    array_map=array_map)
+            beam.empty_flag_ = True
         else:
             beam = beam.to_obs_array(array_map=array_map)
     if flag_ts and (not beam.empty_flag_):

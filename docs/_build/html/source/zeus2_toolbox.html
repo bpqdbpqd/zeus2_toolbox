@@ -5,7 +5,7 @@
 <head>
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-    <title>API &#8212; zeus2_toolbox 1.4 documentation</title>
+    <title>API &#8212; zeus2_toolbox 1.5 documentation</title>
 
     <link href="../_static/css/theme.css" rel="stylesheet">
     <link href="../_static/css/index.ff1ffe594081f20da1ef19478df9384b.css" rel="stylesheet">
@@ -58,7 +58,7 @@
                 <a class="navbar-brand text-wrap" href="../index.html">
 
 
-                    <h1 class="site-logo" id="site-title">zeus2_toolbox 1.4 documentation</h1>
+                    <h1 class="site-logo" id="site-title">zeus2_toolbox 1.5 documentation</h1>
 
                 </a>
             </div>
@@ -266,6 +266,53 @@
                                                         gaussian distribution</p></li>
                                                     <li><p><strong>sigma</strong> (<em>float</em>) – float, standard
                                                         deviation of gaussian</p></li>
+                                                    <li><p><strong>norm</strong> (<em>bool</em>) – bool, whether to
+                                                        normalized the peak to represent an
+                                                        actual pdf</p></li>
+                                                </ul>
+                                            </dd>
+                                        </dl>
+                                    </dd>
+                                </dl>
+
+                                <dl class="py function">
+                                    <dt class="sig sig-object py" id="zeus2_toolbox.tools.gaussian_2d">
+                                        <span class="sig-prename descclassname"><span
+                                                class="pre">zeus2_toolbox.tools.</span></span><span
+                                            class="sig-name descname"><span class="pre">gaussian_2d</span></span><span
+                                            class="sig-paren">(</span><em class="sig-param"><span class="n"><span
+                                            class="pre">x</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">y</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span class="pre">x0</span></span><span
+                                            class="o"><span class="pre">=</span></span><span class="default_value"><span
+                                            class="pre">0</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">y0</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span
+                                            class="pre">0</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">sigma</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span
+                                            class="pre">1</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">norm</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span
+                                            class="sig-paren">)</span><a class="headerlink"
+                                                                         href="#zeus2_toolbox.tools.gaussian_2d"
+                                                                         title="Permalink to this definition">¶</a></dt>
+                                    <dd><p>return a 2d symmetric gaussian distribution</p>
+                                        <dl class="field-list simple">
+                                            <dt class="field-odd">Parameters</dt>
+                                            <dd class="field-odd">
+                                                <ul class="simple">
+                                                    <li><p><strong>x</strong> (<em>float</em><em> or </em><em>numpy.ndarray</em>)
+                                                        – float or array, place to calculate the value of gaussian
+                                                        distribution</p></li>
+                                                    <li><p><strong>y</strong> (<em>float</em><em> or </em><em>numpy.ndarray</em>)
+                                                        – same as x for the other dimension</p></li>
+                                                    <li><p><strong>x0</strong> (<em>float</em>) – float, center of
+                                                        gaussian distribution in x dimension</p></li>
+                                                    <li><p><strong>x0</strong> – float, center of gaussian distribution
+                                                        in y dimension</p></li>
+                                                    <li><p><strong>sigma</strong> (<em>float</em>) – float, standard
+                                                        deviation of gaussian in either dimension</p></li>
                                                     <li><p><strong>norm</strong> (<em>bool</em>) – bool, whether to
                                                         normalized the peak to represent an
                                                         actual pdf</p></li>
@@ -11107,13 +11154,16 @@
                                             class="n"><span class="pre">flat_err</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span
                                             class="pre">0</span></span></em>, <em class="sig-param"><span
-                                            class="n"><span class="pre">do_desnake</span></span><span class="o"><span
+                                            class="n"><span class="pre">cross</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
-                                        <em class="sig-param"><span class="n"><span
-                                                class="pre">ref_pix</span></span><span class="o"><span
-                                                class="pre">=</span></span><span class="default_value"><span
-                                                class="pre">None</span></span></em>, <em class="sig-param"><span
-                                            class="n"><span class="pre">do_smooth</span></span><span class="o"><span
+                                        <em class="sig-param"><span class="n"><span class="pre">do_desnake</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">False</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span
+                                            class="pre">ref_pix</span></span><span class="o"><span class="pre">=</span></span><span
+                                            class="default_value"><span class="pre">None</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span
+                                            class="pre">do_smooth</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
                                         <em class="sig-param"><span class="n"><span
                                                 class="pre">do_ica</span></span><span class="o"><span
@@ -11205,6 +11255,11 @@
                                                         – Obs or ObsArray, the flat field flux err used in computing the
                                                         beam error, having the same behaviour as flat; default is 0</p>
                                                     </li>
+                                                    <li><p><strong>cross</strong> (<em>bool</em>) – bool, flag whether
+                                                        the beam is a cross scan; if True, will
+                                                        process the beam to get the flux in each chop chunk pair,
+                                                        instead the
+                                                        whole scan</p></li>
                                                     <li><p><strong>do_desnake</strong> (<em>bool</em>) – bool, flag
                                                         whether to perform desnaking</p></li>
                                                     <li><p><strong>ref_pix</strong> (<em>list</em>) – list of 2, [spat,
@@ -11244,11 +11299,121 @@
                                                 </ul>
                                             </dd>
                                             <dt class="field-even">Returns</dt>
-                                            <dd class="field-even"><p>tuple (flat_flux, flat_err, flat_wt, [flat_beam],
+                                            <dd class="field-even"><p>tuple (beam_flux, beam_err, beam_wt, [beam_ts],
                                                 [pix_flag_list]),
-                                                are (Obs/ObsArray recording flat flux, Obs/ObsArray recording flat flux
-                                                error, Obs/ObsArray recording flat weight, [optional, Obs/ObsArray
+                                                are (Obs/ObsArray recording beam flux, Obs/ObsArray recording beam flux
+                                                error, Obs/ObsArray recording beam weight, [optional, Obs/ObsArray
                                                 recording processed time series after flagging], [optional, list of auto
+                                                flagged pixels])</p>
+                                            </dd>
+                                            <dt class="field-odd">Return type</dt>
+                                            <dd class="field-odd"><p>tuple</p>
+                                            </dd>
+                                        </dl>
+                                    </dd>
+                                </dl>
+
+                                <dl class="py function">
+                                    <dt class="sig sig-object py" id="zeus2_toolbox.pipeline.make_raster">
+                                        <span class="sig-prename descclassname"><span class="pre">zeus2_toolbox.pipeline.</span></span><span
+                                            class="sig-name descname"><span class="pre">make_raster</span></span><span
+                                            class="sig-paren">(</span><em class="sig-param"><span class="n"><span
+                                            class="pre">beams_flux</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">beams_err</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">write_header</span></span><span class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">None</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span
+                                            class="pre">pix_flag_list</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span
+                                            class="pre">[]</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">raster_shape</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span
+                                            class="pre">(5,</span> <span class="pre">5)</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span
+                                            class="pre">return_pix_flag_list</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">False</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span
+                                            class="pre">reg_interest</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">plot_show</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">False</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">plot_save</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">raster_thre</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">2</span></span></em><span class="sig-paren">)</span><a
+                                            class="headerlink" href="#zeus2_toolbox.pipeline.make_raster"
+                                            title="Permalink to this definition">¶</a></dt>
+                                    <dd><p>format the last dimension of the input object recording beams flux into 2-d
+                                        raster, then plot the raster; the raster always starts from the lower left,
+                                        then swipe to the right, move upwards by one, swiping to the left and so on,
+                                        zigzaging to the top row.</p>
+                                        <dl class="field-list simple">
+                                            <dt class="field-odd">Parameters</dt>
+                                            <dd class="field-odd">
+                                                <ul class="simple">
+                                                    <li><p><strong>beams_flux</strong> (<em>Union</em><em>[</em><a
+                                                            class="reference internal"
+                                                            href="#zeus2_toolbox.zeus2_io.Obs"
+                                                            title="zeus2_toolbox.zeus2_io.Obs"><em>Obs</em></a><em>, </em><a
+                                                            class="reference internal"
+                                                            href="#zeus2_toolbox.zeus2_io.ObsArray"
+                                                            title="zeus2_toolbox.zeus2_io.ObsArray"><em>ObsArray</em></a><em>]</em>)
+                                                        – Obs or ObsArray, with flux of all the beams in the last
+                                                        dimension</p></li>
+                                                    <li><p><strong>beams_err</strong> (<em>Union</em><em>[</em><a
+                                                            class="reference internal"
+                                                            href="#zeus2_toolbox.zeus2_io.Obs"
+                                                            title="zeus2_toolbox.zeus2_io.Obs"><em>Obs</em></a><em>, </em><a
+                                                            class="reference internal"
+                                                            href="#zeus2_toolbox.zeus2_io.ObsArray"
+                                                            title="zeus2_toolbox.zeus2_io.ObsArray"><em>ObsArray</em></a><em>]</em>)
+                                                        – Obs or ObsArray, with error of all the beams in the last
+                                                        dimension, used for flagging pixels</p></li>
+                                                    <li><p><strong>write_header</strong> (<em>str</em>) – str, full path
+                                                        to the title to save figures,
+                                                        if left None, will write to current folder with {obs_id} as the
+                                                        title</p></li>
+                                                    <li><p><strong>pix_flag_list</strong> (<em>list</em>) – list, a list
+                                                        including pixels to be flagged, will
+                                                        be combined with auto flagged pixels in making figures and in
+                                                        the returned
+                                                        pix_flag_list, additional pixel flagging will be performed based
+                                                        on S/N</p></li>
+                                                    <li><p><strong>raster_shape</strong> (<em>list</em>) – list,
+                                                        (az_len, alt_len), dimensional size in the
+                                                        azimuthal (horizontal) and elevation (vertical) directions of
+                                                        raster</p></li>
+                                                    <li><p><strong>return_pix_flag_list</strong> (<em>bool</em>) – bool,
+                                                        bool, flag whether to return
+                                                        pix_flag_list</p></li>
+                                                    <li><p><strong>plot</strong> (<em>bool</em>) – bool, flag whether to
+                                                        make figure</p></li>
+                                                    <li><p><strong>reg_interest</strong> (<em>dict</em>) – dict, region
+                                                        of interest of array passed to
+                                                        ArrayMap.take_where() for plotting</p></li>
+                                                    <li><p><strong>plot_show</strong> (<em>bool</em>) – bool, flag
+                                                        whether to call plt.show() and show figure</p></li>
+                                                    <li><p><strong>plot_save</strong> (<em>bool</em>) – bool, flag
+                                                        whether to save the figure</p></li>
+                                                    <li><p><strong>raster_thre</strong>
+                                                        (<em>Union</em><em>[</em><em>int</em><em>, </em><em>float</em><em>]</em>)
+                                                        – int or float, threshold of SNR of the pixel for it not
+                                                        to be flagged, by default use the value of RASTER_THRE</p></li>
+                                                </ul>
+                                            </dd>
+                                            <dt class="field-even">Returns</dt>
+                                            <dd class="field-even"><p>tuple (raster_flux, [pix_flag_list]), are
+                                                (ObsArray recording the
+                                                raster flux reshaped in the last two dimensions. [optional, list of auto
                                                 flagged pixels])</p>
                                             </dd>
                                             <dt class="field-odd">Return type</dt>
@@ -11515,13 +11680,16 @@
                                             class="n"><span class="pre">flat_err</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span
                                             class="pre">0</span></span></em>, <em class="sig-param"><span
-                                            class="n"><span class="pre">do_desnake</span></span><span class="o"><span
+                                            class="n"><span class="pre">cross</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
-                                        <em class="sig-param"><span class="n"><span
-                                                class="pre">ref_pix</span></span><span class="o"><span
-                                                class="pre">=</span></span><span class="default_value"><span
-                                                class="pre">None</span></span></em>, <em class="sig-param"><span
-                                            class="n"><span class="pre">do_smooth</span></span><span class="o"><span
+                                        <em class="sig-param"><span class="n"><span class="pre">do_desnake</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">False</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span
+                                            class="pre">ref_pix</span></span><span class="o"><span class="pre">=</span></span><span
+                                            class="default_value"><span class="pre">None</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span
+                                            class="pre">do_smooth</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
                                         <em class="sig-param"><span class="n"><span
                                                 class="pre">do_ica</span></span><span class="o"><span
@@ -11742,16 +11910,19 @@
                                             class="n"><span class="pre">flat_err</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span
                                             class="pre">0</span></span></em>, <em class="sig-param"><span
-                                            class="n"><span class="pre">parallel</span></span><span class="o"><span
+                                            class="n"><span class="pre">cross</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
-                                        <em class="sig-param"><span class="n"><span class="pre">do_desnake</span></span><span
-                                                class="o"><span class="pre">=</span></span><span
-                                                class="default_value"><span class="pre">False</span></span></em>, <em
-                                            class="sig-param"><span class="n"><span
-                                            class="pre">ref_pix</span></span><span class="o"><span class="pre">=</span></span><span
-                                            class="default_value"><span class="pre">None</span></span></em>, <em
-                                            class="sig-param"><span class="n"><span
-                                            class="pre">do_smooth</span></span><span class="o"><span
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">parallel</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">False</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">do_desnake</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">ref_pix</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">None</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">do_smooth</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
                                         <em class="sig-param"><span class="n"><span
                                                 class="pre">do_ica</span></span><span class="o"><span
@@ -11865,10 +12036,21 @@
                                         <em class="sig-param"><span class="n"><span
                                                 class="pre">plot_save</span></span><span class="o"><span
                                                 class="pre">=</span></span><span class="default_value"><span
-                                                class="pre">False</span></span></em><span class="sig-paren">)</span><a
-                                            class="headerlink" href="#zeus2_toolbox.pipeline.reduce_beam_pairs"
-                                            title="Permalink to this definition">¶</a></dt>
-                                    <dd><p>reduce the data files in data_header, and return in the beam pairs</p>
+                                                class="pre">False</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">use_hk</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span
+                                            class="sig-paren">)</span><a class="headerlink"
+                                                                         href="#zeus2_toolbox.pipeline.reduce_beam_pairs"
+                                                                         title="Permalink to this definition">¶</a></dt>
+                                    <dd><p>reduce the data files in data_header by callling reduce_beam_pair() which
+                                        stack each beam pair, and return the flux, error and weight of the beam
+                                        pairs</p>
+                                        <dl class="field-list simple">
+                                            <dt class="field-odd">Raises</dt>
+                                            <dd class="field-odd"><p><strong>RunTimeError</strong> – no beam pair is
+                                                matched</p>
+                                            </dd>
+                                        </dl>
                                     </dd>
                                 </dl>
 
@@ -12014,11 +12196,23 @@
                                                 class="pre">=</span></span><span class="default_value"><span
                                                 class="pre">True</span></span></em>, <em class="sig-param"><span
                                             class="n"><span class="pre">analyze</span></span><span class="o"><span
-                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span
-                                            class="sig-paren">)</span><a class="headerlink"
-                                                                         href="#zeus2_toolbox.pipeline.reduce_zobs"
-                                                                         title="Permalink to this definition">¶</a></dt>
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">use_hk</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">True</span></span></em><span class="sig-paren">)</span><a
+                                            class="headerlink" href="#zeus2_toolbox.pipeline.reduce_zobs"
+                                            title="Permalink to this definition">¶</a></dt>
                                     <dd><p>reduce the data from zobs command</p>
+                                        <dl class="field-list simple">
+                                            <dt class="field-odd">Parameters</dt>
+                                            <dd class="field-odd"><p><strong>use_hk</strong> (<em>bool</em>) – bool,
+                                                flag whether to use hk file as nodding phase</p>
+                                            </dd>
+                                            <dt class="field-even">Raises</dt>
+                                            <dd class="field-even"><p><strong>RunTimeError</strong> – not nodding</p>
+                                            </dd>
+                                        </dl>
                                     </dd>
                                 </dl>
 
@@ -12055,16 +12249,19 @@
                                             class="n"><span class="pre">flat_err</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span
                                             class="pre">0</span></span></em>, <em class="sig-param"><span
-                                            class="n"><span class="pre">parallel</span></span><span class="o"><span
+                                            class="n"><span class="pre">cross</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
-                                        <em class="sig-param"><span class="n"><span class="pre">do_desnake</span></span><span
-                                                class="o"><span class="pre">=</span></span><span
-                                                class="default_value"><span class="pre">False</span></span></em>, <em
-                                            class="sig-param"><span class="n"><span
-                                            class="pre">ref_pix</span></span><span class="o"><span class="pre">=</span></span><span
-                                            class="default_value"><span class="pre">None</span></span></em>, <em
-                                            class="sig-param"><span class="n"><span
-                                            class="pre">do_smooth</span></span><span class="o"><span
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">parallel</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">False</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">do_desnake</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">ref_pix</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">None</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">do_smooth</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
                                         <em class="sig-param"><span class="n"><span
                                                 class="pre">do_ica</span></span><span class="o"><span
@@ -12190,6 +12387,12 @@
                                                 class="pre">True</span></span></em>, <em class="sig-param"><span
                                             class="n"><span class="pre">analyze</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">nod</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">False</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span
+                                            class="pre">use_hk</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>,
                                         <em class="sig-param"><span class="n"><span
                                                 class="pre">zpold_shape</span></span><span class="o"><span
                                                 class="pre">=</span></span><span class="default_value"><span
@@ -12198,6 +12401,13 @@
                                                                          href="#zeus2_toolbox.pipeline.reduce_zpold"
                                                                          title="Permalink to this definition">¶</a></dt>
                                     <dd><p>plot raster of zpold</p>
+                                        <dl class="field-list simple">
+                                            <dt class="field-odd">Parameters</dt>
+                                            <dd class="field-odd"><p><strong>nod</strong> (<em>bool</em>) – bool, flag
+                                                whether the zpold is nodding, if True, it means
+                                                there should be</p>
+                                            </dd>
+                                        </dl>
                                     </dd>
                                 </dl>
 
@@ -12282,8 +12492,14 @@
                                                 class="pre">True</span></span></em>, <em class="sig-param"><span
                                             class="n"><span class="pre">analyze</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">nod</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">False</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span
+                                            class="pre">use_hk</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>,
                                         <em class="sig-param"><span class="n"><span
-                                                class="pre">zpold_shape</span></span><span class="o"><span
+                                                class="pre">zpoldbig_shape</span></span><span class="o"><span
                                                 class="pre">=</span></span><span class="default_value"><span
                                                 class="pre">(5,</span> <span class="pre">5)</span></span></em><span
                                             class="sig-paren">)</span><a class="headerlink"

@@ -1,3 +1,16 @@
+1.5
+
+- Add make_raster() to turn beams_flux into raster shape and make figures; change reduce_zpold() to use make_raster()
+- Add cross flag to reduce_beam(), reduce_beams(), reduce_calibration() to accommodate cross scan
+- Add flag use_hk in reduce_zobs and reduce_beam_pairs forcing using manual nodding phase, it will raise an error if no
+  nodding phase is found
+- Change make_raster() so that it can accept nodding observation
+- Change reduce_beam_pairs() and reduce_zobs, so that NOD_PHASE is moved to be applied in reduce_beam_pairs()
+- Change the way multiple skychop are averaged, use nanmean instead of weighted mean
+- Fix a bug dealing with np.nanmedian(axis=None) with all nan data
+- Fix a bug in Obs.naninterp()
+- Fix a bug in z2io.fft_obs()
+
 1.4
 
 - Add the missing dependence of beautifulsoup4

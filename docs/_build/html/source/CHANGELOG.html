@@ -5,7 +5,7 @@
 <head>
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-    <title>&lt;no title&gt; &#8212; zeus2_toolbox 1.4 documentation</title>
+    <title>&lt;no title&gt; &#8212; zeus2_toolbox 1.5 documentation</title>
 
     <link href="../_static/css/theme.css" rel="stylesheet">
     <link href="../_static/css/index.ff1ffe594081f20da1ef19478df9384b.css" rel="stylesheet">
@@ -57,7 +57,7 @@
                 <a class="navbar-brand text-wrap" href="../index.html">
 
 
-                    <h1 class="site-logo" id="site-title">zeus2_toolbox 1.4 documentation</h1>
+                    <h1 class="site-logo" id="site-title">zeus2_toolbox 1.5 documentation</h1>
 
                 </a>
             </div>
@@ -201,6 +201,24 @@
 
                     <div>
 
+                        <p>1.5</p>
+                        <ul class="simple">
+                            <li><p>Add make_raster() to turn beams_flux into raster shape and make figures; change
+                                reduce_zpold() to use make_raster()</p></li>
+                            <li><p>Add cross flag to reduce_beam(), reduce_beams(), reduce_calibration() to accommodate
+                                cross scan</p></li>
+                            <li><p>Add flag use_hk in reduce_zobs and reduce_beam_pairs forcing using manual nodding
+                                phase, it will raise an error if no
+                                nodding phase is found</p></li>
+                            <li><p>Change make_raster() so that it can accept nodding observation</p></li>
+                            <li><p>Change reduce_beam_pairs() and reduce_zobs, so that NOD_PHASE is moved to be applied
+                                in reduce_beam_pairs()</p></li>
+                            <li><p>Change the way multiple skychop are averaged, use nanmean instead of weighted
+                                mean</p></li>
+                            <li><p>Fix a bug dealing with np.nanmedian(axis=None) with all nan data</p></li>
+                            <li><p>Fix a bug in Obs.naninterp()</p></li>
+                            <li><p>Fix a bug in z2io.fft_obs()</p></li>
+                        </ul>
                         <p>1.4</p>
                         <ul class="simple">
                             <li><p>Add the missing dependence of beautifulsoup4</p></li>

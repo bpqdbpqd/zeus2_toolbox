@@ -27,9 +27,29 @@ def gaussian(x, x0=0, sigma=1, norm=False):
         actual pdf
     """
 
-    a = 1 if not norm else 1/np.sqrt(2 * np.pi * sigma)
+    a = 1 if not norm else 1 / np.sqrt(2 * np.pi * sigma)
 
-    return a * np.exp(-(x - x0)**2/(2 * sigma**2))
+    return a * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2))
+
+
+def gaussian_2d(x, y, x0=0, y0=0, sigma=1, norm=False):
+    """
+    return a 2d symmetric gaussian distribution
+
+    :param x: float or array, place to calculate the value of gaussian
+        distribution
+    :type x: float or numpy.ndarray
+    :param y: same as x for the other dimension
+    :type y: float or numpy.ndarray
+    :param float x0: float, center of gaussian distribution in x dimension
+    :param float x0: float, center of gaussian distribution in y dimension
+    :param float sigma: float, standard deviation of gaussian in either dimension
+    :param bool norm: bool, whether to normalized the peak to represent an
+        actual pdf
+    """
+
+    return gaussian(x=x, x0=x0, sigma=sigma, norm=norm) * \
+           gaussian(x=y, x0=y0, sigma=sigma, norm=norm)
 
 
 def weighted_mean(arr, wt=None, nan_policy="omit"):
