@@ -2393,6 +2393,33 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
         if table_save:
             beams_rms.to_table(orientation=ORIENTATION).write(os.path.join(
                     write_dir, "%s_rms.csv" % data_file_header), overwrite=True)
+        flat_use = flat_flux.proc_along_time("nanmean") if \
+            isinstance(flat_flux, type(beams_rms)) else flat_flux
+        beams_sensitivity = beams_rms / abs(flat_use) / \
+                            np.sqrt(zobs_ts.len_ * (stack + 1)) * 2
+        if plot:
+            zobs_flux_array = ObsArray(zobs_flux)  # plot spectrum
+            array_map = zobs_flux_array.array_map_
+            fig = FigSpec.plot_spec(
+                    zobs_flux, yerr=zobs_err, pix_flag_list=pix_flag_list,
+                    color="k", label="spectrum")
+            fig.step(beams_sensitivity, lw=.5, c="b", pix_flag_list=pix_flag_list,
+                     label="predicted error")
+            fig.imshow_flag(pix_flag_list=pix_flag_list)
+            fig.plot_all_spat(
+                    [array_map.array_spec_llim_, array_map.array_spec_ulim_],
+                    [0, 0], "k:")
+            fig.set_title("%s spectrum" % data_file_header)
+            if plot_show:
+                plt.show()
+            if plot_save:
+                fig.savefig(os.path.join(
+                        write_dir, "%s_spec.png" % data_file_header))
+            plt.close(fig)
+        if table_save:
+            beams_sensitivity.to_table(orientation=ORIENTATION).write(
+                    os.path.join(write_dir, "%s_predicted_err.csv" %
+                                 data_file_header), overwrite=True)
 
     result = (zobs_flux, zobs_err, zobs_wt)
     if return_ts:

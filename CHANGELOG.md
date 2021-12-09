@@ -1,3 +1,7 @@
+1.6
+
+- Add the ability to output the predicted error in pipeline.zobs()
+
 1.5
 
 - Add make_raster() to turn beams_flux into raster shape and make figures; change reduce_zpold() to use make_raster()

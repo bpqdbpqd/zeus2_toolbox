@@ -16,12 +16,18 @@ PLOT_SAVE = True
 ANALYZE = True
 
 ARRAY_MAP_PATH = "../example_data/array_200_excel.csv"
-BAND = 200
+
+ARRAY_MAP_PATH = "../example_data/array_map_excel_alternative_20211203.csv"
+BAND = 400
 FLAT_HEADER = {"skychop_191127": [(34, 35)]}
+
+FLAT_HEADER = {"skychop_211201": [(17, 17)]}
 DATA_HEADER = {"ngc253_211201": [(0, 1)]}
 
+REG_INTEREST = {"spat_ran": (0, 3)}
+
 REF_PIX = [6, 7]
-SPAT_EXCL = (5, 8)
+SPAT_EXCL = (0, 3)
 
 array_map = ArrayMap.read(filename=ARRAY_MAP_PATH)  # read in array map
 array_map.set_band(band=BAND)
@@ -32,7 +38,7 @@ flat_result = reduce_skychop(
         flat_header=FLAT_HEADER, data_dir=DATA_PATH, write_dir=WRITE_PATH,
         array_map=array_map, obs_log=obs_log, pix_flag_list=[],
         parallel=True, return_ts=False, return_pix_flag_list=True,
-        table_save=False, plot=True, plot_ts=True, reg_interest=REG_INTEREST,
+        table_save=True, plot=True, plot_ts=True, reg_interest=REG_INTEREST,
         plot_flux=True, plot_show=False, plot_save=True)
 flat_flux, flat_err, flat_wt, pix_flag_list = flat_result
 
@@ -42,7 +48,7 @@ zobs_result = reduce_zobs(
         flat_flux=flat_flux, flat_err=flat_err, parallel=True, stack=True,
         do_desnake=False, ref_pix=REF_PIX, do_smooth=False, do_ica=True,
         spat_excl=[0, 3], return_ts=False, return_pix_flag_list=False,
-        table_save=False, plot=True, plot_ts=True,
+        table_save=True, plot=True, plot_ts=True,
         reg_interest=REG_INTEREST, plot_flux=PLOT_FLUX, plot_show=False,
         plot_save=PLOT_SAVE, analyze=ANALYZE, use_hk=False)
 
