@@ -2306,7 +2306,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                 plot_save=plot_save, write_header=os.path.join(
                         write_dir, "%s_flux" % data_file_header)))
         plt.close(plot_beam_flux(
-                zobs_err, title=data_file_header + " zobs flux",
+                zobs_err, title=data_file_header + " zobs error",
                 pix_flag_list=pix_flag_list, plot_show=plot_show,
                 plot_save=plot_save, write_header=os.path.join(
                         write_dir, "%s_err" % data_file_header)))
