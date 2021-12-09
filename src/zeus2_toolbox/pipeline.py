@@ -2409,6 +2409,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
             fig.plot_all_spat(
                     [array_map.array_spec_llim_, array_map.array_spec_ulim_],
                     [0, 0], "k:")
+            fig.legend()
             fig.set_title("%s spectrum" % data_file_header)
             if plot_show:
                 plt.show()
