@@ -12,44 +12,55 @@ import numpy as np
 from numpy.linalg import lstsq
 
 
-def gaussian(x, x0=0, sigma=1, norm=False):
+def gaussian(x, x0=0, sigma=1, amp=1, norm=False):
     """
     return the evaluation of gaussian distribution with center x0 and sigma at
-    given x. If not normalized, the value at center is 1, other wise the peak is
-    1/sqrt(2*np.pi*sigma)
+    given x. If not normalized, the value at center is amp, otherwise the peak is
+    amp/sqrt(2*np.pi*sigma)
 
     :param x: float or array, place to calculate the value of gaussian
         distribution
     :type x: float or numpy.ndarray
     :param float x0: float, center of gaussian distribution
     :param float sigma: float, standard deviation of gaussian
-    :param bool norm: bool, whether to normalized the peak to represent an
+    :param float amp: float, amplitude of the gaussian peak; if norm=False, amp
+        will be the peak value, otherwise amp will be the integrated value
+    :param bool norm: bool, whether to normalize the peak to represent an
         actual pdf
     """
 
-    a = 1 if not norm else 1 / np.sqrt(2 * np.pi * sigma)
+    a = amp if not norm else amp / np.sqrt(2 * np.pi) / sigma
 
     return a * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2))
 
 
-def gaussian_2d(x, y, x0=0, y0=0, sigma=1, norm=False):
+def gaussian_2d(x, y, x0=0, y0=0, sigma_x=1, sigma_y=1, theta=0, amp=1,
+                norm=False):
     """
-    return a 2d symmetric gaussian distribution
+    return a 2d gaussian distribution
 
-    :param x: float or array, place to calculate the value of gaussian
-        distribution
-    :type x: float or numpy.ndarray
-    :param y: same as x for the other dimension
-    :type y: float or numpy.ndarray
+    :param x: float or 1-d array, the x dimension to calculate the value of
+        gaussian distribution
+    :param y: float or 1-d array, the x dimension to calculate the value of
+        gaussian distribution
     :param float x0: float, center of gaussian distribution in x dimension
-    :param float x0: float, center of gaussian distribution in y dimension
-    :param float sigma: float, standard deviation of gaussian in either dimension
+    :param float y0: float, center of gaussian distribution in y dimension
+    :param float sigma_x: float, standard deviation of gaussian in the x dimension
+    :param float sigma_y: float, standard deviation of gaussian in the y dimension
+    :param float theta: float, radian of the position angle of x with repect to
+        the first dimension
+    :param float amp: float, amplitude of the gaussian peak; if norm=False, amp
+        will be the peak value, otherwise amp will be the integrated value
     :param bool norm: bool, whether to normalized the peak to represent an
         actual pdf
     """
 
-    return gaussian(x=x, x0=x0, sigma=sigma, norm=norm) * \
-           gaussian(x=y, x0=y0, sigma=sigma, norm=norm)
+    x_size = 0 if not hasattr(x, '__iter__') else len(x)
+    y_size = 0 if not hasattr(y, '__iter__') else len(y)
+    xx, yy = np.meshgrid(x, y)
+
+    return gaussian(x=xx, x0=x0, sigma=sigma, norm=norm) * \
+           gaussian(x=yy, x0=y0, sigma=sigma, norm=norm)
 
 
 def weighted_mean(arr, wt=None, nan_policy="omit"):

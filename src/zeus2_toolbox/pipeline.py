@@ -140,7 +140,7 @@ def gaussian_filter_obs(obs, freq_sigma=0.3, freq_center=0,
     obs_fft = fft_obs(obs=obs)
     freq_center, freq_sigma = abs(freq_center), abs(freq_sigma)
     gaussian_kern = gaussian(x=abs(obs_fft.ts_.data_), x0=freq_center,
-                             sigma=freq_sigma, norm=False)
+                             sigma=freq_sigma, amp=1, norm=False)
     gaussian_kern[
         (abs(obs_fft.ts_.data_) > freq_sigma * truncate + freq_center) |
         (abs(obs_fft.ts_.data_) < - freq_center - freq_sigma * truncate)] = 0
@@ -1584,6 +1584,9 @@ def stack_raster(raster, raster_wt=None, write_header=None, pix_flag_list=[],
     """
 
     raster_norm = ObsArray(raster * raster_wt)
+    raster_norm -= raster_norm.proc_along_axis("nanmedian", axis=-1). \
+        proc_along_axis("nanmedian", axis=-2)
+    raster_norm = abs(raster_norm)
     array_map = raster_norm.array_map_
     if (write_header is None) and plot:
         write_header = os.path.join(os.getcwd(), raster_norm.obs_id_)
@@ -2627,8 +2630,9 @@ def reduce_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
     raster_flux, pix_flag_list = raster_result
 
     stacked_result = stack_raster(
-            raster=raster_flux, raster_wt=(1 / (beams_err ** 2).
-                                           proc_along_time(method="nanmean").sqrt()).data_[..., None],
+            raster=raster_flux,
+            raster_wt=(1 / (beams_err ** 2).proc_along_time(method="nanmean").
+                       sqrt()).data_[..., None],
             write_header=os.path.join(write_dir, data_file_header),
             pix_flag_list=pix_flag_list, plot=plot, plot_show=plot_show,
             plot_save=plot_save)
@@ -2649,6 +2653,7 @@ def reduce_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
     result = (raster_flux,)
     if return_ts:
         result += (beams_ts,)
+    result += (stacked_result,)
     if return_pix_flag_list:
         result += (pix_flag_list,)
 
