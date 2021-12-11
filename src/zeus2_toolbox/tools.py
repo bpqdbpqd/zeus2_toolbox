@@ -34,15 +34,15 @@ def gaussian(x, x0=0, sigma=1, amp=1, norm=False):
     return a * np.exp(-(x - x0) ** 2 / (2 * sigma ** 2))
 
 
-def gaussian_2d(x, y, x0=0, y0=0, sigma_x=1, sigma_y=1, theta=0, amp=1,
+def gaussian_2d(pos, x0=0, y0=0, sigma_x=1, sigma_y=1, theta=0, amp=1,
                 norm=False):
     """
     return a 2d gaussian distribution
 
-    :param x: float or 1-d array, the x dimension to calculate the value of
-        gaussian distribution
-    :param y: float or 1-d array, the x dimension to calculate the value of
-        gaussian distribution
+    :param pos: list or tuple or array, size two recording the values of x and y
+        dimension to evaluate, can be (float, float) or (array, array) of the same
+        size
+    :type pos: Union[list, tuple, numpy.ndarray]
     :param float x0: float, center of gaussian distribution in x dimension
     :param float y0: float, center of gaussian distribution in y dimension
     :param float sigma_x: float, standard deviation of gaussian in the x dimension
@@ -51,16 +51,21 @@ def gaussian_2d(x, y, x0=0, y0=0, sigma_x=1, sigma_y=1, theta=0, amp=1,
         the first dimension
     :param float amp: float, amplitude of the gaussian peak; if norm=False, amp
         will be the peak value, otherwise amp will be the integrated value
-    :param bool norm: bool, whether to normalized the peak to represent an
+    :param bool norm: bool, whether to normalize the peak to represent an
         actual pdf
+    :return: array or value evaluated at the given position
     """
 
-    x_size = 0 if not hasattr(x, '__iter__') else len(x)
-    y_size = 0 if not hasattr(y, '__iter__') else len(y)
-    xx, yy = np.meshgrid(x, y)
+    xx, yy = pos
+    xx, yy = np.array(xx), np.array(yy)
 
-    return gaussian(x=xx, x0=x0, sigma=sigma, norm=norm) * \
-           gaussian(x=yy, x0=y0, sigma=sigma, norm=norm)
+    xxp = xx * np.cos(theta) + yy * np.sin(theta)
+    x0p = x0 * np.cos(theta) + y0 * np.sin(theta)
+    yyp = - xx * np.sin(theta) + yy * np.cos(theta)
+    y0p = - x0 * np.sin(theta) + y0 * np.cos(theta)
+
+    return amp * gaussian(x=xxp, x0=x0p, sigma=sigma_x, norm=norm) * \
+           gaussian(x=yyp, x0=y0p, sigma=sigma_y, norm=norm)
 
 
 def weighted_mean(arr, wt=None, nan_policy="omit"):

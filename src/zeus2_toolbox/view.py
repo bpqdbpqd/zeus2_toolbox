@@ -277,9 +277,8 @@ class FigFlux(Figure):
         if not check_orientation(orientation=orientation):
             row_arr, col_arr = col_arr, row_arr
         for i, (row, col) in enumerate(zip(row_arr, col_arr)):
-            ax.text(x=extent_round[0] + col - 0.3,
-                    y=extent_round[2] + row + 0.3,
-                    s=arr[i], fontsize=self.text_fontsize_, **kwargs)
+            ax.text(x=col - 0.3, y=row + 0.3, s=arr[i],
+                    fontsize=self.text_fontsize_, **kwargs)
 
     def __text_obs__(self, obs, orientation, extent=None, **kwargs):
         if (obs.ndim_ > 3) or ((obs.ndim_ == 3) and (obs.shape_[2] != 1)):

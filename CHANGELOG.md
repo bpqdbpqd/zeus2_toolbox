@@ -1,6 +1,10 @@
 1.6
 
+- Add dependence of scipy
+- Add function gaussian_2d()
 - Add the ability to output the predicted error in pipeline.zobs()
+- Add the ability to fit raster in pipeline.make_raster() and stack_raster()
+- Fix a bug in FigFlux.write_text() in the position to put text for ObsArray
 
 1.5
 

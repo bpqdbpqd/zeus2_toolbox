@@ -11,8 +11,7 @@ import os, multiprocessing, inspect
 import gc
 import warnings
 
-import matplotlib.pyplot as plt
-import numpy as np
+from scipy.optimize import curve_fit
 
 from .view import *
 from sklearn.decomposition import FastICA, PCA, FactorAnalysis, \
@@ -1494,6 +1493,7 @@ def make_raster(beams_flux, beams_err=None, write_header=None, pix_flag_list=[],
     beams_flux_obs_array = ObsArray(beams_flux.copy())
     array_map = beams_flux_obs_array.array_map_
     raster_len = np.prod(raster_shape, dtype=int)
+    x_len, y_len = raster_shape
     if (write_header is None) and plot:
         write_header = os.path.join(os.getcwd(), beams_flux_obs_array.obs_id_)
 
@@ -1541,8 +1541,9 @@ def make_raster(beams_flux, beams_err=None, write_header=None, pix_flag_list=[],
         fig = FigArray.init_by_array_map(
                 array_map if reg_interest is None else array_map.take_where(
                         **reg_interest), orientation=ORIENTATION,
-                x_size=0.5, y_size=.5, axs_fontsize=2)
-        fig.imshow(raster_flux, origin="lower")
+                x_size=0.5, y_size=0.5, axs_fontsize=2)
+        fig.imshow(raster_flux, origin="lower",
+                   extent=(-x_len / 2, x_len / 2, -y_len / 2, y_len / 2))
         fig.imshow_flag(pix_flag_list=pix_flag_list)
         fig.set_xlabel("azimuth")
         fig.set_ylabel("altitude")
@@ -1552,6 +1553,43 @@ def make_raster(beams_flux, beams_err=None, write_header=None, pix_flag_list=[],
             plt.show()
         if plot_save:
             fig.savefig("%s_raster.png" % write_header)
+        plt.close(fig)
+
+        result_list, text_list = [], []  # fit gaussian to raster
+        gauss_2d_fit = lambda pos, x0, y0, sigma, amp: \
+            gaussian_2d(pos, x0=x0, y0=y0, sigma_x=sigma, sigma_y=sigma,
+                        theta=0, amp=amp)
+        xx, yy = np.meshgrid(np.arange(x_len, dtype=float),
+                             np.arange(y_len, dtype=float))
+        xx -= (x_len - 1) / 2
+        yy -= (y_len - 1) / 2
+        raster_fit = raster_flux if reg_interest is None else \
+            raster_flux.take_where(**reg_interest)
+        for pix_raster in (
+                raster_fit - raster_fit.proc_along_axis("nanmedian", axis=-1).
+                proc_along_axis("nanmedian", axis=-2)).data_:
+            finite_mask = np.isfinite(pix_raster)
+            if finite_mask.sum() >= 4:
+                try:
+                    result = curve_fit(
+                            gauss_2d_fit, xdata=(xx[finite_mask], yy[finite_mask]),
+                            ydata=pix_raster[finite_mask], p0=(0, 0, 1, 1))
+                    text_list += [["x0=%.2f\ny0=%.2f\nsigma=%.1f" %
+                                   tuple(result[0][:3])]]
+                except RuntimeError:
+                    text_list += [["fitting\nfailed"]]
+            else:
+                text_list += [["not\nenough\ndata"]]
+
+        fig = FigArray.write_text(
+                raster_fit.replace(arr_in=text_list), orientation=ORIENTATION,
+                x_size=0.5, y_size=0.5, text_fontsize=6)
+        fig.imshow_flag(pix_flag_list=pix_flag_list)
+        fig.set_title(title="%s raster fit" % write_header.split("/")[-1])
+        if plot_show:
+            plt.show()
+        if plot_save:
+            fig.savefig("%s_raster_fit.png" % write_header)
         plt.close(fig)
 
     result = (raster_flux,)
@@ -1584,6 +1622,7 @@ def stack_raster(raster, raster_wt=None, write_header=None, pix_flag_list=[],
     """
 
     raster_norm = ObsArray(raster * raster_wt)
+    y_len, x_len = raster.shape_[-2:]
     raster_norm -= raster_norm.proc_along_axis("nanmedian", axis=-1). \
         proc_along_axis("nanmedian", axis=-2)
     raster_norm = abs(raster_norm)
@@ -1602,17 +1641,52 @@ def stack_raster(raster, raster_wt=None, write_header=None, pix_flag_list=[],
             stacked_raster.expand(stacked_pix)
 
     if plot:
-        fig = FigArray.init_by_array_map(stacked_raster, orientation=ORIENTATION,
-                                         x_size=0.5, y_size=.5, axs_fontsize=2)
-        fig.imshow(stacked_raster, origin="lower")
+        fig = FigArray.init_by_array_map(
+                stacked_raster, orientation=ORIENTATION,
+                x_size=FigArray.y_size_)
+        fig.imshow(stacked_raster, origin="lower",
+                   extent=(-x_len / 2, x_len / 2, -y_len / 2, y_len / 2))
         fig.set_xlabel("azimuth")
         fig.set_ylabel("altitude")
         fig.set_labels(raster, orientation=ORIENTATION)
-        fig.set_title(title="%s stacked raster" % write_header.split("/")[-1])
+        fig.set_title(title="%s\nstacked raster" % write_header.split("/")[-1])
         if plot_show:
             plt.show()
         if plot_save:
             fig.savefig("%s_raster_stack.png" % write_header)
+        plt.close(fig)
+
+        result_list, text_list = [], []  # fit gaussian to raster
+        gauss_2d_fit = lambda pos, x0, y0, sigma, amp: \
+            gaussian_2d(pos, x0=x0, y0=y0, sigma_x=sigma, sigma_y=sigma,
+                        theta=0, amp=amp)
+        xx, yy = np.meshgrid(np.arange(x_len, dtype=float),
+                             np.arange(y_len, dtype=float))
+        xx -= (x_len - 1) / 2
+        yy -= (y_len - 1) / 2
+        for pix_raster in stacked_raster.data_:
+            finite_mask = np.isfinite(pix_raster)
+            if finite_mask.sum() >= 4:
+                try:
+                    result = curve_fit(
+                            gauss_2d_fit, xdata=(xx[finite_mask], yy[finite_mask]),
+                            ydata=pix_raster[finite_mask], p0=(0, 0, 1, 1))
+                    text_list += [["x0=%.2f\ny0=%.2f\nsigma=%.1f" %
+                                   tuple(result[0][:3])]]
+                except RuntimeError:
+                    text_list += [["fitting\nfailed"]]
+            else:
+                text_list += [["not\nenough\ndata"]]
+
+        fig = FigArray.write_text(
+                stacked_raster.replace(arr_in=text_list),
+                orientation=ORIENTATION, text_fontsize=20)
+        fig.set_title(title="%s\nstacked raster fit" %
+                            write_header.split("/")[-1])
+        if plot_show:
+            plt.show()
+        if plot_save:
+            fig.savefig("%s_raster_stack_fit.png" % write_header)
         plt.close(fig)
 
     return stacked_raster
