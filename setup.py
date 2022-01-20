@@ -28,6 +28,7 @@ if __name__ == "__main__":
             "numpy>=1.13",
             "astropy",
             "matplotlib",
-            "scikit-learn"
+            "scikit-learn",
+            "bs4"
         ]
     )
