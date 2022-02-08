@@ -1,9 +1,11 @@
 1.6
 
 - Add dependence of scipy
+- Add requirement of beautifulsoup4
 - Add function gaussian_2d()
 - Add the ability to output the predicted error in pipeline.zobs()
 - Add the ability to fit raster in pipeline.make_raster() and stack_raster()
+- Change error prediction from rms/sqrt(#data)*2 to rms/sqrt(#data)*4*sqrt(2/3) which accounts for oversampling
 - Fix a bug in FigFlux.write_text() in the position to put text for ObsArray
 
 1.5

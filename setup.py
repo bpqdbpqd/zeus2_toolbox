@@ -29,6 +29,6 @@ if __name__ == "__main__":
             "astropy",
             "matplotlib",
             "scikit-learn",
-            "bs4"
+            "beautifulsoup4"
         ]
     )

@@ -107,7 +107,7 @@ def gaussian_filter_obs(obs, freq_sigma=0.3, freq_center=0,
     with time stamp within 0.5s/(freq_sigma + freq_center) to the edge. If you
     would like not to null any edge chunks, set edge_chunks_ncut=0.
 
-    :param obs: Obs or ObsArray object to to ifft
+    :param obs: Obs or ObsArray object to ifft
     :type obs: Obs or ObsArray
     :param float freq_sigma: float, the standard deviation for Gaussian kernel
         to convolved with data in terms of frequency.
@@ -1305,7 +1305,8 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
 
 def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flux=1,
               flat_err=0, cross=False, do_desnake=False, ref_pix=None,
-              do_smooth=False, do_ica=False, spat_excl=None, return_ts=False,
+              do_smooth=False, do_ica=False, spat_excl=None, do_clean=False,
+              return_ts=False,
               return_pix_flag_list=False, plot=False, plot_ts=False,
               reg_interest=None, plot_flux=False, plot_show=False,
               plot_save=False, chunk_method=CHUNK_METHOD, method=METHOD):
@@ -1343,6 +1344,10 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flu
     :param list spat_excl: list, the spatial position range excluded in building
         noise model using ICA, e.g. spat_excl=[0, 2] means pixels at spat=0,1,2
         will not be used; will use all pixels if let None
+    :param bool do_clean: bool, [experimental] flag whether to clean data by
+        filtering out 1+-0.015 Hz, 1.41+-0.015 Hz, 1.985+-0.015 Hz, 3.97+-0.03Hz,
+        5.955+-0.045Hz, 7.94+-0.06Hz from the time series; if True, will happen
+        after desnaking/smoother, before ICA
     :param bool return_ts: bool, flag whether to return time series object
     :param bool return_pix_flag_list: bool, bool, flag whether to return
         pix_flag_list
@@ -1369,7 +1374,10 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flu
 
     if do_desnake:  # model noise
         desnaked_beam, snake_beam, amp_snake, snake_model = desnake_beam(
-                beam_use, ref_pix=ref_pix, pix_flag_list=pix_flag_list)
+                beam_use, ref_pix=ref_pix, pix_flag_list=pix_flag_list,
+                corr_thre=CORR_THRE, min_pix_num=MIN_PIX_NUM,
+                freq_sigma=FREQ_SIGMA, edge_chunks_ncut=EDGE_CHUNKS_NCUT,
+                chunk_edges_ncut=CHUNK_EDGES_NCUT)
         beam_use = auto_flag_ts(desnaked_beam, is_flat=is_flat)
         noise_beam += snake_beam
         plot_dict["snake"] = (noise_beam, {"c": "k"})
@@ -1381,10 +1389,33 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flu
         beam_use = auto_flag_ts(beam_use - smooth_beam, is_flat=is_flat)
         noise_beam += smooth_beam
         plot_dict["smooth"] = (noise_beam, {"c": "y"})
+    if do_clean:
+        clean_beam = 0
+        freq_center_list = (1.41, 1.985, 3.97, 5.955, 7.94)
+        freq_sigma_list = (0.015, 0.015, 0.03, 0.045, 0.06)
+        if not is_flat:
+            freq_center_list += (.9, 1.,)
+            freq_sigma_list += (0.02, 0.02)
+        for freq_center, freq_sigma in zip(freq_center_list, freq_sigma_list):
+            clean_beam += (gaussian_filter_obs(
+                    beam_use, freq_sigma=freq_sigma, freq_center=freq_center,
+                    edge_chunks_ncut=0, chunk_edges_ncut=0, truncate=3.0) +
+                           gaussian_filter_obs(
+                                   beam_use, freq_sigma=freq_sigma, freq_center=-freq_center,
+                                   edge_chunks_ncut=0, chunk_edges_ncut=0, truncate=3.0)) / 2
+        beam_use = auto_flag_ts(beam_use - clean_beam, is_flat=is_flat)
+        noise_beam += clean_beam
+        plot_dict["clean"] = (noise_beam, {"c": "c"}) if \
+            ("snake" in plot_dict) or ("smooth" in plot_dict) else \
+            (noise_beam, {"c": "c", "twin_axes": True})
     if do_ica:
         ica_treated_beam, ica_noise_beam, amp_ica, ica_noise_model = \
             ica_treat_beam(beam_use, spat_excl=spat_excl,
-                           pix_flag_list=pix_flag_list)
+                           pix_flag_list=pix_flag_list, verbose=VERBOSE,
+                           finite_thre=FINITE_THRE,
+                           n_components_init=N_COMPONENTS_INIT,
+                           n_components_max=N_COMPONENTS_MAX, max_iter=MAX_ITER,
+                           random_state=RANDOM_STATE)
         beam_use = auto_flag_ts(ica_treated_beam, is_flat=is_flat)
         noise_beam += ica_noise_beam
         plot_dict["ica"] = (noise_beam, {"c": "gray"})
@@ -1418,7 +1449,8 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flu
                       beam_use.chunk_proc("nanmean", keep_shape=True)) ** 2)),
             err_type="external")
     pix_flag_list = auto_flag_pix_by_flux(  # auto flag
-            beam_flux, beam_err, pix_flag_list=pix_flag_list, is_flat=is_flat)
+            beam_flux, beam_err, pix_flag_list=pix_flag_list, is_flat=is_flat,
+            snr_thre=SNR_THRE)
     beam_flux, beam_err = beam_flux / flat_flux, abs(beam_flux / flat_flux) * \
                           ((beam_err / beam_flux) ** 2 +
                            (flat_err / flat_flux) ** 2).sqrt()
@@ -1556,24 +1588,22 @@ def make_raster(beams_flux, beams_err=None, write_header=None, pix_flag_list=[],
         plt.close(fig)
 
         result_list, text_list = [], []  # fit gaussian to raster
-        gauss_2d_fit = lambda pos, x0, y0, sigma, amp: \
+        gauss_2d_fit = lambda pos, x0, y0, sigma, amp, offset: \
             gaussian_2d(pos, x0=x0, y0=y0, sigma_x=sigma, sigma_y=sigma,
-                        theta=0, amp=amp)
+                        theta=0, amp=amp) + offset
         xx, yy = np.meshgrid(np.arange(x_len, dtype=float),
                              np.arange(y_len, dtype=float))
         xx -= (x_len - 1) / 2
         yy -= (y_len - 1) / 2
         raster_fit = raster_flux if reg_interest is None else \
             raster_flux.take_where(**reg_interest)
-        for pix_raster in (
-                raster_fit - raster_fit.proc_along_axis("nanmedian", axis=-1).
-                proc_along_axis("nanmedian", axis=-2)).data_:
+        for pix_raster in raster_fit.data_:
             finite_mask = np.isfinite(pix_raster)
-            if finite_mask.sum() >= 4:
+            if finite_mask.sum() >= 5:
                 try:
                     result = curve_fit(
                             gauss_2d_fit, xdata=(xx[finite_mask], yy[finite_mask]),
-                            ydata=pix_raster[finite_mask], p0=(0, 0, 1, 1))
+                            ydata=pix_raster[finite_mask], p0=(0, 0, 1, 1, 0))
                     text_list += [["x0=%.2f\ny0=%.2f\nsigma=%.1f" %
                                    tuple(result[0][:3])]]
                 except RuntimeError:
@@ -1625,7 +1655,6 @@ def stack_raster(raster, raster_wt=None, write_header=None, pix_flag_list=[],
     y_len, x_len = raster.shape_[-2:]
     raster_norm -= raster_norm.proc_along_axis("nanmedian", axis=-1). \
         proc_along_axis("nanmedian", axis=-2)
-    raster_norm = abs(raster_norm)
     array_map = raster_norm.array_map_
     if (write_header is None) and plot:
         write_header = os.path.join(os.getcwd(), raster_norm.obs_id_)
@@ -1657,20 +1686,20 @@ def stack_raster(raster, raster_wt=None, write_header=None, pix_flag_list=[],
         plt.close(fig)
 
         result_list, text_list = [], []  # fit gaussian to raster
-        gauss_2d_fit = lambda pos, x0, y0, sigma, amp: \
+        gauss_2d_fit = lambda pos, x0, y0, sigma, amp, offset: \
             gaussian_2d(pos, x0=x0, y0=y0, sigma_x=sigma, sigma_y=sigma,
-                        theta=0, amp=amp)
+                        theta=0, amp=amp) + offset
         xx, yy = np.meshgrid(np.arange(x_len, dtype=float),
                              np.arange(y_len, dtype=float))
         xx -= (x_len - 1) / 2
         yy -= (y_len - 1) / 2
         for pix_raster in stacked_raster.data_:
             finite_mask = np.isfinite(pix_raster)
-            if finite_mask.sum() >= 4:
+            if finite_mask.sum() >= 5:
                 try:
                     result = curve_fit(
                             gauss_2d_fit, xdata=(xx[finite_mask], yy[finite_mask]),
-                            ydata=pix_raster[finite_mask], p0=(0, 0, 1, 1))
+                            ydata=pix_raster[finite_mask], p0=(0, 0, 1, 1, 0))
                     text_list += [["x0=%.2f\ny0=%.2f\nsigma=%.1f" %
                                    tuple(result[0][:3])]]
                 except RuntimeError:
@@ -1783,7 +1812,8 @@ def read_beam_pair(file_header1, file_header2, array_map=None, obs_log=None,
 def reduce_beam(file_header, write_dir=None, write_suffix="", array_map=None,
                 obs_log=None, is_flat=False, pix_flag_list=[], flat_flux=1,
                 flat_err=0, cross=False, do_desnake=False, ref_pix=None,
-                do_smooth=False, do_ica=False, spat_excl=None, return_ts=False,
+                do_smooth=False, do_ica=False, spat_excl=None, do_clean=False,
+                return_ts=False,
                 return_pix_flag_list=False, plot=False, plot_ts=False,
                 reg_interest=None, plot_flux=False, plot_show=False,
                 plot_save=False):
@@ -1796,8 +1826,8 @@ def reduce_beam(file_header, write_dir=None, write_suffix="", array_map=None,
     write_suffix = str(write_suffix)
     if (write_suffix != "") and (write_suffix[0] != "_"):
         write_suffix = "_" + write_suffix
-    for flag, method in zip((do_desnake, do_smooth, do_ica),
-                            ("desnake", "smooth", "ica")):
+    for flag, method in zip((do_desnake, do_smooth, do_clean, do_ica),
+                            ("desnake", "smooth", "clean", "ica")):
         if flag and method not in write_suffix:
             write_suffix += "_" + method
 
@@ -1811,9 +1841,11 @@ def reduce_beam(file_header, write_dir=None, write_suffix="", array_map=None,
                 pix_flag_list=pix_flag_list, flat_flux=flat_flux, flat_err=flat_err,
                 cross=cross, do_desnake=do_desnake, ref_pix=ref_pix,
                 do_smooth=do_smooth, do_ica=do_ica, spat_excl=spat_excl,
+                do_clean=do_clean,
                 return_ts=return_ts, return_pix_flag_list=return_pix_flag_list,
                 plot=plot, plot_ts=plot_ts, reg_interest=reg_interest,
-                plot_flux=plot_flux, plot_show=plot_show, plot_save=plot_save)
+                plot_flux=plot_flux, plot_show=plot_show, plot_save=plot_save,
+                chunk_method=CHUNK_METHOD, method=METHOD)
     else:
         result = (beam.copy(), beam.copy(), beam.copy())
         if return_ts:
@@ -1828,6 +1860,7 @@ def reduce_beam_pair(file_header1, file_header2, write_dir=None, write_suffix=""
                      array_map=None, obs_log=None, is_flat=False, pix_flag_list=[],
                      flat_flux=1, flat_err=0, do_desnake=False, ref_pix=None,
                      do_smooth=False, do_ica=False, spat_excl=None,
+                     do_clean=False,
                      return_ts=False, return_pix_flag_list=False, plot=False,
                      plot_ts=False, reg_interest=None, plot_flux=False,
                      plot_show=False, plot_save=False):
@@ -1840,15 +1873,17 @@ def reduce_beam_pair(file_header1, file_header2, write_dir=None, write_suffix=""
     write_suffix = str(write_suffix)
     if (write_suffix != "") and (write_suffix[0] != "_"):
         write_suffix = "_" + write_suffix
-    for flag, method in zip((do_desnake, do_smooth, do_ica),
-                            ("desnake", "smooth", "ica")):
+    for flag, method in zip((do_desnake, do_smooth, do_clean, do_ica),
+                            ("desnake", "smooth", "clean", "ica")):
         if flag and method not in write_suffix:
             write_suffix += "_" + method
 
     print("Processing beam pair %s and %s." % (file_header1, file_header2))
     beam_pair = read_beam_pair(file_header1=file_header1, file_header2=file_header2,
                                array_map=array_map, obs_log=obs_log,
-                               flag_ts=True, is_flat=is_flat)
+                               flag_ts=True, is_flat=is_flat,
+                               match_same_phase=MATCH_SAME_PHASE,
+                               stack_factor=STACK_FACTOR)
     if len(beam_pair.obs_id_list_) == 1:
         header = beam_pair.obs_id_
     else:
@@ -1868,10 +1903,12 @@ def reduce_beam_pair(file_header1, file_header2, write_dir=None, write_suffix=""
                 beam_pair, write_header=write_header, is_flat=is_flat,
                 pix_flag_list=pix_flag_list, flat_flux=flat_flux, flat_err=flat_err,
                 do_desnake=do_desnake, ref_pix=ref_pix, do_smooth=False,
-                do_ica=do_ica, spat_excl=spat_excl, return_ts=return_ts,
+                do_ica=do_ica, spat_excl=spat_excl, do_clean=do_clean,
+                return_ts=return_ts,
                 return_pix_flag_list=return_pix_flag_list, plot=plot,
                 plot_ts=plot_ts, reg_interest=reg_interest, plot_flux=plot_flux,
-                plot_show=plot_show, plot_save=plot_save)
+                plot_show=plot_show, plot_save=plot_save,
+                chunk_method=CHUNK_METHOD, method=METHOD)
     else:
         result = (beam_pair.copy(), beam_pair.copy(), beam_pair.copy())
         if return_ts:
@@ -1957,7 +1994,8 @@ def reduce_beams(data_header, data_dir=None, write_dir=None, write_suffix="",
                  array_map=None, obs_log=None, is_flat=False, pix_flag_list=[],
                  flat_flux=1, flat_err=0, cross=False, parallel=False,
                  do_desnake=False, ref_pix=None, do_smooth=False, do_ica=False,
-                 spat_excl=None, return_ts=False, return_pix_flag_list=False,
+                 spat_excl=None, do_clean=False, return_ts=False,
+                 return_pix_flag_list=False,
                  plot=False, plot_ts=False, reg_interest=None, plot_flux=False,
                  plot_show=False, plot_save=False):
     """
@@ -2041,6 +2079,7 @@ def reduce_beam_pairs(data_header, data_dir=None, write_dir=None,
                       is_flat=False, pix_flag_list=[], flat_flux=1, flat_err=0,
                       parallel=False, do_desnake=False, ref_pix=None,
                       do_smooth=False, do_ica=False, spat_excl=None,
+                      do_clean=False,
                       return_ts=False, return_pix_flag_list=False, plot=False,
                       plot_ts=False, reg_interest=None, plot_flux=False,
                       plot_show=False, plot_save=False, use_hk=True):
@@ -2252,6 +2291,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                 array_map=None, obs_log=None, pix_flag_list=[], flat_flux=1,
                 flat_err=0, parallel=False, stack=False, do_desnake=False,
                 ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
+                do_clean=False,
                 return_ts=False, return_pix_flag_list=True, table_save=True,
                 plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
                 plot_show=False, plot_save=True, analyze=False, use_hk=True):
@@ -2268,8 +2308,8 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
         write_dir = os.getcwd()
     if (write_suffix != "") and (write_suffix[0] != "_"):
         write_suffix = "_" + write_suffix
-    for flag, method in zip((do_desnake, do_smooth, do_ica),
-                            ("desnake", "smooth", "ica")):
+    for flag, method in zip((do_desnake, do_smooth, do_clean, do_ica),
+                            ("desnake", "smooth", "clean", "ica")):
         if flag and method not in write_suffix:
             write_suffix += "_" + method
     plot_dict = {}
@@ -2283,7 +2323,8 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                 is_flat=False, pix_flag_list=pix_flag_list, flat_flux=flat_flux,
                 flat_err=flat_err, parallel=parallel, do_desnake=do_desnake,
                 ref_pix=ref_pix, do_smooth=do_smooth, do_ica=do_ica,
-                spat_excl=spat_excl, return_ts=return_ts | analyze,
+                spat_excl=spat_excl, do_clean=do_clean,
+                return_ts=return_ts | analyze,
                 return_pix_flag_list=True, plot=plot,
                 plot_ts=plot_ts, reg_interest=reg_interest, plot_flux=plot_flux,
                 plot_show=plot_show, plot_save=plot_save)
@@ -2339,7 +2380,8 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                 is_flat=False, pix_flag_list=pix_flag_list, flat_flux=flat_flux,
                 flat_err=flat_err, parallel=parallel, do_desnake=do_desnake,
                 ref_pix=ref_pix, do_smooth=do_smooth, do_ica=do_ica,
-                spat_excl=spat_excl, return_ts=return_ts | analyze,
+                spat_excl=spat_excl, do_clean=do_clean,
+                return_ts=return_ts | analyze,
                 return_pix_flag_list=True, plot=plot, plot_ts=plot_ts,
                 reg_interest=reg_interest, plot_flux=plot_flux,
                 plot_show=plot_show, plot_save=plot_save, use_hk=use_hk)
@@ -2357,7 +2399,8 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
             arr_in=np.choose(zobs_err_ex.data_ < zobs_err_in.data_,
                              [zobs_err_ex.data_, zobs_err_in.data_]))
     pix_flag_list = auto_flag_pix_by_flux(zobs_flux, zobs_err,
-                                          pix_flag_list=pix_flag_list)
+                                          pix_flag_list=pix_flag_list,
+                                          snr_thre=SNR_THRE)
 
     data_file_header = build_header(data_header) + write_suffix
     if table_save:
@@ -2381,12 +2424,14 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                 zobs_flux, title=data_file_header + " zobs flux",
                 pix_flag_list=pix_flag_list, plot_show=plot_show,
                 plot_save=plot_save, write_header=os.path.join(
-                        write_dir, "%s_flux" % data_file_header)))
+                        write_dir, "%s_flux" % data_file_header),
+                orientation=ORIENTATION))
         plt.close(plot_beam_flux(
                 zobs_err, title=data_file_header + " zobs error",
                 pix_flag_list=pix_flag_list, plot_show=plot_show,
                 plot_save=plot_save, write_header=os.path.join(
-                        write_dir, "%s_err" % data_file_header)))
+                        write_dir, "%s_err" % data_file_header),
+                orientation=ORIENTATION))
 
         zobs_flux_array = ObsArray(zobs_flux)  # plot spectrum
         array_map = zobs_flux_array.array_map_
@@ -2472,8 +2517,8 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                     write_dir, "%s_rms.csv" % data_file_header), overwrite=True)
         flat_use = flat_flux.proc_along_time("nanmean") if \
             isinstance(flat_flux, type(beams_rms)) else flat_flux
-        beams_sensitivity = beams_rms / abs(flat_use) / \
-                            np.sqrt(zobs_ts.len_ * (stack + 1)) * 2
+        beams_sensitivity = 4 * np.sqrt(2 / 3) * beams_rms / abs(flat_use) / \
+                            np.sqrt(zobs_ts.len_ * (stack + 1))
         if plot:
             zobs_flux_array = ObsArray(zobs_flux)  # plot spectrum
             array_map = zobs_flux_array.array_map_
@@ -2516,7 +2561,7 @@ def reduce_calibration(data_header, data_dir=None, write_dir=None,
                        is_flat=False, pix_flag_list=[], flat_flux=1, flat_err=0,
                        cross=False, parallel=False, do_desnake=False,
                        ref_pix=None, do_smooth=False, do_ica=False,
-                       spat_excl=None, return_ts=False,
+                       spat_excl=None, do_clean=False, return_ts=False,
                        return_pix_flag_list=True, table_save=True, plot=True,
                        plot_ts=True, reg_interest=None, plot_flux=True,
                        plot_show=False, plot_save=True, analyze=False):
@@ -2531,8 +2576,8 @@ def reduce_calibration(data_header, data_dir=None, write_dir=None,
         write_dir = os.getcwd()
     if (write_suffix != "") and (write_suffix[0] != "_"):
         write_suffix = "_" + write_suffix
-    for flag, method in zip((do_desnake, do_smooth, do_ica),
-                            ("desnake", "smooth", "ica")):
+    for flag, method in zip((do_desnake, do_smooth, do_clean, do_ica),
+                            ("desnake", "smooth", "clean" "ica")):
         if flag and method not in write_suffix:
             write_suffix += "_" + method
     result = reduce_beams(
@@ -2541,7 +2586,8 @@ def reduce_calibration(data_header, data_dir=None, write_dir=None,
             is_flat=is_flat, pix_flag_list=pix_flag_list, flat_flux=flat_flux,
             flat_err=flat_err, cross=cross, parallel=parallel,
             do_desnake=do_desnake, ref_pix=ref_pix, do_smooth=do_smooth,
-            do_ica=do_ica, spat_excl=spat_excl, return_ts=return_ts | analyze,
+            do_ica=do_ica, spat_excl=spat_excl, do_clean=do_clean,
+            return_ts=return_ts | analyze,
             return_pix_flag_list=True, plot=plot, plot_ts=plot_ts,
             reg_interest=reg_interest, plot_flux=plot_flux, plot_show=plot_show,
             plot_save=plot_save)
@@ -2611,6 +2657,7 @@ def reduce_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
                  array_map=None, obs_log=None, is_flat=False, pix_flag_list=[],
                  flat_flux=1, flat_err=0, parallel=False, do_desnake=False,
                  ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
+                 do_clean=False,
                  return_ts=False, return_pix_flag_list=True, table_save=True,
                  plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
                  plot_show=False, plot_save=True, analyze=False,
@@ -2628,8 +2675,8 @@ def reduce_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
         write_dir = os.getcwd()
     if (write_suffix != "") and (write_suffix[0] != "_"):
         write_suffix = "_" + write_suffix
-    for flag, method in zip((do_desnake, do_smooth, do_ica),
-                            ("desnake", "smooth", "ica")):
+    for flag, method in zip((do_desnake, do_smooth, do_clean, do_ica),
+                            ("desnake", "smooth", "clean", "ica")):
         if flag and method not in write_suffix:
             write_suffix += "_" + method
     data_file_header = build_header(data_header) + write_suffix
@@ -2640,7 +2687,8 @@ def reduce_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
                 is_flat=is_flat, pix_flag_list=pix_flag_list, flat_flux=flat_flux,
                 flat_err=flat_err, parallel=parallel, do_desnake=do_desnake,
                 ref_pix=ref_pix, do_smooth=do_smooth, do_ica=do_ica,
-                spat_excl=spat_excl, return_ts=True, return_pix_flag_list=True,
+                spat_excl=spat_excl, do_clean=do_clean, return_ts=True,
+                return_pix_flag_list=True,
                 table_save=table_save, plot=plot, plot_ts=plot_ts,
                 reg_interest=reg_interest, plot_flux=plot_flux,
                 plot_show=plot_show, plot_save=plot_save, analyze=False)
@@ -2651,7 +2699,7 @@ def reduce_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
                 is_flat=is_flat, pix_flag_list=pix_flag_list, flat_flux=flat_flux,
                 flat_err=flat_err, parallel=parallel, do_desnake=do_desnake,
                 ref_pix=ref_pix, do_smooth=do_smooth, do_ica=do_ica,
-                spat_excl=spat_excl, return_ts=True,
+                spat_excl=spat_excl, do_clean=do_clean, return_ts=True,
                 return_pix_flag_list=True, plot=plot, plot_ts=plot_ts,
                 reg_interest=reg_interest, plot_flux=plot_flux,
                 plot_show=plot_show, plot_save=plot_save, use_hk=use_hk)
@@ -2738,6 +2786,7 @@ def reduce_zpoldbig(data_header, data_dir=None, write_dir=None, write_suffix="",
                     array_map=None, obs_log=None, is_flat=False, pix_flag_list=[],
                     flat_flux=1, flat_err=0, parallel=False, do_desnake=False,
                     ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
+                    do_clean=False,
                     return_ts=False, return_pix_flag_list=False, table_save=True,
                     plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
                     plot_show=False, plot_save=True, analyze=False, nod=False,
@@ -2752,7 +2801,7 @@ def reduce_zpoldbig(data_header, data_dir=None, write_dir=None, write_suffix="",
             is_flat=is_flat, pix_flag_list=pix_flag_list, flat_flux=flat_flux,
             flat_err=flat_err, parallel=parallel, do_desnake=do_desnake,
             ref_pix=ref_pix, do_smooth=do_smooth, do_ica=do_ica,
-            spat_excl=spat_excl, return_ts=return_ts,
+            spat_excl=spat_excl, do_clean=do_clean, return_ts=return_ts,
             return_pix_flag_list=return_pix_flag_list, table_save=table_save,
             plot=plot, plot_ts=plot_ts, reg_interest=reg_interest,
             plot_flux=plot_flux, plot_show=plot_show, plot_save=plot_save,
