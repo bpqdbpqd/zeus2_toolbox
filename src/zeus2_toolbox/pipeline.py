@@ -2508,7 +2508,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
 
     if analyze:
         beams_rms = analyze_performance(
-                zobs_ts, write_header=os.path.join(
+                zobs_ts * np.sqrt(stack + 1), write_header=os.path.join(
                         write_dir, data_file_header), pix_flag_list=pix_flag_list,
                 plot=plot, plot_rms=plot_flux, plot_ts=False,
                 reg_interest=reg_interest, plot_psd=plot_ts,

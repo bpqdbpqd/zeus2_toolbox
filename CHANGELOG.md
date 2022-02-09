@@ -8,6 +8,8 @@
 - Change error prediction from rms/sqrt(#data)*2 to rms/sqrt(#data)*4*sqrt(2/3) which accounts for oversampling
 - Fix a bug in FigFlux.write_text() in the position to put text for ObsArray
 - Fix a bug in pipeline.reduce_beam_pair() that do_smooth is not propagated through
+- Fix a bug in pipeline.reduce_zobs() by multiplying input times series by a factor of sqrt(2) if time series is stacked
+  beam pair
 
 1.5
 
