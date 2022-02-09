@@ -45,6 +45,8 @@ VERBOSE = False  # default flag for printing ICA status
 
 CHUNK_METHOD = "nanmedian"  # default chunk method for chop flux
 METHOD = "nanmean"  # default method for averaging chunks for chop flux
+CHUNK_WEIGHT = True  # default flag for using weighted average of chunk when
+# calculating flux
 
 ORIENTATION = "horizontal"  # default orientation for making figure
 
@@ -1306,9 +1308,8 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
 def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flux=1,
               flat_err=0, cross=False, do_desnake=False, ref_pix=None,
               do_smooth=False, do_ica=False, spat_excl=None, do_clean=False,
-              return_ts=False,
-              return_pix_flag_list=False, plot=False, plot_ts=False,
-              reg_interest=None, plot_flux=False, plot_show=False,
+              return_ts=False, return_pix_flag_list=False, plot=False,
+              plot_ts=False, reg_interest=None, plot_flux=False, plot_show=False,
               plot_save=False, chunk_method=CHUNK_METHOD, method=METHOD):
     """
     process beam in the standard way, return chop flux, error and weight
@@ -1442,7 +1443,7 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flu
     beam_flux, beam_err, beam_wt = get_chop_flux(  # compute flux and error
             beam_use, chunk_method=chunk_method, method=method,
             weight=(
-                None if is_flat else
+                None if (is_flat or not CHUNK_WEIGHT) else
                 1 / (beam_use.chunk_proc("nanstd", keep_shape=True) ** 2 /
                      beam_use.chunk_proc("num_is_finite", keep_shape=True) +
                      (beam_use.chunk_proc("nanmedian", keep_shape=True) -
@@ -1902,7 +1903,7 @@ def reduce_beam_pair(file_header1, file_header2, write_dir=None, write_suffix=""
         result = proc_beam(
                 beam_pair, write_header=write_header, is_flat=is_flat,
                 pix_flag_list=pix_flag_list, flat_flux=flat_flux, flat_err=flat_err,
-                do_desnake=do_desnake, ref_pix=ref_pix, do_smooth=False,
+                do_desnake=do_desnake, ref_pix=ref_pix, do_smooth=do_smooth,
                 do_ica=do_ica, spat_excl=spat_excl, do_clean=do_clean,
                 return_ts=return_ts,
                 return_pix_flag_list=return_pix_flag_list, plot=plot,
@@ -2291,10 +2292,10 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                 array_map=None, obs_log=None, pix_flag_list=[], flat_flux=1,
                 flat_err=0, parallel=False, stack=False, do_desnake=False,
                 ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
-                do_clean=False,
-                return_ts=False, return_pix_flag_list=True, table_save=True,
-                plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
-                plot_show=False, plot_save=True, analyze=False, use_hk=True):
+                do_clean=False, return_ts=False, return_pix_flag_list=True,
+                table_save=True, plot=True, plot_ts=True, reg_interest=None,
+                plot_flux=True, plot_show=False, plot_save=True, analyze=False,
+                use_hk=True):
     """
     reduce the data from zobs command
 
