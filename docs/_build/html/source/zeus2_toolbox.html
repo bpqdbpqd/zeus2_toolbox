@@ -5,7 +5,7 @@
 <head>
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-    <title>API &#8212; zeus2_toolbox 1.5 documentation</title>
+    <title>API &#8212; zeus2_toolbox 1.6 documentation</title>
 
     <link href="../_static/css/theme.css" rel="stylesheet">
     <link href="../_static/css/index.ff1ffe594081f20da1ef19478df9384b.css" rel="stylesheet">
@@ -58,7 +58,7 @@
                 <a class="navbar-brand text-wrap" href="../index.html">
 
 
-                    <h1 class="site-logo" id="site-title">zeus2_toolbox 1.5 documentation</h1>
+                    <h1 class="site-logo" id="site-title">zeus2_toolbox 1.6 documentation</h1>
 
                 </a>
             </div>
@@ -247,14 +247,17 @@
                                             class="n"><span class="pre">sigma</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span
                                             class="pre">1</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">amp</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span
+                                            class="pre">1</span></span></em>, <em class="sig-param"><span
                                             class="n"><span class="pre">norm</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em><span
                                             class="sig-paren">)</span><a class="headerlink"
                                                                          href="#zeus2_toolbox.tools.gaussian"
                                                                          title="Permalink to this definition">¶</a></dt>
                                     <dd><p>return the evaluation of gaussian distribution with center x0 and sigma at
-                                        given x. If not normalized, the value at center is 1, other wise the peak is
-                                        1/sqrt(2*np.pi*sigma)</p>
+                                        given x. If not normalized, the value at center is amp, otherwise the peak is
+                                        amp/sqrt(2*np.pi*sigma)</p>
                                         <dl class="field-list simple">
                                             <dt class="field-odd">Parameters</dt>
                                             <dd class="field-odd">
@@ -266,8 +269,12 @@
                                                         gaussian distribution</p></li>
                                                     <li><p><strong>sigma</strong> (<em>float</em>) – float, standard
                                                         deviation of gaussian</p></li>
+                                                    <li><p><strong>amp</strong> (<em>float</em>) – float, amplitude of
+                                                        the gaussian peak; if norm=False, amp
+                                                        will be the peak value, otherwise amp will be the integrated
+                                                        value</p></li>
                                                     <li><p><strong>norm</strong> (<em>bool</em>) – bool, whether to
-                                                        normalized the peak to represent an
+                                                        normalize the peak to represent an
                                                         actual pdf</p></li>
                                                 </ul>
                                             </dd>
@@ -281,15 +288,23 @@
                                                 class="pre">zeus2_toolbox.tools.</span></span><span
                                             class="sig-name descname"><span class="pre">gaussian_2d</span></span><span
                                             class="sig-paren">(</span><em class="sig-param"><span class="n"><span
-                                            class="pre">x</span></span></em>, <em class="sig-param"><span
-                                            class="n"><span class="pre">y</span></span></em>, <em
-                                            class="sig-param"><span class="n"><span class="pre">x0</span></span><span
-                                            class="o"><span class="pre">=</span></span><span class="default_value"><span
+                                            class="pre">pos</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">x0</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span
                                             class="pre">0</span></span></em>, <em class="sig-param"><span
                                             class="n"><span class="pre">y0</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span
                                             class="pre">0</span></span></em>, <em class="sig-param"><span
-                                            class="n"><span class="pre">sigma</span></span><span class="o"><span
+                                            class="n"><span class="pre">sigma_x</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span
+                                            class="pre">1</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">sigma_y</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span
+                                            class="pre">1</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">theta</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span
+                                            class="pre">0</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">amp</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span
                                             class="pre">1</span></span></em>, <em class="sig-param"><span
                                             class="n"><span class="pre">norm</span></span><span class="o"><span
@@ -297,26 +312,40 @@
                                             class="sig-paren">)</span><a class="headerlink"
                                                                          href="#zeus2_toolbox.tools.gaussian_2d"
                                                                          title="Permalink to this definition">¶</a></dt>
-                                    <dd><p>return a 2d symmetric gaussian distribution</p>
+                                    <dd><p>return a 2d gaussian distribution</p>
                                         <dl class="field-list simple">
                                             <dt class="field-odd">Parameters</dt>
                                             <dd class="field-odd">
                                                 <ul class="simple">
-                                                    <li><p><strong>x</strong> (<em>float</em><em> or </em><em>numpy.ndarray</em>)
-                                                        – float or array, place to calculate the value of gaussian
-                                                        distribution</p></li>
-                                                    <li><p><strong>y</strong> (<em>float</em><em> or </em><em>numpy.ndarray</em>)
-                                                        – same as x for the other dimension</p></li>
+                                                    <li><p><strong>pos</strong>
+                                                        (<em>Union</em><em>[</em><em>list</em><em>, </em><em>tuple</em><em>, </em><em>numpy.ndarray</em><em>]</em>)
+                                                        – list or tuple or array, size two recording the values of x and
+                                                        y
+                                                        dimension to evaluate, can be (float, float) or (array, array)
+                                                        of the same
+                                                        size</p></li>
                                                     <li><p><strong>x0</strong> (<em>float</em>) – float, center of
                                                         gaussian distribution in x dimension</p></li>
-                                                    <li><p><strong>x0</strong> – float, center of gaussian distribution
-                                                        in y dimension</p></li>
-                                                    <li><p><strong>sigma</strong> (<em>float</em>) – float, standard
-                                                        deviation of gaussian in either dimension</p></li>
+                                                    <li><p><strong>y0</strong> (<em>float</em>) – float, center of
+                                                        gaussian distribution in y dimension</p></li>
+                                                    <li><p><strong>sigma_x</strong> (<em>float</em>) – float, standard
+                                                        deviation of gaussian in the x dimension</p></li>
+                                                    <li><p><strong>sigma_y</strong> (<em>float</em>) – float, standard
+                                                        deviation of gaussian in the y dimension</p></li>
+                                                    <li><p><strong>theta</strong> (<em>float</em>) – float, radian of
+                                                        the position angle of x with repect to
+                                                        the first dimension</p></li>
+                                                    <li><p><strong>amp</strong> (<em>float</em>) – float, amplitude of
+                                                        the gaussian peak; if norm=False, amp
+                                                        will be the peak value, otherwise amp will be the integrated
+                                                        value</p></li>
                                                     <li><p><strong>norm</strong> (<em>bool</em>) – bool, whether to
-                                                        normalized the peak to represent an
+                                                        normalize the peak to represent an
                                                         actual pdf</p></li>
                                                 </ul>
+                                            </dd>
+                                            <dt class="field-even">Returns</dt>
+                                            <dd class="field-even"><p>array or value evaluated at the given position</p>
                                             </dd>
                                         </dl>
                                     </dd>
@@ -778,6 +807,415 @@
                                             </dd>
                                             <dt class="field-odd">Return type</dt>
                                             <dd class="field-odd"><p>str</p>
+                                            </dd>
+                                        </dl>
+                                    </dd>
+                                </dl>
+
+                                <dl class="py function">
+                                    <dt class="sig sig-object py" id="zeus2_toolbox.tools.spec_to_wl">
+                                        <span class="sig-prename descclassname"><span
+                                                class="pre">zeus2_toolbox.tools.</span></span><span
+                                            class="sig-name descname"><span class="pre">spec_to_wl</span></span><span
+                                            class="sig-paren">(</span><em class="sig-param"><span class="n"><span
+                                            class="pre">spec</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">spat</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span
+                                            class="pre">grat_idx</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">order</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span
+                                            class="pre">5</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">rd</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span
+                                            class="pre">200</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">rg</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">0.711111111111111</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">px_shift</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span
+                                            class="pre">py_shift</span></span><span class="o"><span class="pre">=</span></span><span
+                                            class="default_value"><span class="pre">0</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span
+                                            class="pre">alpha_min_index</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">73.9062453</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c0</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">0.9800910119</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c1</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">-</span> <span class="pre">0.0017009051035</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c2</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">-</span> <span class="pre">0.87654448327</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c3</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">36.248043521</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c4</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">459.42373214</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c5</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">-</span> <span class="pre">80.04474108</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c6</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">-</span> <span class="pre">0.0017003774252</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c7</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">-</span> <span class="pre">1.5498032937</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c8</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span
+                                                class="pre">102.04705483</span></span></em><span
+                                            class="sig-paren">)</span><a class="headerlink"
+                                                                         href="#zeus2_toolbox.tools.spec_to_wl"
+                                                                         title="Permalink to this definition">¶</a></dt>
+                                    <dd><p>get the wavelength corresponding to the given grating index, spatial
+                                        position, spectral index and the fitted parameters for ZEUS2; the default
+                                        value for the fitted parameters are taken from
+                                        zeus2_grating_calibration_apex2019 file; wavelength is calculated as</p>
+                                        <blockquote>
+                                            <div><p>lambda = 5/order * (a (sin alpha_s)^2 + b * sin alpha_s + c)</p>
+                                            </div>
+                                        </blockquote>
+                                        <p>where alpha_s = alpha_min_index - grat_idx / (rd * rg) and
+                                            theta = px + c6 * py**2 + c7 * py + c8; px_shift and py_shift can shift
+                                            lab calibration to fit with sky calibration</p>
+                                        <dl class="field-list simple">
+                                            <dt class="field-odd">Parameters</dt>
+                                            <dd class="field-odd">
+                                                <ul class="simple">
+                                                    <li><p><strong>spec</strong>
+                                                        (<em>Union</em><em>[</em><em>int</em><em>, </em><em>numpy.ndarray</em><em>]</em>)
+                                                        – int or int array, spectral index used to compute wavelength;
+                                                        if
+                                                        input spec is an array, it must be compatible with spat so that
+                                                        spat+spec does not raise an error</p></li>
+                                                    <li><p><strong>spat</strong>
+                                                        (<em>Union</em><em>[</em><em>int</em><em>, </em><em>numpy.ndarray</em><em>]</em>)
+                                                        – int or int array, spatial position considered; if input spat
+                                                        is
+                                                        an array, it must be compatible with spec so that spat+spec does
+                                                        not
+                                                        raise an error, and the output array shape will be the same as
+                                                        the
+                                                        shape of spat+spec array</p></li>
+                                                    <li><p><strong>grat_idx</strong> (<em>int</em>) – int, grating index
+                                                    </p></li>
+                                                    <li><p><strong>order</strong> (<em>int</em>) – int, grating order to
+                                                        use</p></li>
+                                                    <li><p><strong>rd</strong> (<em>Union</em><em>[</em><em>int</em><em>, </em><em>float</em><em>]</em>)
+                                                        – int or float, stepper motor, degrees per step</p></li>
+                                                    <li><p><strong>rg</strong> (<em>float</em>) – float, grating degrees
+                                                        of movement per rotation of drive
+                                                        shaft</p></li>
+                                                    <li><p><strong>px_shift</strong>
+                                                        (<em>Union</em><em>[</em><em>int</em><em>, </em><em>float</em><em>]</em>)
+                                                        – int or float, shift for spatial position to reconcile sky
+                                                        wavelength with fit parameters, will be added to spat to get px
+                                                        in theta</p></li>
+                                                    <li><p><strong>py_shift</strong>
+                                                        (<em>Union</em><em>[</em><em>int</em><em>, </em><em>float</em><em>]</em>)
+                                                        – int or float, shift for spectral index to reconcile sky
+                                                        wavelength with fit parameters, will be added to spec to get py
+                                                        in theta</p></li>
+                                                    <li><p><strong>alpha_min_index</strong> (<em>float</em>) – float,
+                                                        index of the minimum grating angle
+                                                        computed from the reference alpha</p></li>
+                                                    <li><p><strong>c0</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c1</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c2</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c3</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c4</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c5</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c6</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c7</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c8</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                </ul>
+                                            </dd>
+                                            <dt class="field-even">Returns</dt>
+                                            <dd class="field-even"><p>float or array of the wavelength(es) for the input
+                                                spat and spec</p>
+                                            </dd>
+                                            <dt class="field-odd">Return type</dt>
+                                            <dd class="field-odd"><p>Union[float, numpy.ndarray]</p>
+                                            </dd>
+                                        </dl>
+                                    </dd>
+                                </dl>
+
+                                <dl class="py function">
+                                    <dt class="sig sig-object py" id="zeus2_toolbox.tools.wl_to_spec">
+                                        <span class="sig-prename descclassname"><span
+                                                class="pre">zeus2_toolbox.tools.</span></span><span
+                                            class="sig-name descname"><span class="pre">wl_to_spec</span></span><span
+                                            class="sig-paren">(</span><em class="sig-param"><span class="n"><span
+                                            class="pre">wl</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">spat</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span
+                                            class="pre">grat_idx</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">order</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span
+                                            class="pre">5</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">rd</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span
+                                            class="pre">200</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">rg</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">0.711111111111111</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">px_shift</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span
+                                            class="pre">py_shift</span></span><span class="o"><span class="pre">=</span></span><span
+                                            class="default_value"><span class="pre">0</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span
+                                            class="pre">alpha_min_index</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">73.9062453</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c0</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">0.9800910119</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c1</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">-</span> <span class="pre">0.0017009051035</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c2</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">-</span> <span class="pre">0.87654448327</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c3</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">36.248043521</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c4</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">459.42373214</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c5</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">-</span> <span class="pre">80.04474108</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c6</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">-</span> <span class="pre">0.0017003774252</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c7</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">-</span> <span class="pre">1.5498032937</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c8</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span
+                                                class="pre">102.04705483</span></span></em><span
+                                            class="sig-paren">)</span><a class="headerlink"
+                                                                         href="#zeus2_toolbox.tools.wl_to_spec"
+                                                                         title="Permalink to this definition">¶</a></dt>
+                                    <dd><p>inverse function for grat_to_wl(), compute spectral index for input spatial
+                                        position, wavelength at the given grat_idx</p>
+                                        <dl class="field-list simple">
+                                            <dt class="field-odd">Parameters</dt>
+                                            <dd class="field-odd">
+                                                <ul class="simple">
+                                                    <li><p><strong>wl</strong>
+                                                        (<em>Union</em><em>[</em><em>float</em><em>, </em><em>numpy.ndarray</em><em>]</em>)
+                                                        – float or int array, wavelength used to compute spectral index;
+                                                        if
+                                                        input wl is an array, it must be compatible with spat so that
+                                                        spat+wl
+                                                        does not raise an error</p></li>
+                                                    <li><p><strong>spat</strong>
+                                                        (<em>Union</em><em>[</em><em>int</em><em>, </em><em>numpy.ndarray</em><em>]</em>)
+                                                        – int or int array, spatial position considered; if input spat
+                                                        is
+                                                        an array, it must be compatible with spec so that spat+wl does
+                                                        not
+                                                        raise an error, and the output array shape will be the same as
+                                                        the
+                                                        shape of spat+spec array</p></li>
+                                                    <li><p><strong>grat_idx</strong> (<em>int</em>) – int, grating index
+                                                    </p></li>
+                                                    <li><p><strong>order</strong> (<em>int</em>) – int, grating order to
+                                                        use</p></li>
+                                                    <li><p><strong>rd</strong> (<em>Union</em><em>[</em><em>int</em><em>, </em><em>float</em><em>]</em>)
+                                                        – int or float, stepper motor, degrees per step</p></li>
+                                                    <li><p><strong>rg</strong> (<em>float</em>) – float, grating degrees
+                                                        of movement per rotation of drive
+                                                        shaft</p></li>
+                                                    <li><p><strong>px_shift</strong>
+                                                        (<em>Union</em><em>[</em><em>int</em><em>, </em><em>float</em><em>]</em>)
+                                                        – int or float, shift for spatial position to reconcile sky
+                                                        wavelength with fit parameters, will be added to spat to get px
+                                                        in theta</p></li>
+                                                    <li><p><strong>py_shift</strong>
+                                                        (<em>Union</em><em>[</em><em>int</em><em>, </em><em>float</em><em>]</em>)
+                                                        – int or float, shift for spectral index to reconcile sky
+                                                        wavelength with fit parameters, will be added to spec to get py
+                                                        in theta</p></li>
+                                                    <li><p><strong>alpha_min_index</strong> (<em>float</em>) – float,
+                                                        index of the minimum grating angle
+                                                        computed from the reference alpha</p></li>
+                                                    <li><p><strong>c0</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c1</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c2</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c3</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c4</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c5</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c6</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c7</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c8</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                </ul>
+                                            </dd>
+                                            <dt class="field-even">Returns</dt>
+                                            <dd class="field-even"><p>float or array of the spectral index(es) for the
+                                                input spat and wl</p>
+                                            </dd>
+                                            <dt class="field-odd">Return type</dt>
+                                            <dd class="field-odd"><p>Union[float, numpy.ndarray]</p>
+                                            </dd>
+                                        </dl>
+                                    </dd>
+                                </dl>
+
+                                <dl class="py function">
+                                    <dt class="sig sig-object py" id="zeus2_toolbox.tools.wl_to_grat_idx">
+                                        <span class="sig-prename descclassname"><span
+                                                class="pre">zeus2_toolbox.tools.</span></span><span
+                                            class="sig-name descname"><span
+                                            class="pre">wl_to_grat_idx</span></span><span class="sig-paren">(</span><em
+                                            class="sig-param"><span class="n"><span class="pre">wl</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">spat</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">spec</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">order</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">5</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span class="pre">rd</span></span><span
+                                            class="o"><span class="pre">=</span></span><span class="default_value"><span
+                                            class="pre">200</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">rg</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">0.711111111111111</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">px_shift</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span
+                                            class="pre">py_shift</span></span><span class="o"><span class="pre">=</span></span><span
+                                            class="default_value"><span class="pre">0</span></span></em>, <em
+                                            class="sig-param"><span class="n"><span
+                                            class="pre">alpha_min_index</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">73.9062453</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c0</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">0.9800910119</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c1</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">-</span> <span class="pre">0.0017009051035</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c2</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">-</span> <span class="pre">0.87654448327</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c3</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">36.248043521</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c4</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">459.42373214</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c5</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">-</span> <span class="pre">80.04474108</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c6</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">-</span> <span class="pre">0.0017003774252</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c7</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span class="pre">-</span> <span class="pre">1.5498032937</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span class="pre">c8</span></span><span
+                                                class="o"><span class="pre">=</span></span><span
+                                                class="default_value"><span
+                                                class="pre">102.04705483</span></span></em><span
+                                            class="sig-paren">)</span><a class="headerlink"
+                                                                         href="#zeus2_toolbox.tools.wl_to_grat_idx"
+                                                                         title="Permalink to this definition">¶</a></dt>
+                                    <dd><p>compute the required grating index to place the input wavelength at the
+                                        desired spatial position and spectral index</p>
+                                        <dl class="field-list simple">
+                                            <dt class="field-odd">Parameters</dt>
+                                            <dd class="field-odd">
+                                                <ul class="simple">
+                                                    <li><p><strong>wl</strong>
+                                                        (<em>Union</em><em>[</em><em>float</em><em>, </em><em>numpy.ndarray</em><em>]</em>)
+                                                        – float or int array, wavelength used to compute grating index;
+                                                        if
+                                                        input wl is an array, it must be compatible with spat and spec
+                                                        so that
+                                                        wl+spat+spec does not raise an error, and the output array shape
+                                                        will be the same as the shape of wl+spat+spec array</p></li>
+                                                    <li><p><strong>spat</strong>
+                                                        (<em>Union</em><em>[</em><em>int</em><em>, </em><em>numpy.ndarray</em><em>]</em>)
+                                                        – int or int array, spatial position used to compute grating
+                                                        index; if input spat is an array, it must be compatible with wl
+                                                        and spec
+                                                        so that wl+spat+spec does not raise an error</p></li>
+                                                    <li><p><strong>spec</strong>
+                                                        (<em>Union</em><em>[</em><em>int</em><em>, </em><em>numpy.ndarray</em><em>]</em>)
+                                                        – int or int array, spectral index used to compute grating
+                                                        index;
+                                                        if input spec is an array, it must be compatible with wl and
+                                                        spat so
+                                                        that wl+spat+spec does not raise an error</p></li>
+                                                    <li><p><strong>order</strong> (<em>int</em>) – int, grating order to
+                                                        use</p></li>
+                                                    <li><p><strong>rd</strong> (<em>Union</em><em>[</em><em>int</em><em>, </em><em>float</em><em>]</em>)
+                                                        – int or float, stepper motor, degrees per step</p></li>
+                                                    <li><p><strong>rg</strong> (<em>float</em>) – float, grating degrees
+                                                        of movement per rotation of drive
+                                                        shaft</p></li>
+                                                    <li><p><strong>px_shift</strong>
+                                                        (<em>Union</em><em>[</em><em>int</em><em>, </em><em>float</em><em>]</em>)
+                                                        – int or float, shift for spatial position to reconcile sky
+                                                        wavelength with fit parameters, will be added to spat to get px
+                                                        in theta</p></li>
+                                                    <li><p><strong>py_shift</strong>
+                                                        (<em>Union</em><em>[</em><em>int</em><em>, </em><em>float</em><em>]</em>)
+                                                        – int or float, shift for spectral index to reconcile sky
+                                                        wavelength with fit parameters, will be added to spec to get py
+                                                        in theta</p></li>
+                                                    <li><p><strong>alpha_min_index</strong> (<em>float</em>) – float,
+                                                        index of the minimum grating angle
+                                                        computed from the reference alpha</p></li>
+                                                    <li><p><strong>c0</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c1</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c2</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c3</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c4</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c5</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c6</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c7</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                    <li><p><strong>c8</strong> (<em>float</em>) – float, fitted
+                                                        coefficient</p></li>
+                                                </ul>
+                                            </dd>
+                                            <dt class="field-even">Returns</dt>
+                                            <dd class="field-even"><p>float or array of the grating index(es) for the
+                                                input spat, spec, wl</p>
+                                            </dd>
+                                            <dt class="field-odd">Return type</dt>
+                                            <dd class="field-odd"><p>Union[float, numpy.ndarray]</p>
                                             </dd>
                                         </dl>
                                     </dd>
@@ -6307,11 +6745,12 @@
                                                                                      id="id260">ts_</span></a>. Again
                                         the <a href="#id261"><span class="problematic" id="id262">chop_</span></a> and
                                         <a href="#id263"><span class="problematic" id="id264">obs_id_arr_</span></a> of
-                                        the returned object will remain uninitialized. By default use
-                                        <a href="#id265"><span class="problematic"
-                                                               id="id266">obs.t_start_time_</span></a> as the starting
-                                        time to build the new <a href="#id267"><span class="problematic"
-                                                                                     id="id268">ts_</span></a>, unless
+                                        the returned object will remain uninitialized. By default,
+                                        use <a href="#id265"><span class="problematic"
+                                                                   id="id266">obs.t_start_time_</span></a> as the
+                                        starting time to build the new <a href="#id267"><span class="problematic"
+                                                                                              id="id268">ts_</span></a>,
+                                        unless
                                         t_start is given. The returned data only contains the real part of
                                         numpy.fft.ifft result.</p>
                                         <dl class="field-list simple">
@@ -6324,7 +6763,7 @@
                                                         or </em><a class="reference internal"
                                                                    href="#zeus2_toolbox.zeus2_io.ObsArray"
                                                                    title="zeus2_toolbox.zeus2_io.ObsArray"><em>ObsArray</em></a>)
-                                                        – Obs or ObsArray object to to ifft</p></li>
+                                                        – Obs or ObsArray object to ifft</p></li>
                                                     <li><p><strong>t_start</strong> (<em>float</em><em>
                                                         or </em><em>str</em><em> or </em><em>datetime.datetime</em><em>
                                                         or </em><em>astropy.time.Time</em>) – float or str or
@@ -6373,7 +6812,7 @@
                                             class="pre">4.0</span></span></em><span class="sig-paren">)</span><a
                                             class="headerlink" href="#zeus2_toolbox.zeus2_io.nfft_obs"
                                             title="Permalink to this definition">¶</a></dt>
-                                    <dd><p>Do fft for overlapping blocks of data along time, to get the dynamical
+                                    <dd><p>Do fft for overlapping blocks of data along time axis, to get the dynamical
                                         spectrum. The return object will have data stored in the last 2 dimensions,
                                         the last dimension is the average time for each bin of data, and the second
                                         last dimension is the fft result of each block.</p>
@@ -9830,7 +10269,7 @@
                                                         or </em><a class="reference internal"
                                                                    href="#zeus2_toolbox.zeus2_io.ObsArray"
                                                                    title="zeus2_toolbox.zeus2_io.ObsArray"><em>ObsArray</em></a>)
-                                                        – Obs or ObsArray object to to ifft</p></li>
+                                                        – Obs or ObsArray object to ifft</p></li>
                                                     <li><p><strong>freq_sigma</strong> (<em>float</em>) – float, the
                                                         standard deviation for Gaussian kernel
                                                         to convolved with data in terms of frequency.</p></li>
@@ -11172,13 +11611,16 @@
                                             class="n"><span class="pre">spat_excl</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>,
                                         <em class="sig-param"><span class="n"><span
-                                                class="pre">return_ts</span></span><span class="o"><span
+                                                class="pre">do_clean</span></span><span class="o"><span
                                                 class="pre">=</span></span><span class="default_value"><span
                                                 class="pre">False</span></span></em>, <em class="sig-param"><span
-                                            class="n"><span class="pre">return_pix_flag_list</span></span><span
-                                            class="o"><span class="pre">=</span></span><span class="default_value"><span
-                                            class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span
-                                            class="pre">plot</span></span><span class="o"><span
+                                            class="n"><span class="pre">return_ts</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">return_pix_flag_list</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">False</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">plot</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
                                         <em class="sig-param"><span class="n"><span
                                                 class="pre">plot_ts</span></span><span class="o"><span
@@ -11278,6 +11720,13 @@
                                                         noise model using ICA, e.g. spat_excl=[0, 2] means pixels at
                                                         spat=0,1,2
                                                         will not be used; will use all pixels if let None</p></li>
+                                                    <li><p><strong>do_clean</strong> (<em>bool</em>) – bool,
+                                                        [experimental] flag whether to clean data by
+                                                        filtering out 1+-0.015 Hz, 1.41+-0.015 Hz, 1.985+-0.015 Hz,
+                                                        3.97+-0.03Hz,
+                                                        5.955+-0.045Hz, 7.94+-0.06Hz from the time series; if True, will
+                                                        happen
+                                                        after desnaking/smoother, before ICA</p></li>
                                                     <li><p><strong>return_ts</strong> (<em>bool</em>) – bool, flag
                                                         whether to return time series object</p></li>
                                                     <li><p><strong>return_pix_flag_list</strong> (<em>bool</em>) – bool,
@@ -11698,13 +12147,16 @@
                                             class="n"><span class="pre">spat_excl</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>,
                                         <em class="sig-param"><span class="n"><span
-                                                class="pre">return_ts</span></span><span class="o"><span
+                                                class="pre">do_clean</span></span><span class="o"><span
                                                 class="pre">=</span></span><span class="default_value"><span
                                                 class="pre">False</span></span></em>, <em class="sig-param"><span
-                                            class="n"><span class="pre">return_pix_flag_list</span></span><span
-                                            class="o"><span class="pre">=</span></span><span class="default_value"><span
-                                            class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span
-                                            class="pre">plot</span></span><span class="o"><span
+                                            class="n"><span class="pre">return_ts</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">return_pix_flag_list</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">False</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">plot</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
                                         <em class="sig-param"><span class="n"><span
                                                 class="pre">plot_ts</span></span><span class="o"><span
@@ -11776,13 +12228,16 @@
                                             class="n"><span class="pre">spat_excl</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>,
                                         <em class="sig-param"><span class="n"><span
-                                                class="pre">return_ts</span></span><span class="o"><span
+                                                class="pre">do_clean</span></span><span class="o"><span
                                                 class="pre">=</span></span><span class="default_value"><span
                                                 class="pre">False</span></span></em>, <em class="sig-param"><span
-                                            class="n"><span class="pre">return_pix_flag_list</span></span><span
-                                            class="o"><span class="pre">=</span></span><span class="default_value"><span
-                                            class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span
-                                            class="pre">plot</span></span><span class="o"><span
+                                            class="n"><span class="pre">return_ts</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">return_pix_flag_list</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">False</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">plot</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
                                         <em class="sig-param"><span class="n"><span
                                                 class="pre">plot_ts</span></span><span class="o"><span
@@ -11931,13 +12386,16 @@
                                             class="n"><span class="pre">spat_excl</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>,
                                         <em class="sig-param"><span class="n"><span
-                                                class="pre">return_ts</span></span><span class="o"><span
+                                                class="pre">do_clean</span></span><span class="o"><span
                                                 class="pre">=</span></span><span class="default_value"><span
                                                 class="pre">False</span></span></em>, <em class="sig-param"><span
-                                            class="n"><span class="pre">return_pix_flag_list</span></span><span
-                                            class="o"><span class="pre">=</span></span><span class="default_value"><span
-                                            class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span
-                                            class="pre">plot</span></span><span class="o"><span
+                                            class="n"><span class="pre">return_ts</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">return_pix_flag_list</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">False</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">plot</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
                                         <em class="sig-param"><span class="n"><span
                                                 class="pre">plot_ts</span></span><span class="o"><span
@@ -12013,13 +12471,16 @@
                                             class="n"><span class="pre">spat_excl</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>,
                                         <em class="sig-param"><span class="n"><span
-                                                class="pre">return_ts</span></span><span class="o"><span
+                                                class="pre">do_clean</span></span><span class="o"><span
                                                 class="pre">=</span></span><span class="default_value"><span
                                                 class="pre">False</span></span></em>, <em class="sig-param"><span
-                                            class="n"><span class="pre">return_pix_flag_list</span></span><span
-                                            class="o"><span class="pre">=</span></span><span class="default_value"><span
-                                            class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span
-                                            class="pre">plot</span></span><span class="o"><span
+                                            class="n"><span class="pre">return_ts</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">return_pix_flag_list</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">False</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">plot</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
                                         <em class="sig-param"><span class="n"><span
                                                 class="pre">plot_ts</span></span><span class="o"><span
@@ -12042,7 +12503,7 @@
                                             class="sig-paren">)</span><a class="headerlink"
                                                                          href="#zeus2_toolbox.pipeline.reduce_beam_pairs"
                                                                          title="Permalink to this definition">¶</a></dt>
-                                    <dd><p>reduce the data files in data_header by callling reduce_beam_pair() which
+                                    <dd><p>reduce the data files in data_header by calling reduce_beam_pair() which
                                         stack each beam pair, and return the flux, error and weight of the beam
                                         pairs</p>
                                         <dl class="field-list simple">
@@ -12168,12 +12629,15 @@
                                             class="n"><span class="pre">spat_excl</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>,
                                         <em class="sig-param"><span class="n"><span
-                                                class="pre">return_ts</span></span><span class="o"><span
+                                                class="pre">do_clean</span></span><span class="o"><span
                                                 class="pre">=</span></span><span class="default_value"><span
                                                 class="pre">False</span></span></em>, <em class="sig-param"><span
-                                            class="n"><span class="pre">return_pix_flag_list</span></span><span
-                                            class="o"><span class="pre">=</span></span><span class="default_value"><span
-                                            class="pre">True</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">return_ts</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">return_pix_flag_list</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">True</span></span></em>, <em class="sig-param"><span
                                             class="n"><span class="pre">table_save</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>,
                                         <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span
@@ -12270,12 +12734,15 @@
                                             class="n"><span class="pre">spat_excl</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>,
                                         <em class="sig-param"><span class="n"><span
-                                                class="pre">return_ts</span></span><span class="o"><span
+                                                class="pre">do_clean</span></span><span class="o"><span
                                                 class="pre">=</span></span><span class="default_value"><span
                                                 class="pre">False</span></span></em>, <em class="sig-param"><span
-                                            class="n"><span class="pre">return_pix_flag_list</span></span><span
-                                            class="o"><span class="pre">=</span></span><span class="default_value"><span
-                                            class="pre">True</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">return_ts</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">return_pix_flag_list</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">True</span></span></em>, <em class="sig-param"><span
                                             class="n"><span class="pre">table_save</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>,
                                         <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span
@@ -12358,12 +12825,15 @@
                                             class="n"><span class="pre">spat_excl</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>,
                                         <em class="sig-param"><span class="n"><span
-                                                class="pre">return_ts</span></span><span class="o"><span
+                                                class="pre">do_clean</span></span><span class="o"><span
                                                 class="pre">=</span></span><span class="default_value"><span
                                                 class="pre">False</span></span></em>, <em class="sig-param"><span
-                                            class="n"><span class="pre">return_pix_flag_list</span></span><span
-                                            class="o"><span class="pre">=</span></span><span class="default_value"><span
-                                            class="pre">True</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">return_ts</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">return_pix_flag_list</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">True</span></span></em>, <em class="sig-param"><span
                                             class="n"><span class="pre">table_save</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>,
                                         <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span
@@ -12463,13 +12933,16 @@
                                             class="n"><span class="pre">spat_excl</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>,
                                         <em class="sig-param"><span class="n"><span
-                                                class="pre">return_ts</span></span><span class="o"><span
+                                                class="pre">do_clean</span></span><span class="o"><span
                                                 class="pre">=</span></span><span class="default_value"><span
                                                 class="pre">False</span></span></em>, <em class="sig-param"><span
-                                            class="n"><span class="pre">return_pix_flag_list</span></span><span
-                                            class="o"><span class="pre">=</span></span><span class="default_value"><span
-                                            class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span
-                                            class="pre">table_save</span></span><span class="o"><span
+                                            class="n"><span class="pre">return_ts</span></span><span class="o"><span
+                                            class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>,
+                                        <em class="sig-param"><span class="n"><span
+                                                class="pre">return_pix_flag_list</span></span><span class="o"><span
+                                                class="pre">=</span></span><span class="default_value"><span
+                                                class="pre">False</span></span></em>, <em class="sig-param"><span
+                                            class="n"><span class="pre">table_save</span></span><span class="o"><span
                                             class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>,
                                         <em class="sig-param"><span class="n"><span class="pre">plot</span></span><span
                                                 class="o"><span class="pre">=</span></span><span

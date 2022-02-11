@@ -5,7 +5,7 @@
 <head>
     <meta charset="utf-8"/>
     <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-    <title>&lt;no title&gt; &#8212; zeus2_toolbox 1.5 documentation</title>
+    <title>&lt;no title&gt; &#8212; zeus2_toolbox 1.6 documentation</title>
 
     <link href="../_static/css/theme.css" rel="stylesheet">
     <link href="../_static/css/index.ff1ffe594081f20da1ef19478df9384b.css" rel="stylesheet">
@@ -57,7 +57,7 @@
                 <a class="navbar-brand text-wrap" href="../index.html">
 
 
-                    <h1 class="site-logo" id="site-title">zeus2_toolbox 1.5 documentation</h1>
+                    <h1 class="site-logo" id="site-title">zeus2_toolbox 1.6 documentation</h1>
 
                 </a>
             </div>
@@ -201,6 +201,26 @@
 
                     <div>
 
+                        <p>1.6</p>
+                        <ul class="simple">
+                            <li><p>Add scipy as a dependence</p></li>
+                            <li><p>Add beautifulsoup4 as a requirement</p></li>
+                            <li><p>Add function tools.gaussian_2d()</p></li>
+                            <li><p>Add function tools.spec_to_wl(), tools.wl_to_spec() and tools.wl_to_grat_idx() which
+                                map spectral index to wavelength
+                                and vice verse, and compute the grating index to place certain wavelength at given
+                                [spat, spec]</p></li>
+                            <li><p>Add the ability to output the predicted error in pipeline.zobs()</p></li>
+                            <li><p>Add the ability to fit raster in pipeline.make_raster() and stack_raster()</p></li>
+                            <li><p>Change error prediction from rms/sqrt(#data)*2 to rms/sqrt(#data)<em>4</em>sqrt(2/3)
+                                which accounts for oversampling</p></li>
+                            <li><p>Fix a bug in FigFlux.write_text() in the position to put text for ObsArray</p></li>
+                            <li><p>Fix a bug in pipeline.reduce_beam_pair() that do_smooth is not propagated through</p>
+                            </li>
+                            <li><p>Fix a bug in pipeline.reduce_zobs() by multiplying input times series by a factor of
+                                sqrt(2) if time series is stacked
+                                beam pair</p></li>
+                        </ul>
                         <p>1.5</p>
                         <ul class="simple">
                             <li><p>Add make_raster() to turn beams_flux into raster shape and make figures; change

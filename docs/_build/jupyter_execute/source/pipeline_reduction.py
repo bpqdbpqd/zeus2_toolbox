@@ -332,6 +332,7 @@ zpoldbig_result = z2pipl.reduce_zpoldbig(
         plot_show=PLOT_SHOW, plot_save=PLOT_SAVE, analyze=ANALYZE)
 zpoldbig_flux, zpoldbig_err, zpoldbig_pix_flag_list = zpoldbig_result[:2] + zpoldbig_result[-1:]
 
+
 # The result is saved in "{data_header}\_raster.png". In the figure, all the pixels without any 2-sigma detection in any beam are flagged. The pointing target Uranus clearly shows up as a point source at different location for pixels at different spatial position. It also shows the alignment of the array on the sky.
 
 # In[24]:
