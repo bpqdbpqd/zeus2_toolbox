@@ -2055,8 +2055,9 @@ class TimeStamps(DataObj):
                 else:
                     if len(ts_chunk_edge_idxs) > 2:  # if chop_effcy != 1
                         if len(ts_chunk_edge_idxs) - 1 != chop.chunk_num_:
-                            RuntimeError("Chunk number disagree, " +
-                                         "needs human inspection")
+                            warnings.warn("Chunk number disagree, " +
+                                          "needs human inspection", UserWarning)
+                            return self.rebuild_by_chop(chop)
                         ts_new = np.empty(chop.len_, dtype=self.dtype_)
                         for (idx_i_chop, idx_e_chop, idx_i, idx_e) in zip(
                                 chop_chunk_edge_idxs[:-1],
@@ -3852,12 +3853,12 @@ def ifft_obs(obs_fft, t_start=None):
     """
     Do ifft on Obs or ObsArray object. The input object should have fft data in
     the last axis in data_ with frequency recorded in ts_. Again the chop_ and
-    obs_id_arr_ of the returned object will remain uninitialized. By default use
-    obs.t_start_time_ as the starting time to build the new ts_, unless
+    obs_id_arr_ of the returned object will remain uninitialized. By default,
+    use obs.t_start_time_ as the starting time to build the new ts_, unless
     t_start is given. The returned data only contains the real part of
     numpy.fft.ifft result.
 
-    :param obs_fft: Obs or ObsArray object to to ifft
+    :param obs_fft: Obs or ObsArray object to ifft
     :type obs_fft: Obs or ObsArray
     :param t_start: float or str or datetime.datetime or astropy.time.Time, the
         initial time for the time stamps in the result Obs object. If left None,
@@ -3902,7 +3903,7 @@ def ifft_obs(obs_fft, t_start=None):
 
 def nfft_obs(obs, nfft=5., noverlap=4.):
     """
-    Do fft for overlapping blocks of data along time, to get the dynamical
+    Do fft for overlapping blocks of data along time axis, to get the dynamical
     spectrum. The return object will have data stored in the last 2 dimensions,
     the last dimension is the average time for each bin of data, and the second
     last dimension is the fft result of each block.

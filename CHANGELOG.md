@@ -2,7 +2,9 @@
 
 - Add scipy as a dependence
 - Add beautifulsoup4 as a requirement
-- Add function gaussian_2d()
+- Add function tools.gaussian_2d()
+- Add function tools.spec_to_wl(), tools.wl_to_spec() and tools.wl_to_grat_idx() which map spectral index to wavelength
+  and vice verse, and compute the grating index to place certain wavelength at given (spat, spec)
 - Add the ability to output the predicted error in pipeline.zobs()
 - Add the ability to fit raster in pipeline.make_raster() and stack_raster()
 - Change error prediction from rms/sqrt(#data)*2 to rms/sqrt(#data)*4*sqrt(2/3) which accounts for oversampling

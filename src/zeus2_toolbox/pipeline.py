@@ -1083,8 +1083,8 @@ def plot_beam_ts(obs, title=None, pix_flag_list=[], reg_interest=None,
         write_header = obs0.obs_id_
     if isinstance(obs0, (Obs, ObsArray)) and (not obs0.ts_.empty_flag_):
         obs_t_len = obs0.t_end_time_ - obs0.t_start_time_
-        x_size = max((obs_t_len / units.hour).to(1).value / 2,
-                     FigArray.x_size_)
+        x_size = min(max((obs_t_len / units.hour).to(1).value / 2,
+                         FigArray.x_size_), FigArray.x_size_ * 20)
     else:
         x_size = FigArray.x_size_
 
@@ -2085,7 +2085,7 @@ def reduce_beam_pairs(data_header, data_dir=None, write_dir=None,
                       plot_ts=False, reg_interest=None, plot_flux=False,
                       plot_show=False, plot_save=False, use_hk=True):
     """
-    reduce the data files in data_header by callling reduce_beam_pair() which
+    reduce the data files in data_header by calling reduce_beam_pair() which
     stack each beam pair, and return the flux, error and weight of the beam pairs
 
     :raises RunTimeError: no beam pair is matched
