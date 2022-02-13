@@ -553,10 +553,11 @@ class DataObj(BaseObj):
         Update dtype_ instance variable and dtype of data_ to the given value.
         Will not make change if object is empty.
 
-        :param type dtype: type, dtype supported by numpy.array
+        :param dtype: numpy.dtype, dtype supported by numpy.array
+        :type dtype: Union[type, numpy.dtype]
         """
 
-        self.dtype_ = dtype
+        self.dtype_ = np.dtype(dtype)
         self.__fill_values__(self.data_.astype(dtype))
 
     def fill_by_mask(self, mask, fill_value=np.nan):
@@ -628,11 +629,13 @@ class DataObj(BaseObj):
         series and saves more data
 
         :param float thre: float, data with abs distance > thre*MAD will be flagged
-        :param int axis: int, axis along which the mad will be checked, if input is
-            None, will use the median of the whole array
-        :param flat frac_thre: float, between 0 and 1, threshold of the fraction of
-            data flagged in the first time nanmad_flag() to perform nanmad_flag() and
-            try to unflag some data
+        :param int axis: int, axis along which the mad will be checked, if input
+            is None, will use the median of the whole array
+        :param flat frac_thre: float, between 0 and 1, threshold of the fraction
+            of data flagged in the first time nanmad_flag() to perform nanmad_flag()
+            and try to unflag some data
+        :return: array, bool values of flag
+        :rtype: numpy.ndarray
         """
 
         if axis is not None:
@@ -753,22 +756,22 @@ class DataObj(BaseObj):
         func = {"nanmean": np.nanmean, "nanmedian": np.nanmedian,
                 "nansum": np.nansum, "nanstd": np.nanstd, "nanmin": np.nanmin,
                 "nanmax": np.nanmax,
-                "nanmad": lambda arr, axis: median_abs_deviation(
-                        arr, axis=axis, nan_policy="omit"),
+                "nanmad": lambda arr, ax: median_abs_deviation(
+                        arr, axis=ax, nan_policy="omit"),
                 "mean": np.mean, "median": np.median,
                 "sum": np.sum, "std": np.std, "min": np.min, "max": np.max,
-                "mad": lambda arr, axis: median_abs_deviation(
-                        arr, axis=axis, nan_policy="propagate"),
-                "num": lambda arr, axis:
-                np.count_nonzero(np.ones(arr.shape), axis=axis),
-                "num_is_nan": lambda arr, axis:
-                np.count_nonzero(np.isnan(arr), axis=axis),
-                "num_not_is_nan": lambda arr, axis:
-                np.count_nonzero(~np.isnan(arr), axis=axis),
-                "num_is_finite": lambda arr, axis:
-                np.count_nonzero(np.isfinite(arr), axis=axis),
-                "num_not_is_finite": lambda arr, axis:
-                np.count_nonzero(~np.isfinite(arr), axis=axis)
+                "mad": lambda arr, ax: median_abs_deviation(
+                        arr, axis=ax, nan_policy="propagate"),
+                "num": lambda arr, ax:
+                np.count_nonzero(np.ones(arr.shape), axis=ax),
+                "num_is_nan": lambda arr, ax:
+                np.count_nonzero(np.isnan(arr), axis=ax),
+                "num_not_is_nan": lambda arr, ax:
+                np.count_nonzero(~np.isnan(arr), axis=ax),
+                "num_is_finite": lambda arr, ax:
+                np.count_nonzero(np.isfinite(arr), axis=ax),
+                "num_not_is_finite": lambda arr, ax:
+                np.count_nonzero(~np.isfinite(arr), axis=ax)
                 }[method]
         dtype = int if method in ["num", "num_not_is_nan", "num_is_finite"] \
             else np.double
@@ -2476,8 +2479,8 @@ class Obs(DataObj):
             self.__check()
 
     def __operate__(self, other, operator, r=False):
-        obs_new = super(Obs, self).__operate__(other=other, operator=operator,
-                                               r=r)
+        obs_new = super(Obs, self).__operate__(
+                other=other, operator=operator, r=r)
         if isinstance(other, Obs) and not other.empty_flag_:
             obs_new.obs_id_list_ = np.unique(
                     self.obs_id_list_ + other.obs_id_list_).tolist()
@@ -3087,10 +3090,10 @@ class Obs(DataObj):
                    keep_shape=False, **kwargs):
         """
         Chunk the current data in the last axis according to the edge indices in
-        chunk_edge_idxs, and process data_ by mean/median/sum etc in each chunk,
-        and return a new Obs object with processed chunk data. The data in chop_
-        ts_ will be chunk processed with nanmean, and for obs_id_arr_, the
-        values at the indices in chunk_edge_idxs will be used.
+        chunk_edge_idxs, and process data_ by mean, median, sum etc. in each
+        chunk, and return a new Obs object with processed chunk data. The data
+        in chop_ ts_ will be chunk processed with nanmean, and for obs_id_arr_,
+        the values at the indices in chunk_edge_idxs will be used.
 
         :param numpy.ndarray chunk_edge_idxs: array, index of chunk of each data
             point, out put of index_diff_edge() func. If left None, will use
@@ -3662,7 +3665,7 @@ class ObsArray(Obs):
         ObsArray.take_where().
 
         :return: ObsArray, new object containing the pixels in the
-            array map that match any/all of the criteria
+            array map that match any of/all the criteria
         :rtype: ObsArray
         """
 
@@ -3903,7 +3906,7 @@ def ifft_obs(obs_fft, t_start=None):
 
 def nfft_obs(obs, nfft=5., noverlap=4.):
     """
-    Do fft for overlapping blocks of data along time axis, to get the dynamical
+    Do fft for overlapping blocks of data in time axis, to get the dynamical
     spectrum. The return object will have data stored in the last 2 dimensions,
     the last dimension is the average time for each bin of data, and the second
     last dimension is the fft result of each block.

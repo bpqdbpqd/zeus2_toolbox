@@ -47,7 +47,7 @@ def gaussian_2d(pos, x0=0, y0=0, sigma_x=1, sigma_y=1, theta=0, amp=1,
     :param float y0: float, center of gaussian distribution in y dimension
     :param float sigma_x: float, standard deviation of gaussian in the x dimension
     :param float sigma_y: float, standard deviation of gaussian in the y dimension
-    :param float theta: float, radian of the position angle of x with repect to
+    :param float theta: float, radian of the position angle of x with respect to
         the first dimension
     :param float amp: float, amplitude of the gaussian peak; if norm=False, amp
         will be the peak value, otherwise amp will be the integrated value
@@ -107,7 +107,7 @@ def weighted_mean(arr, wt=None, nan_policy="omit"):
         arr_use, wt_use = arr[finite_mask], wt[finite_mask]
         summed_wt = wt_use.sum()
         mean = (arr_use * wt_use).sum() / summed_wt
-        err = np.sqrt((((arr_use - mean) * wt_use)**2).sum()) / summed_wt
+        err = np.sqrt((((arr_use - mean) * wt_use) ** 2).sum()) / summed_wt
         return mean, err, summed_wt
 
 
@@ -152,13 +152,13 @@ def weighted_median(arr, wt=None, nan_policy="omit"):
         arr_use, wt_use = arr_use[idxs], wt[finite_mask][idxs]
         summed_wt = wt_use.sum()
         cumsum_wt = np.cumsum(wt_use)
-        if np.any(cumsum_wt == summed_wt/2):
-            mid_idx = np.flatnonzero(cumsum_wt == summed_wt/2)[0]
-            med = (arr_use[mid_idx] + arr_use[mid_idx + 1])/2
+        if np.any(cumsum_wt == summed_wt / 2):
+            mid_idx = np.flatnonzero(cumsum_wt == summed_wt / 2)[0]
+            med = (arr_use[mid_idx] + arr_use[mid_idx + 1]) / 2
         else:
-            mid_idx = np.flatnonzero(cumsum_wt > summed_wt/2)[0]
+            mid_idx = np.flatnonzero(cumsum_wt > summed_wt / 2)[0]
             med = arr_use[mid_idx]
-        err = np.sqrt((((arr_use - med) * wt_use)**2).sum()) / summed_wt
+        err = np.sqrt((((arr_use - med) * wt_use) ** 2).sum()) / summed_wt
         return med, err, summed_wt
 
 
@@ -339,7 +339,7 @@ def naninterp(x, xp, fp, fill_value=np.nan):
 
 def nanlstsq(a, b, rcond=None, fill_value=np.nan):
     """
-    call numpy.linalg.lstsq() to do least square fit, but mask non-finite data 
+    call numpy.linalg.lstsq() to do the least square fit, but mask non-finite data
     first, and return all the results from
 
     :param numpy.ndarray a: array, as in numpy.linalg.lstsq()
@@ -389,9 +389,9 @@ def build_header(header_dict):
 
     if len(header_dict) == 1:
         header_str = "%s_%04d-%04d" % \
-                (list(header_dict.items())[0][0],
-                 list(header_dict.items())[0][1][0][0],
-                 list(header_dict.items())[0][1][-1][-1])
+                     (list(header_dict.items())[0][0],
+                      list(header_dict.items())[0][1][0][0],
+                      list(header_dict.items())[0][1][-1][-1])
     else:
         header_str = "%s_%04d-%s_%04d" % \
                      (list(header_dict.items())[0][0],
@@ -413,7 +413,7 @@ def spec_to_wl(spec, spat, grat_idx, order=5, rd=200, rg=0.711111111111111,
     value for the fitted parameters are taken from
     zeus2_grating_calibration_apex2019 file; wavelength is calculated as
 
-        lambda = 5/order * (a (sin alpha_s)^2 + b * sin alpha_s + c)
+        wl = 5/order * (a (sin alpha_s)^2 + b * sin alpha_s + c)
 
     where alpha_s = alpha_min_index - grat_idx / (rd * rg) and
     theta = px + c6 * py**2 + c7 * py + c8; px_shift and py_shift can shift
@@ -440,7 +440,7 @@ def spec_to_wl(spec, spat, grat_idx, order=5, rd=200, rg=0.711111111111111,
     :param py_shift: int or float, shift for spectral index to reconcile sky
         wavelength with fit parameters, will be added to spec to get py in theta
     :type py_shift: Union[int, float]
-    :param float alpha_min_index: float, index of the minimum grating angle
+    :param float alpha_min_index: float, grating angle at the minimum index,
         computed from the reference alpha
     :param float c0: float, fitted coefficient
     :param float c1: float, fitted coefficient
@@ -498,7 +498,7 @@ def wl_to_spec(wl, spat, grat_idx, order=5, rd=200, rg=0.711111111111111,
     :param py_shift: int or float, shift for spectral index to reconcile sky
         wavelength with fit parameters, will be added to spec to get py in theta
     :type py_shift: Union[int, float]
-    :param float alpha_min_index: float, index of the minimum grating angle
+    :param float alpha_min_index: float, grating angle at the minimum index,
         computed from the reference alpha
     :param float c0: float, fitted coefficient
     :param float c1: float, fitted coefficient
@@ -564,7 +564,7 @@ def wl_to_grat_idx(wl, spat, spec, order=5, rd=200, rg=0.711111111111111,
     :param py_shift: int or float, shift for spectral index to reconcile sky
         wavelength with fit parameters, will be added to spec to get py in theta
     :type py_shift: Union[int, float]
-    :param float alpha_min_index: float, index of the minimum grating angle
+    :param float alpha_min_index: float, grating angle at the minimum index,
         computed from the reference alpha
     :param float c0: float, fitted coefficient
     :param float c1: float, fitted coefficient

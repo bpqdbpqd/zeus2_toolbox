@@ -1,6 +1,6 @@
-1.7
+2.0
 
-1.7 will be a major update adding the ability to map array to wavelength, plotting and correcting for transmission, and
+2.0 will be a major update adding the ability to map array to wavelength, plotting and correcting for transmission, and
 converting data unit to physical unit.
 
 1.6

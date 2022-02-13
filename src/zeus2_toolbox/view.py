@@ -305,7 +305,7 @@ class FigFlux(Figure):
             arr = arr[None, ...]
 
         if orientation is None:
-            orientation  = self.orientation_
+            orientation = self.orientation_
         if not check_orientation(orientation=orientation):
             arr = arr.transpose()
         shape = arr.shape
@@ -553,10 +553,10 @@ class FigFlux(Figure):
             plotting data, allowed values are 'horizontal' and
             'vertical', if the former, layout of image (y, x) will be (row, col)
             for Obs and (spat, spec) for ObsArray, otherwise (col, row) and
-            (spec, spat); left left None, default 'horizontal' will be used
+            (spec, spat); if left None, default value 'horizontal' will be used
         :param int dpi: int, dpi, default 100
         :param int fontsize: int, font size in point, default 10
-        :param float x_size: float, size of increment in extent of x axis in
+        :param float x_size: float, size of increment in extent of x-axis in
             inch, default 0.2
         :param float y_size: float, default 0.2
         :param kwargs: passed to plt.figure()
@@ -626,9 +626,9 @@ class FigFlux(Figure):
         :param int dpi: int, dpi of the figure
         :param int fontsize: int, font size of axes label and title in point,
             default 10
-        :param float x_size: float, size of increment in x axis in inch, default
+        :param float x_size: float, size of increment in x-axis in inch, default
             0.2
-        :param float y_size: float, size of increment in y axis in inch, default
+        :param float y_size: float, size of increment in y-axis in inch, default
             0.2
         :return fig: FigFlux, object containing the plot
         :rtype: FigFlux
@@ -677,8 +677,8 @@ class FigFlux(Figure):
         :param int text_fontsize: int, text font size in pt, default 5
         :param int dpi: int, dpi of the figure
         :param int fontsize: int, font size of axes label and title in point
-        :param float x_size: float, size of increment in x axis in inch
-        :param float y_size: float, size of increment in y axis in inch
+        :param float x_size: float, size of increment in x-axis in inch
+        :param float y_size: float, size of increment in y-axis in inch
         :return fig: FigFlux, object containing the plot
         :rtype: FigFlux
         :raises ValueError: empty input
@@ -721,11 +721,11 @@ class FigArray(FigFlux):
             self.orientation_ = orientation
         if self.main_axes_ is None:
             extent = get_extent(obs=array_map, orientation=orientation,
-                    extent_offset=(
-                        - 0.5 - 1.5 * self.axs_fontsize_ / 72 / self.x_size_,
-                        - 0.5 + 1.5 * self.axs_fontsize_ / 72 / self.x_size_,
-                        - 0.5 + 2 * self.axs_fontsize_ / 72 / self.y_size_,
-                        - 0.5 - 2 * self.axs_fontsize_ / 72 / self.y_size_))
+                                extent_offset=(
+                                    - 0.5 - 1.5 * self.axs_fontsize_ / 72 / self.x_size_,
+                                    - 0.5 + 1.5 * self.axs_fontsize_ / 72 / self.x_size_,
+                                    - 0.5 + 2 * self.axs_fontsize_ / 72 / self.y_size_,
+                                    - 0.5 - 2 * self.axs_fontsize_ / 72 / self.y_size_))
             self.__init_main_axes__(extent=extent)
         ax = self.main_axes_
         extent_round = (array_map.array_spec_llim_, array_map.array_spec_ulim_,
@@ -903,7 +903,7 @@ class FigArray(FigFlux):
 
     def set_ylabel(self, ylabel, twin_axes=False, **kwargs):
         """
-        set xlabel
+        set ylabel
 
         :param str ylabel: str
         :param bool twin_axes: bool flag, whether to apply on the secondary
@@ -923,7 +923,6 @@ class FigArray(FigFlux):
             axs_use = self.axs_list_
             func = np.min
 
-        axs_use = self.axs_list_
         edge_spat_spec_list = []
         if not check_orientation(self.orientation_):
             for spec in range(self.array_map_.array_spec_llim_,
@@ -992,7 +991,7 @@ class FigArray(FigFlux):
         :param c: str or rgba tuple or array
         :type c: str or tuple or numpy.ndarray
         :param str marker: str, marker
-        :param bool twin_axes: bool flag, whether use the secondary y axes
+        :param bool twin_axes: bool flag, whether to use the secondary y-axis
         :param kwargs: keywords to pass to axes.scatter()
         """
 
@@ -1030,7 +1029,7 @@ class FigArray(FigFlux):
         :param obs_array: Obs or ObsArray, containing data to plot, must have a
             single time axis, along which the data will be plotted
         :type obs_array: Obs or ObsArray
-        :param bool twin_axes: bool flag, whether use the secondary y axes
+        :param bool twin_axes: bool flag, whether to use the secondary y-axis
         :param kwargs: keywords to pass to axes.plot()
         """
 
@@ -1075,7 +1074,7 @@ class FigArray(FigFlux):
         :param str fmt: str, by default '.'
         :param color: str or tuple or array of rgba
         :type color: str or tuple or numpy.ndarray
-        :param bool twin_axes: bool flag, whether use the secondary y axes
+        :param bool twin_axes: bool flag, whether to use the secondary y-axis
         :param kwargs: keywords to pass to plt.errorbar()
         """
 
@@ -1121,9 +1120,9 @@ class FigArray(FigFlux):
         Plot image on every pixel axes.
 
         :param obs_array: Obs or ObsArray, the data to plot is in the last 2
-            axis, the last axis will be plotted along x axis, and the second
-            last on is the y axis.
-        :param bool twin_axes: bool flag, whether use the secondary y axes
+            axis, the last axis will be plotted along x-axis, and the second
+            last on is the y-axis.
+        :param bool twin_axes: bool flag, whether to use the secondary y axes
         :param kwargs: passed to axes.imshow()
         """
 
@@ -1161,7 +1160,7 @@ class FigArray(FigFlux):
         :type freq_ran: tuple or list or numpy.ndarray
         :param str scale: str flag of the scale, only "linear", "log" and "dB"
             are accepted
-        :param bool twin_axes: bool flag, whether use the secondary y axes
+        :param bool twin_axes: bool flag, whether to use the secondary y-axis
         :param kwargs: keyword arguments passed to plot()
         :raises ValueError: invalid scale value
         """
@@ -1173,7 +1172,7 @@ class FigArray(FigFlux):
                 ts=np.fft.fftshift(obs_fft.ts_.data_))
         obs_fft = obs_fft.take_when(t_ran=freq_ran)
 
-        obs_spec = abs(obs_fft)**2
+        obs_spec = abs(obs_fft) ** 2
         if scale.strip().lower()[:2] in ["db", "lo", "ln"]:
             obs_spec = 20 * obs_spec.log10()
         elif scale.strip().lower()[:2] == "li":
@@ -1204,7 +1203,7 @@ class FigArray(FigFlux):
         :type freq_ran: tuple or list or numpy.ndarray
         :param str scale: str flag of the scale, only "linear", "log" and "dB"
             are accepted
-        :param bool twin_axes: bool flag, whether use the secondary y axes
+        :param bool twin_axes: bool flag, whether to use the secondary y-axis
         :param kwargs: keyword arguments passed to imshow()
         :raises ValueError: invalid scale value
         """
@@ -1219,7 +1218,7 @@ class FigArray(FigFlux):
         obs_nfft = obs_nfft.take_by_flag_along_axis(flag_arr=freq_flag, axis=-2)
         freq_ts = freq_ts.take_by_flag_along_axis(flag_arr=freq_flag)
 
-        obs_specgram = abs(obs_nfft)**2
+        obs_specgram = abs(obs_nfft) ** 2
         if scale.strip().lower()[:2] in ["db", "lo", "ln"]:
             obs_specgram = 20 * obs_specgram.log10()
         elif scale.strip().lower()[:2] == "li":
@@ -1246,7 +1245,7 @@ class FigArray(FigFlux):
         will be passed to axes.plot in every pixel axes.
 
         :param bool twin_axes: bool flag, whether to plot using the secondary
-            y axis
+            y-axis
         """
 
         if self.axs_list_ is None:
@@ -1272,10 +1271,10 @@ class FigArray(FigFlux):
 
         :param ArrayMap array_map: ArrayMap of the array layout, the spat and
             spec information will be used
-        :param str orientation: str, allowed are 'horizontal' and 'vertical', if
-            'horizontal', row will be spatial positional and column will be
-            spectral position; if left None, class default 'horizontal' will be
-            used
+        :param str orientation: str, allowed values are 'horizontal' and
+            'vertical', if 'horizontal', row will be spatial positional and
+            column will be spectral position; if left None, class default
+            'horizontal' will be used
         :param int dpi: int, dpi
         :param int fontsize: int, fontsize of outer frame, default 20
         :param int axs_fontsize: int, fontsize of pixel axes, default 6
@@ -1325,10 +1324,10 @@ class FigArray(FigFlux):
             single time axis, along which the data will be plotted
         :type obs_array: Obs or ObsArray
         :param fmt: int, passed to plot()
-        :param str orientation: str, allowed are 'horizontal' and 'vertical', if
-            'horizontal', row will be spatial positional and column will be
-            spectral position; if left None, class default 'horizontal' will be
-            used
+        :param str orientation: str, allowed values are 'horizontal' and
+            'vertical', if 'horizontal', row will be spatial positional and
+            column will be spectral position; if left None, class default
+            'horizontal' will be used
         :param int dpi: int, dpi
         :param int fontsize: int, fontsize of outer frame, default 20
         :param int axs_fontsize: int, fontsize of pixel axes, default 8
@@ -1366,10 +1365,10 @@ class FigArray(FigFlux):
             chop, will plot color according to chop phase
         :type c: str or tuple or numpy.ndarray
         :param str marker: str, marker
-        :param str orientation: str, allowed are 'horizontal' and 'vertical', if
-            'horizontal', row will be spatial positional and column will be
-            spectral position; if left None, class default 'horizontal' will be
-            used
+        :param str orientation: str, allowed values are 'horizontal' and
+            'vertical', if 'horizontal', row will be spatial positional and
+            column will be spectral position; if left None, class default
+            'horizontal' will be used
         :param int dpi: int, dpi
         :param int fontsize: int, fontsize of outer frame, default 20
         :param int axs_fontsize: int, fontsize of pixel axes, default 8
@@ -1454,10 +1453,10 @@ class FigArray(FigFlux):
         :type freq_ran: tuple or list or numpy.ndarray
         :param str scale: str flag of the scale, only "linear", "log" and "dB"
             are accepted
-        :param str orientation: str, allowed are 'horizontal' and 'vertical', if
-            'horizontal', row will be spatial positional and column will be
-            spectral position; if left None, class default 'horizontal' will be
-            used
+        :param str orientation: str, allowed values are 'horizontal' and
+            'vertical', if 'horizontal', row will be spatial positional and
+            column will be spectral position; if left None, class default
+            'horizontal' will be used
         :param int dpi: int, dpi
         :param int fontsize: int, fontsize of outer frame, default 20
         :param int axs_fontsize: int, fontsize of pixel axes, default 8
@@ -1501,10 +1500,10 @@ class FigArray(FigFlux):
         :type freq_ran: tuple or list or numpy.ndarray
         :param str scale: str flag of the scale, only "linear", "log" and "dB"
             are accepted
-        :param str orientation: str, allowed are 'horizontal' and 'vertical', if
-            'horizontal', row will be spatial positional and column will be
-            spectral position; if left None, class default 'horizontal' will be
-            used
+        :param str orientation: str, allowed values are 'horizontal' and
+            'vertical', if 'horizontal', row will be spatial positional and
+            column will be spectral position; if left None, class default
+            'horizontal' will be used
         :param int dpi: int, dpi
         :param int fontsize: int, fontsize of outer frame, default 20
         :param int axs_fontsize: int, fontsize of pixel axes, default 8
@@ -1536,8 +1535,8 @@ class FigSpec(FigFlux):
     x_size_, y_size_ = 0.2, 1.5  # type: float # size of each pixel axes in inch
     axs_list_ = None  # type: list
     spat_list_ = None  # type: list
-    array_spat_llim_ = 0 # type: int
-    array_spec_ulim_ = 0 # type: int
+    array_spat_llim_ = 0  # type: int
+    array_spec_ulim_ = 0  # type: int
 
     def __init_axs_list__(self, array_map=None):
         if self.main_axes_ is None:
@@ -1807,9 +1806,9 @@ class FigSpec(FigFlux):
             spec = np.full(len(x), fill_value=np.nan, dtype=float)
             array_map_use = array_map.take_where(spat=spat)
             if not array_map_use.empty_flag_:
-                data_use = obs_array.take_by_array_map(array_map_use).data_.\
+                data_use = obs_array.take_by_array_map(array_map_use).data_. \
                     flatten()
-                mask_use = mask_obs.take_by_array_map(array_map_use).data_.\
+                mask_use = mask_obs.take_by_array_map(array_map_use).data_. \
                     flatten()
                 spec[array_map_use.array_spec_[~mask_use] -
                      array_map.array_spec_llim_] = data_use[~mask_use]
@@ -1831,7 +1830,7 @@ class FigSpec(FigFlux):
         :param numpy.array mask: bool mask of flagged pixels, should have the
             same shape as obs_array
         :param list pix_flag_list: list of (spat, spec) of flagged pixels
-        :param bool twin_axes: bool flag, whether use the secondary y axes
+        :param bool twin_axes: bool flag, whether to use the secondary y-axis
         :param kwargs: keywords to pass to axes.errorbar()
         """
 
@@ -1869,9 +1868,9 @@ class FigSpec(FigFlux):
             array_map_use = array_map.take_where(spat=spat)
             if not array_map_use.empty_flag_:
                 spec_idxs = array_map_use.array_spec_
-                data_use = obs_array.take_by_array_map(array_map_use).data_.\
+                data_use = obs_array.take_by_array_map(array_map_use).data_. \
                     flatten()
-                mask_use = mask_obs.take_by_array_map(array_map_use).data_.\
+                mask_use = mask_obs.take_by_array_map(array_map_use).data_. \
                     flatten()
                 spec[spec_idxs[~mask_use] - array_map.array_spec_llim_] = \
                     data_use[~mask_use]
@@ -1901,7 +1900,7 @@ class FigSpec(FigFlux):
         kwargs inputs will be passed to axes.plot in every pixel axes.
 
         :param bool twin_axes: bool flag, whether to plot using the secondary
-            y axis
+            y-axis
         """
 
         if self.axs_list_ is None:
