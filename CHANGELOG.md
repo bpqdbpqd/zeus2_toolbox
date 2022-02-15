@@ -3,6 +3,8 @@
 2.0 will be a major update adding the ability to map array to wavelength, plotting and correcting for transmission, and
 converting data unit to physical unit.
 
+- Update error prediction to 8/sqrt(3) * rms/sqrt(N) based on the data bandwidth 100 Hz
+
 1.6
 
 - Add scipy as a dependence

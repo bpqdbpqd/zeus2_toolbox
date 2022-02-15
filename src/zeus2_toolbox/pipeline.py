@@ -2518,7 +2518,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                     write_dir, "%s_rms.csv" % data_file_header), overwrite=True)
         flat_use = flat_flux.proc_along_time("nanmean") if \
             isinstance(flat_flux, type(beams_rms)) else flat_flux
-        beams_sensitivity = 4 * np.sqrt(2 / 3) * beams_rms / abs(flat_use) / \
+        beams_sensitivity = 8 / np.sqrt(3) * beams_rms / abs(flat_use) / \
                             np.sqrt(zobs_ts.len_ * (stack + 1))
         if plot:
             zobs_flux_array = ObsArray(zobs_flux)  # plot spectrum
