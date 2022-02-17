@@ -756,22 +756,22 @@ class DataObj(BaseObj):
         func = {"nanmean": np.nanmean, "nanmedian": np.nanmedian,
                 "nansum": np.nansum, "nanstd": np.nanstd, "nanmin": np.nanmin,
                 "nanmax": np.nanmax,
-                "nanmad": lambda arr, ax: median_abs_deviation(
-                        arr, axis=ax, nan_policy="omit"),
+                "nanmad": lambda arr, axis: median_abs_deviation(
+                        arr, axis=axis, nan_policy="omit"),
                 "mean": np.mean, "median": np.median,
                 "sum": np.sum, "std": np.std, "min": np.min, "max": np.max,
-                "mad": lambda arr, ax: median_abs_deviation(
-                        arr, axis=ax, nan_policy="propagate"),
-                "num": lambda arr, ax:
-                np.count_nonzero(np.ones(arr.shape), axis=ax),
-                "num_is_nan": lambda arr, ax:
-                np.count_nonzero(np.isnan(arr), axis=ax),
-                "num_not_is_nan": lambda arr, ax:
-                np.count_nonzero(~np.isnan(arr), axis=ax),
-                "num_is_finite": lambda arr, ax:
-                np.count_nonzero(np.isfinite(arr), axis=ax),
-                "num_not_is_finite": lambda arr, ax:
-                np.count_nonzero(~np.isfinite(arr), axis=ax)
+                "mad": lambda arr, axis: median_abs_deviation(
+                        arr, axis=axis, nan_policy="propagate"),
+                "num": lambda arr, axis:
+                np.count_nonzero(np.ones(arr.shape), axis=axis),
+                "num_is_nan": lambda arr, axis:
+                np.count_nonzero(np.isnan(arr), axis=axis),
+                "num_not_is_nan": lambda arr, axis:
+                np.count_nonzero(~np.isnan(arr), axis=axis),
+                "num_is_finite": lambda arr, axis:
+                np.count_nonzero(np.isfinite(arr), axis=axis),
+                "num_not_is_finite": lambda arr, axis:
+                np.count_nonzero(~np.isfinite(arr), axis=axis)
                 }[method]
         dtype = int if method in ["num", "num_not_is_nan", "num_is_finite"] \
             else np.double
@@ -781,7 +781,7 @@ class DataObj(BaseObj):
             warnings.filterwarnings("ignore", message="Mean of empty slice")
             warnings.filterwarnings(
                     "ignore", message="Degrees of freedom <= 0 for slice.")
-            arr_proc = func(self.data_, ax=axis)
+            arr_proc = func(self.data_, axis=axis)
         arr_proc = np.expand_dims(arr_proc, axis=axis)
         arr_proc = arr_proc.astype(dtype)
         data_proc = self.replace(arr_in=arr_proc, **kwargs)
