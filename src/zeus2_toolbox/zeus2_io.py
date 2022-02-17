@@ -781,7 +781,7 @@ class DataObj(BaseObj):
             warnings.filterwarnings("ignore", message="Mean of empty slice")
             warnings.filterwarnings(
                     "ignore", message="Degrees of freedom <= 0 for slice.")
-            arr_proc = func(self.data_, axis=axis)
+            arr_proc = func(self.data_, ax=axis)
         arr_proc = np.expand_dims(arr_proc, axis=axis)
         arr_proc = arr_proc.astype(dtype)
         data_proc = self.replace(arr_in=arr_proc, **kwargs)

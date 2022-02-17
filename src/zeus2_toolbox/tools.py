@@ -406,7 +406,8 @@ def spec_to_wl(spec, spat, grat_idx, order=5, rd=200, rg=0.711111111111111,
                px_shift=0, py_shift=0, alpha_min_index=73.9062453,
                c0=0.9800910119, c1=-0.0017009051035, c2=-0.87654448327,
                c3=36.248043521, c4=459.42373214, c5=-80.04474108,
-               c6=-0.0017003774252, c7=-1.5498032937, c8=102.04705483):
+               c6=-0.0017003774252, c7=-1.5498032937, c8=102.04705483,
+               quad="spec"):
     """
     get the wavelength corresponding to the given grating index, spatial
     position, spectral index and the fitted parameters for ZEUS2; the default
@@ -416,7 +417,8 @@ def spec_to_wl(spec, spat, grat_idx, order=5, rd=200, rg=0.711111111111111,
         wl = 5/order * (a (sin alpha_s)^2 + b * sin alpha_s + c)
 
     where alpha_s = alpha_min_index - grat_idx / (rd * rg) and
-    theta = px + c6 * py**2 + c7 * py + c8; px_shift and py_shift can shift
+    theta = px + c6 * py**2 + c7 * py + c8 if quadratic term is spec, else
+    py + c6 * px**2 + c7 * px + c8; px_shift and py_shift can shift
     lab calibration to fit with sky calibration
 
     :param spec: int or int array, spectral index used to compute wavelength; if
@@ -451,6 +453,8 @@ def spec_to_wl(spec, spat, grat_idx, order=5, rd=200, rg=0.711111111111111,
     :param float c6: float, fitted coefficient
     :param float c7: float, fitted coefficient
     :param float c8: float, fitted coefficient
+    :param str quad: str, allowed values are "spec" "spat", denoting which term
+        is the quadratic term in the fit
     :return: float or array of the wavelength(es) for the input spat and spec
     :rtype: Union[float, numpy.ndarray]
     """
@@ -458,7 +462,8 @@ def spec_to_wl(spec, spat, grat_idx, order=5, rd=200, rg=0.711111111111111,
     alpha_s = alpha_min_index - grat_idx / (rd * rg)
     sin_alpha_s = np.sin(alpha_s * np.pi / 180)
     px, py = spat + px_shift, spec + py_shift
-    theta = px + c6 * py ** 2 + c7 * py + c8
+    theta = px + c6 * py ** 2 + c7 * py + c8 if quad.lower()[:4] == "spec" else \
+        py + c6 * px ** 2 + c7 * px + c8
 
     a = c5
     b = c0 * theta + c4
@@ -472,7 +477,8 @@ def wl_to_spec(wl, spat, grat_idx, order=5, rd=200, rg=0.711111111111111,
                px_shift=0, py_shift=0, alpha_min_index=73.9062453,
                c0=0.9800910119, c1=-0.0017009051035, c2=-0.87654448327,
                c3=36.248043521, c4=459.42373214, c5=-80.04474108,
-               c6=-0.0017003774252, c7=-1.5498032937, c8=102.04705483):
+               c6=-0.0017003774252, c7=-1.5498032937, c8=102.04705483,
+               quad="spec"):
     """
     inverse function for grat_to_wl(), compute spectral index for input spatial
     position, wavelength at the given grat_idx
@@ -509,6 +515,8 @@ def wl_to_spec(wl, spat, grat_idx, order=5, rd=200, rg=0.711111111111111,
     :param float c6: float, fitted coefficient
     :param float c7: float, fitted coefficient
     :param float c8: float, fitted coefficient
+    :param str quad: str, allowed values are "spec" "spat", denoting which term
+        is the quadratic term in the fit
     :return: float or array of the spectral index(es) for the input spat and wl
     :rtype: Union[float, numpy.ndarray]
     """
@@ -522,10 +530,13 @@ def wl_to_spec(wl, spat, grat_idx, order=5, rd=200, rg=0.711111111111111,
     c = c3 + c4 * sin_alpha_s + c5 * sin_alpha_s ** 2 - wl * order / 5
     theta = (-b - np.sqrt(b ** 2 - 4 * a * c)) / 2 / a
 
-    a = c6
-    b = c7
-    c = c8 + px - theta
-    py = (-b - np.sqrt(b ** 2 - 4 * a * c)) / 2 / a
+    if quad.lower()[:4] == "spec":
+        a = c6
+        b = c7
+        c = c8 + px - theta
+        py = (-b - np.sqrt(b ** 2 - 4 * a * c)) / 2 / a
+    else:
+        py = theta - (c6 * px ** 2 + c7 * px + c8)
     spec = py - py_shift
 
     return spec
@@ -535,7 +546,8 @@ def wl_to_grat_idx(wl, spat, spec, order=5, rd=200, rg=0.711111111111111,
                    px_shift=0, py_shift=0, alpha_min_index=73.9062453,
                    c0=0.9800910119, c1=-0.0017009051035, c2=-0.87654448327,
                    c3=36.248043521, c4=459.42373214, c5=-80.04474108,
-                   c6=-0.0017003774252, c7=-1.5498032937, c8=102.04705483):
+                   c6=-0.0017003774252, c7=-1.5498032937, c8=102.04705483,
+                   quad="spec"):
     """
     compute the required grating index to place the input wavelength at the
     desired spatial position and spectral index
@@ -575,12 +587,15 @@ def wl_to_grat_idx(wl, spat, spec, order=5, rd=200, rg=0.711111111111111,
     :param float c6: float, fitted coefficient
     :param float c7: float, fitted coefficient
     :param float c8: float, fitted coefficient
+    :param str quad: str, allowed values are "spec" "spat", denoting which term
+        is the quadratic term in the fit
     :return: float or array of the grating index(es) for the input spat, spec, wl
     :rtype: Union[float, numpy.ndarray]
     """
 
     px, py = spat + px_shift, spec + py_shift
-    theta = px + c6 * py ** 2 + c7 * py + c8
+    theta = px + c6 * py ** 2 + c7 * py + c8 if quad.lower()[:4] == "spec" else \
+        py + c6 * px ** 2 + c7 * px + c8
 
     a = c5
     b = c0 * theta + c4

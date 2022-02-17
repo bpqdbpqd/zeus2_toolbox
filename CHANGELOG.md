@@ -4,6 +4,7 @@
 converting data unit to physical unit.
 
 - Update error prediction to 8/sqrt(3) * rms/sqrt(N) based on the data bandwidth 100 Hz
+- Fix a bug in zus2io.proc_along_axis()
 
 1.6
 
