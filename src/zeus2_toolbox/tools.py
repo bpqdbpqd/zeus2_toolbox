@@ -10,6 +10,7 @@ import warnings
 
 import numpy as np
 from numpy.linalg import lstsq
+from astropy import units, constants
 
 
 def gaussian(x, x0=0, sigma=1, amp=1, norm=False):
@@ -160,6 +161,48 @@ def weighted_median(arr, wt=None, nan_policy="omit"):
             med = arr_use[mid_idx]
         err = np.sqrt((((arr_use - med) * wt_use) ** 2).sum()) / summed_wt
         return med, err, summed_wt
+
+
+def freq_to_wl(freq, freq_unit="GHz", wl_unit="um"):
+    """
+    a helper function converting frequency in unit specified in freq_unit to
+    wavelength in wl_unit
+
+    :param freq: float or array, value of the frequency to convert
+    :type freq: Union[float, numpy.array]
+    :param str freq_unit: str, unit of input frequency, passed to
+        astropy.units.Unit()
+    :param str wl_unit: str, unit of output wavelength, passed to
+        astropy.units.Unit()
+    :return: float or array, wavelength in the same shape as input freq in the
+        given wavelength unit
+    :rtype: Union[float, numpy.array]
+    """
+
+    wl = (constants.c / freq / units.Unit(freq_unit) / units.Unit(wl_unit)).to(1)
+
+    return wl
+
+
+def wl_to_freq(wl, wl_unit="um", freq_unit="GHz"):
+    """
+    a helper function converting wavelength in unit specified in wl_unit to
+    frequency in freq_unit
+
+    :param wl: float or array, value of the wavelength to convert
+    :type wl: Union[float, numpy.array]
+    :param str wl_unit: str, unit of input wavelength, passed to
+        astropy.units.Unit()
+    :param str freq_unit: str, unit of output frequency, passed to
+        astropy.units.Unit()
+    :return: float or array, frequency in the same shape as input wl in the
+        given frequency unit
+    :rtype: Union[float, numpy.array]
+    """
+
+    freq = (constants.c / wl / units.Unit(wl_unit) / units.Unit(freq_unit)).to(1)
+
+    return freq
 
 
 def index_diff_edge(arr, thre_min=0.5, thre_max=None):
@@ -462,7 +505,7 @@ def spec_to_wl(spec, spat, grat_idx, order=5, rd=200, rg=0.711111111111111,
     alpha_s = alpha_min_index - grat_idx / (rd * rg)
     sin_alpha_s = np.sin(alpha_s * np.pi / 180)
     px, py = spat + px_shift, spec + py_shift
-    theta = px + c6 * py ** 2 + c7 * py + c8 if quad.lower()[:4] == "spec" else \
+    theta = px + c6 * py ** 2 + c7 * py + c8 if "spec" in quad.lower() else \
         py + c6 * px ** 2 + c7 * px + c8
 
     a = c5
@@ -528,14 +571,15 @@ def wl_to_spec(wl, spat, grat_idx, order=5, rd=200, rg=0.711111111111111,
     a = c1
     b = c0 * sin_alpha_s + c2
     c = c3 + c4 * sin_alpha_s + c5 * sin_alpha_s ** 2 - wl * order / 5
-    theta = (-b - np.sqrt(b ** 2 - 4 * a * c)) / 2 / a
 
-    if quad.lower()[:4] == "spec":
+    if "spec" in quad.lower():
+        theta = (-b - np.sqrt(b ** 2 - 4 * a * c)) / 2 / a
         a = c6
         b = c7
         c = c8 + px - theta
         py = (-b - np.sqrt(b ** 2 - 4 * a * c)) / 2 / a
     else:
+        theta = (-b + np.sqrt(b ** 2 - 4 * a * c)) / 2 / a
         py = theta - (c6 * px ** 2 + c7 * px + c8)
     spec = py - py_shift
 
@@ -594,7 +638,7 @@ def wl_to_grat_idx(wl, spat, spec, order=5, rd=200, rg=0.711111111111111,
     """
 
     px, py = spat + px_shift, spec + py_shift
-    theta = px + c6 * py ** 2 + c7 * py + c8 if quad.lower()[:4] == "spec" else \
+    theta = px + c6 * py ** 2 + c7 * py + c8 if "spec" in quad.lower() else \
         py + c6 * px ** 2 + c7 * px + c8
 
     a = c5

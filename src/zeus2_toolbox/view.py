@@ -22,7 +22,7 @@ class FigFlux(Figure):
     fontsize_ = 10  # type: int # fontsize in pt
     text_fontsize_ = 5  # type: int # text fontsize in pt
     x_size_, y_size_ = 0.2, 0.2  # type: float # size of x/y increment in inch
-    cmap_ = plt.get_cmap("coolwarm")
+    cmap_ = plt.get_cmap("gnuplot")
     norm_ = colors.Normalize(vmin=-1e-4, vmax=1e-4)
     flag_pix_color_ = colors.to_rgba("grey")  # type: tuple[int, int, int, int]
     # flagged pixel color
@@ -82,8 +82,8 @@ class FigFlux(Figure):
             dy = self.fontsize_ * 0.45 / 72 / figsize[1]
         else:
             ax = self.main_axes_
-            (ax_x, ax_y), (ax_xe, ax_ye) = ax.get_position()._points
-            x, dx = ax_x, ax_xe - ax_x
+            ax_x, ax_y, ax_dx, ax_dy = ax.get_position().bounds
+            x, dx = ax_x, ax_dx
             dy = max((ax_y - self.fontsize_ * 3 / 72 / figsize[1] -
                       self.fontsize_ * 0.3 / 72 / figsize[1]),
                      self.fontsize_ * 0.7 / 72 / figsize[1])
@@ -735,7 +735,7 @@ class FigArray(FigFlux):
             extent_round = (*extent_round[2:], *extent_round[:2])
             row_idxs, col_idxs = col_idxs, row_idxs
 
-        ax_x, ax_y = ax.get_position()._points[0]
+        ax_x, ax_y = ax.get_position().bounds[:2]
         figsize = (self.get_figwidth(), self.get_figheight())
         dx = (self.x_size_ - 3 * self.axs_fontsize_ / 72) / figsize[0]
         x = ax_x + 3 * self.axs_fontsize_ / 72 / figsize[0]
@@ -872,7 +872,7 @@ class FigArray(FigFlux):
         set xlabel
 
         :param str xlabel: str
-        :param kwargs: passed to axes.set_xlabel
+        :param kwargs: passed to axes.set_xlabel()
         """
 
         if self.axs_list_ is None:
@@ -908,7 +908,7 @@ class FigArray(FigFlux):
         :param str ylabel: str
         :param bool twin_axes: bool flag, whether to apply on the secondary
             y-axis
-        :param kwargs: passed to axes.set_xlabel
+        :param kwargs: passed to axes.set_xlabel()
         """
 
         if self.axs_list_ is None:
@@ -943,6 +943,45 @@ class FigArray(FigFlux):
             idx = self.array_map_.get_index_where(spat_spec=spat_spec)
             ax = axs_use[idx[0]]
             ax.set_ylabel(ylabel, **kwargs)
+
+    def set_xscale(self, xscale="linear", **kwargs):
+        """
+        set x-axis scale using axes.set_xscale()
+
+        :param str xscale: value{"linear", "log", "symlog", "logit", ...},
+            passed to axes.set_xscale()
+        :param kwargs: passed to axes.set_xscale()
+        """
+        if self.axs_list_ is None:
+            raise ValueError("Need to initialize pixel axes using ArrayMap " +
+                             "before calling ylabel.")
+        axs_use = self.axs_list_
+
+        for ax in axs_use:
+            ax.set_xscale(xscale, **kwargs)
+
+    def set_yscale(self, yscale="linear", twin_axes=False, **kwargs):
+        """
+        set y-axis scale using axes.set_yscale()
+
+        :param str yscale: value{"linear", "log", "symlog", "logit", ...},
+            passed to axes.set_yscale()
+        :param bool twin_axes: bool flag, whether to apply on the secondary
+            y-axis
+        :param kwargs: passed to axes.set_yscale()
+        """
+        if self.axs_list_ is None:
+            raise ValueError("Need to initialize pixel axes using ArrayMap " +
+                             "before calling ylabel.")
+        if twin_axes:
+            if self.twin_axs_list_ is None:
+                self.__init_twin_axs_list__()
+            axs_use = self.twin_axs_list_
+        else:
+            axs_use = self.axs_list_
+
+        for ax in axs_use:
+            ax.set_yscale(yscale, **kwargs)
 
     def legend(self, twin_axes=False, *args, **kwargs):
         """
@@ -1145,7 +1184,7 @@ class FigArray(FigFlux):
                     axp = axs_use[ax_idx[0]]
                     axp.imshow(data, **kwargs)
 
-    def psd(self, obs_array, freq_ran=(0.5, 6), scale="linear",
+    def psd(self, obs_array, freq_ran=(0.5, 6), scale="linear", xscale="linear",
             twin_axes=False, **kwargs):
         """
         Make power spectral density spectrum for obs_array. Call fft_obs() on
@@ -1158,8 +1197,12 @@ class FigArray(FigFlux):
         :param freq_ran: tuple or list or array, the shown spectrum will be cut
             by freq_ran[0] <= freq <= freq_ran[1]
         :type freq_ran: tuple or list or numpy.ndarray
-        :param str scale: str flag of the scale, only "linear", "log" and "dB"
-            are accepted
+        :param str scale: str flag of the scale, value{"linear", "log", "symlog",
+            "logit", ...} will be passed to set_yscale() method, value{"db"}
+            will convert power to db as 10*log10(amp**2) and then plot in linear
+            scale
+        :param str xscale: str, passed to set_xscale() method setting the scale
+            of the plotted x-axis
         :param bool twin_axes: bool flag, whether to use the secondary y-axis
         :param kwargs: keyword arguments passed to plot()
         :raises ValueError: invalid scale value
@@ -1173,14 +1216,13 @@ class FigArray(FigFlux):
         obs_fft = obs_fft.take_when(t_ran=freq_ran)
 
         obs_spec = abs(obs_fft) ** 2
-        if scale.strip().lower()[:2] in ["db", "lo", "ln"]:
-            obs_spec = 20 * obs_spec.log10()
-        elif scale.strip().lower()[:2] == "li":
-            pass
-        else:
-            raise ValueError("Invalid input value for scale.")
+        if scale.strip().lower()[:2] == "db":
+            obs_spec = 10 * obs_spec.log10()
+            scale = "linear"
 
         self.plot(obs_spec, twin_axes=twin_axes, **kwargs)
+        self.set_xscale(xscale)
+        self.set_yscale(scale)
 
     def specgram(self, obs_array, nfft=5., noverlap=4., freq_ran=(0.5, 4.5),
                  scale="linear", twin_axes=False, **kwargs):
@@ -1220,7 +1262,7 @@ class FigArray(FigFlux):
 
         obs_specgram = abs(obs_nfft) ** 2
         if scale.strip().lower()[:2] in ["db", "lo", "ln"]:
-            obs_specgram = 20 * obs_specgram.log10()
+            obs_specgram = 10 * obs_specgram.log10()
         elif scale.strip().lower()[:2] == "li":
             pass
         else:
@@ -1553,7 +1595,7 @@ class FigSpec(FigFlux):
         self.array_spec_llim_ = array_map.array_spec_llim_
         self.array_spec_ulim_ = array_map.array_spec_ulim_
 
-        ax_x, ax_y = ax.get_position()._points[0]
+        ax_x, ax_y = ax.get_position().bounds[:2]
         figsize = (self.get_figwidth(), self.get_figheight())
         dx = self.x_size_ * (extent_round[1] - extent_round[0] + 1) / figsize[0]
         x = ax_x + 3 * self.axs_fontsize_ / 72 / figsize[0]
@@ -1595,8 +1637,8 @@ class FigSpec(FigFlux):
             twin_axs_list.append(twin_ax)
         self.twin_axs_list_ = twin_axs_list
 
-    def __set_ticks__(self):
-        super(FigSpec, self).__set_ticks__(xticks=False)
+    def __set_ticks__(self, xticks=False, yticks=True):
+        super(FigSpec, self).__set_ticks__(xticks=xticks, yticks=yticks)
         if self.axs_list_ is not None:
             xlim = (self.array_spec_llim_ - 0.5, self.array_spec_ulim_ + 0.5)
             xticks = np.arange(int(np.ceil(xlim[0])), int(xlim[1]) + 1)

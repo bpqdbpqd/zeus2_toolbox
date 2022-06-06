@@ -4,21 +4,20 @@
 # @Version : beta
 """
 A package that can help read in MCE data as well as ancillary data such as array
-map, .chop file, .hk file, .ts file, obs_array log, etc. All the data will be stored
-as objects that contain methods for data selection and simple reduction.
+map, .chop file, .hk file, .ts file, obs_array log, etc. All the data will be
+stored as objects that contain methods for data selection and simple reduction.
 """
 
+import configparser
 import copy
 import gc
+import inspect
+from collections import Counter
+from datetime import datetime, timezone
 
 import astropy
-from datetime import datetime, timezone
-from collections import Counter
-
-from astropy import units
+from astropy.table import vstack, hstack, unique, Table as Tb
 from astropy.time import Time
-from astropy.table import vstack, hstack, unique
-from astropy.table import Table as Tb
 
 from .mce_data import *
 from .tools import *
@@ -236,7 +235,7 @@ class DataObj(BaseObj):
     def __init__(self, arr_in=None):
         """
         Create an DataObj based on the type of input data, and assign len_,
-        ndim_, dtype_, shape_, data_ etc according to the input arr_in.
+        ndim_, dtype_, shape_, data_ etc. according to the input arr_in.
         If input arr_in is 1-d zero length array like np.array([]), then an
         empty object will be returned which can be appended by or append to any
         other DataObj.
@@ -439,21 +438,21 @@ class DataObj(BaseObj):
     def __truediv__(self, other):
         with warnings.catch_warnings():
             warnings.filterwarnings(
-                    "ignore", message=
-                    "divide by zero encountered in true_divide")
+                    "ignore",
+                    message="divide by zero encountered in true_divide")
             warnings.filterwarnings(
-                    "ignore", message=
-                    "invalid value encountered in true_divide")
+                    "ignore",
+                    message="invalid value encountered in true_divide")
             return self.__operate__(other, np.divide)
 
     def __rtruediv__(self, other):
         with warnings.catch_warnings():
             warnings.filterwarnings(
-                    "ignore", message=
-                    "divide by zero encountered in true_divide")
+                    "ignore",
+                    message="divide by zero encountered in true_divide")
             warnings.filterwarnings(
-                    "ignore", message=
-                    "invalid value encountered in true_divide")
+                    "ignore",
+                    message="invalid value encountered in true_divide")
             return self.__operate__(other, np.divide, r=True)
 
     def __neg__(self):
@@ -477,7 +476,7 @@ class DataObj(BaseObj):
     def __eq__(self, other):
         """
         Compare the empty_flag_, dtype_, shape_, data_, with another DataObj
-        object, return True if all instances are exactly the same values. Dose
+        object, return True if all instances are exactly the same values. Does
         not work if data_ contains np.nan, but it is okay with np.inf
 
         :param DataObj other: DataObj, the data object to compare with
@@ -700,7 +699,7 @@ class DataObj(BaseObj):
         Append another DataObj into the current chop in the given axis of data
         (the axis of time), and update the data_ instance of the current data.
         The shape of the two objects other than the specified axis must
-        match so as to append, unless one of them is empty object with len_=0
+        match to append, unless one of them is empty object with len_=0
         and ndim_=1. If the dtype_ does not match, then the data to append will
         be converted to the current dtype.
 
@@ -840,7 +839,7 @@ class DataObj(BaseObj):
                    **kwargs):
         """
         Chunk the current data in the last axis according to the edge indices in
-        chunk_edge_idxs, and process data by mean/median/sum etc in each chunk,
+        chunk_edge_idxs, and process data by mean/median/sum etc. in each chunk,
         and return a new DateObj object with processed chunk data.
 
         :param numpy.ndarray chunk_edge_idxs: array, index of chunk of each data
@@ -921,7 +920,7 @@ class ArrayMap(DataObj):
     """
     mapping between MCE data and TES array. Can be initialized by a shape (m,n)
     array or list with n>=4, or use read() class method to read from .csv file.
-    If use array input to initialize, the [:, :4] will be passed to
+    If using an array as the input to initialize, the [:, :4] will be passed to
     array_map_ instance variable
     """
 
@@ -946,6 +945,10 @@ class ArrayMap(DataObj):
     array_spec_llim_ = array_spec_ulim_ = -1
     mce_row_llim_ = mce_row_ulim_ = -1
     mce_col_llim_ = mce_col_ulim_ = -1
+    wl_flag_ = False  # type: bool # flag whether wavelength is initialized
+    wl_kwargs_ = {}  # type: dict # keyword arguments used in tools.spec_to_wl()
+    # to convert to wavelength
+    array_wl_ = np.empty(0, dtype=float)  # type: numpy.ndarray
 
     @classmethod
     def read(cls, filename):
@@ -1516,8 +1519,8 @@ class ArrayMap(DataObj):
         ArrayMap.take_where().
 
         :return array_map_new: ArrayMap object, in which only the pixels in the
-            current array map that match any/all of the criteria are present. The
-            band and origin will be passed to the new ArrayMap object
+            current array map that match any or all of the criteria are present.
+            The band and origin will be passed to the new ArrayMap object
         :rtype: ArrayMap
         """
 
@@ -1611,6 +1614,61 @@ class ArrayMap(DataObj):
             array_map_new.set_band(self.band_)
 
         return array_map_new
+
+    def init_wl(self, grat_idx, **kwargs):
+        """
+        Converting the spectral indices to wavelength in micron using
+        tools.spec_to_wl() function.
+
+        :param int grat_idx: int, grating index used for observation
+        :param kwargs: keyword arguments passed to tools.spec_to_wl(), if not
+            empty, will also overwrite the wl_kwargs_ variable, otherwise the
+            wl_kwargs_ variable will be used
+        """
+
+        if kwargs != {}:
+            self.wl_kwargs_ = kwargs
+        wl = spec_to_wl(spec=self.array_spec_, spat=self.array_spat_,
+                        grat_idx=grat_idx, **self.wl_kwargs_)
+        self.wl_flag_ = True
+        self.array_wl_ = wl
+
+    def read_wl_conf(self, filename):
+        """
+        Initialize wl_kwargs_ variable by reading in the configuration parameters
+        .ini file. The format of the configuration file should follow Windows
+        Registry extended version of INI syntax, and the allowed section should
+        be 200, 350, 450 and 600. The ArrayMap object will automatically pick
+        the section corresponding to the band_. In the case of uninitialized
+        band_ or band_ mismatching with available configuration sections, an
+        error will be raised. The wl_kwargs_ variable will be over-written, and
+        all the existing values will be lost.
+
+        :param str filename: str, path to the file containing
+        :raises RuntimeError: band_flags_ == False
+        :raises ReferenceError: band_ not in configuration sections
+        """
+
+        if not self.band_flag_:
+            raise RuntimeError("band not initialized.")
+
+        config = configparser.ConfigParser()
+        config.read(filename)
+
+        band = str(self.band_)
+        if band not in config:
+            raise ReferenceError("band %i not found in configuration." %
+                                 self.band_)
+        else:
+            wl_kwargs = {}
+            for var_name in inspect.getfullargspec(spec_to_wl)[0]:
+                if var_name in config[band]:
+                    try:
+                        value = float(config[band][var_name])
+                    except ValueError:
+                        value = config[band][var_name]
+                    wl_kwargs[var_name] = value
+            self.wl_kwargs_ = wl_kwargs
 
 
 class Chop(DataObj):
@@ -1722,7 +1780,7 @@ class Chop(DataObj):
         Update chunk_edge_idxs_ and chunk_num_ instance by the input
 
         :param numpy.ndarray chunk_edge_idxs: array, recording edge indices of
-            each chunks, output of index_diff_edge()
+            each chunk, output of index_diff_edge()
         :raises ValueError: invalid chunk_edge_idxs input
         """
 
@@ -2002,8 +2060,8 @@ class TimeStamps(DataObj):
 
     def check(self):
         """
-        Check if there is any problem in TimeStamp. Known problems are t=0 and
-        extra time stamps than data and chop.
+        Check if there is any problem in TimeStamp, such as t=0 and extra time
+        stamps than data and chop.
 
         :param
         """
@@ -2030,7 +2088,7 @@ class TimeStamps(DataObj):
         """
         Correct time stamps by chop. Time stamp file is known to display two
         problems: extra time stamps and occasional 0 values, will call
-        rebuild_by_chop() method if auto correction fails
+        rebuild_by_chop() method if autocorrection fails
 
         :param Chop chop: Chop, chop object used as reference for correction
         :return: TimeStamps, corrected TimeStamps, will return self if no
@@ -3092,8 +3150,8 @@ class Obs(DataObj):
         Chunk the current data in the last axis according to the edge indices in
         chunk_edge_idxs, and process data_ by mean, median, sum etc. in each
         chunk, and return a new Obs object with processed chunk data. The data
-        in chop_ ts_ will be chunk processed with nanmean, and for obs_id_arr_,
-        the values at the indices in chunk_edge_idxs will be used.
+        in chop_ and ts_ will be chunk-processed with nanmean, and for
+        obs_id_arr_, the values at the indices in chunk_edge_idxs will be used.
 
         :param numpy.ndarray chunk_edge_idxs: array, index of chunk of each data
             point, out put of index_diff_edge() func. If left None, will use

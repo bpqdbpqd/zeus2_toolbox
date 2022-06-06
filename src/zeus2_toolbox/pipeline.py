@@ -7,16 +7,14 @@ wait forever, breaking the parallelization function. If you notice the thread
 seems to frozen with parallel=True, try running it against with parallel=False
 """
 
-import os, multiprocessing, inspect
-import gc
-import warnings
+import multiprocessing
+import pkgutil
 
 from scipy.optimize import curve_fit
+from scipy.signal import convolve
+from sklearn.decomposition import FastICA
 
 from .view import *
-from sklearn.decomposition import FastICA, PCA, FactorAnalysis, \
-    DictionaryLearning, SparsePCA, MiniBatchSparsePCA, \
-    MiniBatchDictionaryLearning
 
 # define many default values used for the pipeline reduction
 MATCH_SAME_PHASE = False  # default phase matching flag for stacking beam pairs,
@@ -59,8 +57,16 @@ ZPOLD_SHAPE = (3, 3)  # default zpold shape, (az_len, elev_len) or (x_len, y_len
 ZPOLDBIG_SHAPE = (5, 5)  # default zpoldbig raster shape, (az_len, elev_len)
 RASTER_THRE = 2  # default SNR requirement for not flagging a pixel
 
+try:
+    TRANS_TB = Tb.read(pkgutil.get_data(__name__, "data/trans_data.csv").
+                       decode("utf-8"), format="ascii.csv")
+except:
+    warnings.warn("Failed to load transmission data resource.")
+    TRANS_TB = None
+
 warnings.filterwarnings("ignore", message="invalid value encountered in greater")
 warnings.filterwarnings("ignore", message="invalid value encountered in less")
+warnings.filterwarnings("ignore", message="invalid value encountered in multiply")
 warnings.filterwarnings("ignore", message="divide by zero encountered in log10")
 
 
@@ -93,6 +99,190 @@ def check_parallel():
         flag = True
 
     return flag
+
+
+def transmission_range(freq_ran, pwv, elev=60):
+    """
+    Compute transmission (curve) using the kappa and eta_0 data recorded in
+    TRANS_TB, in the range of frequency specified in freq_ran. For the
+    computation, please refer to test_transmission.ipynb notebook.
+
+    :param freq_ran: list or tuple or array, the range of frequency in unit
+        GHz to compute transmission, should be within the range [400, 1610); the
+        largest and the smallest values will be interpreted as the range
+    :type: Union[list, tuple, numpy.array]
+    :param float pwv: float, the pwv in unit mm to compute transmission
+    :param int elev: int, the elevation in unit degree to compute
+        transmission
+    :return: (freq, trans), arrays recording the frequency and transmission
+        computed in the given frequency range, at the input pwv and elevation
+    :rtype: list
+    :raises RuntimeError: transmission data not loaded
+    """
+
+    if TRANS_TB is None:  # check whether TRANS_TB is loaded
+        raise RuntimeError("The resource of transmission data is not loaded.")
+
+    freq_min, freq_max = np.min(freq_ran), np.max(freq_ran)
+    if np.any(freq_min < TRANS_TB["freq"].min()) or \
+            np.any(freq_max > TRANS_TB["freq"].max()):  # check range
+        warnings.warn("Input frequency out of the range.")
+
+    flag_use = (freq_min - 0.10 < TRANS_TB["freq"]) & \
+               (TRANS_TB["freq"] < freq_max + 0.10)
+    freq_use = TRANS_TB["freq"][flag_use]
+    trans_use = (TRANS_TB["eta0"] * np.exp(- pwv / np.sin(elev / 180 * np.pi) *
+                                           TRANS_TB["kappa"]))[flag_use]
+
+    trans_use[~np.isfinite(trans_use)] = 0
+
+    return freq_use, trans_use
+
+
+def transmission(freq, pwv, elev=60):
+    """
+    Compute transmission (curve) at given pwv and elevation by calling
+    transmission_range, resampled at the input freq.
+
+    :param freq: int or float or array, the frequency in unit GHz to compute
+        transmission, should be within the range [400, 1610)
+    :type: Union[int, float, numpy.array]
+    :param float pwv: float, the pwv in unit mm to compute transmission
+    :param int elev: int, the elevation in unit degree to compute
+        transmission
+    :return: variable or array recording the transmission computed at the given
+        frequency, pwv and elevation, in the same shape as input freq
+    :rtype: Union[int, float, numpy.array]
+    """
+
+    freq_use, trans_use = transmission_range(
+            freq_ran=freq, pwv=pwv, elev=elev)
+    trans = np.interp(freq, freq_use, trans_use)
+
+    return trans
+
+
+def transmission_smoothed_range(freq_ran, pwv, elev=60, r=1000):
+    """
+    Compute transmission (curve) smoothed according to the given spectral
+    resolution using the kappa and eta_0 data recorded in TRANS_TB, in the range
+    of frequency specified in freq_ran. The function convolves the
+    transmission curve from transmission_range() with a gaussian peak of
+    fwhm=freq_rep/R.
+
+    :param freq_ran: list or tuple or array, the range of frequency in unit
+        GHz to compute transmission, must be within the range [400, 1610); the
+        largest and the smallest values will be interpreted as the range
+    :type: Union[list, tuple, numpy.array]
+    :param float pwv: float, the pwv in unit mm to compute transmission
+    :param int elev: int, the elevation in unit degree to compute
+        transmission
+    :param float r: float, the spectral resolution, defining the gaussian kernel
+        by fwhm=1/R*freq.mean()
+    :return: (freq, trans_smoothed), arrays recording the frequency and the
+        smoothed transmission computed in the given frequency range, at specified
+        pwv and elevation, spectral resolution
+    :rtype: list
+    :raises RuntimeError: transmission data not loaded
+    :raises ValueError: freq out of the range
+    """
+
+    freq_min, freq_max = np.min(freq_ran), np.max(freq_ran)
+    if (freq_min < TRANS_TB["freq"].min()) or \
+            (TRANS_TB["freq"].max() < freq_max):
+        raise ValueError("Input frequency out of the range.")
+
+    freq_rep = (freq_min + freq_max) / 2  # representative frequency
+    freq_res = freq_rep / r  # FWHM of the resolution element
+    flag_use = (freq_min - freq_res * 5 < TRANS_TB["freq"]) & \
+               (TRANS_TB["freq"] < freq_max + freq_res * 5)
+    freq_use, trans_use = transmission_range(
+            freq_ran=TRANS_TB["freq"][flag_use], pwv=pwv, elev=elev)
+
+    gaus_kernel = gaussian(freq_use, x0=freq_use.mean(),
+                           sigma=freq_res / 2 / np.sqrt(2 * np.log(2)),
+                           amp=1 * np.diff(freq_use).mean(), norm=True)
+    trans_smoothed_use = convolve(trans_use, gaus_kernel, mode="same")
+
+    flag_use = (freq_min - 0.10 < freq_use) & \
+               (freq_use < freq_max + 0.10)
+    freq_use, trans_smoothed_use = freq_use[flag_use], \
+                                   trans_smoothed_use[flag_use]
+
+    return freq_use, trans_smoothed_use
+
+
+def transmission_smoothed(freq, pwv, elev=60, r=1000):
+    """
+    Compute smoothed transmission (curve) by calling
+    transmission_smoothed_range(), and resample at input freq.
+
+    :param freq: int or float or array, the frequency in unit GHz to compute
+        transmission, must be within the range [400, 1610); the middle value of
+        input freq will be used as the representative frequency to calculate
+        resolution
+    :type: Union[int, float, numpy.array]
+    :param float pwv: float, the pwv in unit mm to compute transmission
+    :param int elev: int, the elevation in unit degree to compute
+        transmission
+    :param float r: float, the spectral resolution, defining the gaussian kernel
+        by fwhm=1/r*freq.mean()
+    :return: variable or array recording the transmission computed at the given
+        frequency, pwv and elevation, and smoothed to the given spectral
+        resolution, in the same shape as input freq
+    :rtype: Union[int, float, numpy.array]
+    :raises RuntimeError: transmission data not loaded
+    :raises ValueError: freq out of the range
+    """
+
+    freq_use, trans_smoothed_use = transmission_smoothed_range(
+            freq_ran=freq, pwv=pwv, elev=elev, r=r)
+    trans_smoothed = np.interp(freq, freq_use, trans_smoothed_use)
+
+    return trans_smoothed
+
+
+def transmission_window(freq, pwv, elev=60, r=1000, del_freq=0.8):
+    """
+    Because each pixel samples the energy in a certain range of frequency in the
+    dispersed light, so the actual transmission is the smoothed curve
+    (simulating the effect of grating) further convolved with a square wave
+    (window) function (simulating the effect of pixel), at the central frequency.
+    This function convolves the smoothed transmission curve from
+    transmission_smoothed_range() with a square function characterized by the
+    width del_freq.
+
+    :param freq: int or float or array, the frequency in unit GHz to compute
+        transmission, must be within the range [400, 1610); the middle value of
+        input freq will be used as the representative frequency to calculate
+        resolution
+    :type: Union[int, float, numpy.array]
+    :param float pwv: float, the pwv in unit mm to compute transmission
+    :param int elev: int, the elevation in unit degree to compute
+        transmission
+    :param float r: float, the spectral resolution, defining the gaussian kernel
+        by fwhm=1/r*freq.mean()
+    :param float del_freq: float, the width of window function in unit GHz
+    :return: variable or array recording the transmission computed at the given
+        frequency, pwv and elevation, and smoothed to the given spectral
+        resolution, in the same shape as input freq
+    :rtype: Union[int, float, numpy.array]
+    :raises RuntimeError: transmission data not loaded
+    :raises ValueError: freq out of the range
+    """
+
+    freq_min, freq_max = np.min(freq), np.max(freq)
+    freq_use, trans_smoothed_use = transmission_smoothed_range(
+            freq_ran=(freq_min - del_freq, freq_max + del_freq), pwv=pwv, elev=elev,
+            r=r)
+
+    sq_kernel = abs(freq_use - freq_use.mean()) < del_freq / 2
+    sq_kernel /= sq_kernel.sum()
+    trans_win_use = convolve(trans_smoothed_use, sq_kernel, mode="same")
+
+    trans_win = np.interp(freq, freq_use, trans_win_use)
+
+    return trans_win
 
 
 def gaussian_filter_obs(obs, freq_sigma=0.3, freq_center=0,
@@ -1005,8 +1195,7 @@ def ica_treat_beam(obs, spat_excl=None, pix_flag_list=[], verbose=VERBOSE,
         if obs_use.shape_[0] > 0:
             ica = FastICA(
                     n_components=min(n_components_init, obs_use.shape_[0]),
-                    whiten=True, fun='exp', max_iter=max_iter,
-                    random_state=random_state)
+                    fun='exp', max_iter=max_iter, random_state=random_state)
             obs_use = gaussian_filter_obs(
                     obs_use, freq_sigma=15, chunk_edges_ncut=0,
                     edge_chunks_ncut=0)
@@ -1087,9 +1276,14 @@ def plot_beam_ts(obs, title=None, pix_flag_list=[], reg_interest=None,
                          FigArray.x_size_), FigArray.x_size_ * 20)
     else:
         x_size = FigArray.x_size_
+    array_map_use = array_map if reg_interest is None else \
+        array_map.take_where(**reg_interest)
+    x_len = array_map_use.array_spec_.max() - array_map_use.array_spec_.min() + \
+            1 if check_orientation(orientation=orientation) else \
+        array_map_use.array_spat_.max() - array_map_use.array_spat_.min() + 1
+    x_size = min(x_size, 1200 / x_len)
 
-    fig = FigArray.init_by_array_map(array_map if reg_interest is None else
-                                     array_map.take_where(**reg_interest),
+    fig = FigArray.init_by_array_map(array_map_use,
                                      orientation=orientation, x_size=x_size)
     if isinstance(obs, (Obs, ObsArray, np.ndarray)):
         fig.scatter(obs)
@@ -1268,6 +1462,24 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
                 plt.show(fig)
             if plot_save:
                 fig.savefig("%s_psd.png" % write_header)
+            plt.close(fig)
+            # also plot log-log plot for the whole frequency range
+            fig = FigArray.plot_psd(
+                    beam if reg_interest is None else
+                    ObsArray(beam).take_where(**reg_interest),
+                    orientation=ORIENTATION, scale="dB", lw=0.5,
+                    freq_ran=(0, 1 / beam.ts_.interv_ / 2))
+            fig.imshow_flag(pix_flag_list=pix_flag_list, orientation=ORIENTATION)
+            fig.set_xscale("log")
+            fig.set_labels(beam, orientation=ORIENTATION)
+            fig.set_title("%s log-log power spectral diagram" %
+                          write_header.split("/")[-1])
+            fig.set_ylabel("Spectral power [dB]")
+            fig.set_xlabel("Frequency [Hz]")
+            if plot_show:
+                plt.show(fig)
+            if plot_save:
+                fig.savefig("%s_psd_log.png" % write_header)
             plt.close(fig)
         if plot_specgram:
             print("Plotting dynamical spectrum.")
