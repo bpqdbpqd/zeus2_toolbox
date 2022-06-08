@@ -1,4 +1,4 @@
-zeus2_toolbox
+ZEUS2 Toolbox
 =========================================
 
 .. toctree::
