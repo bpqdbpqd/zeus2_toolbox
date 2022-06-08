@@ -110,7 +110,7 @@ def transmission_range(freq_ran, pwv, elev=60):
     :param freq_ran: list or tuple or array, the range of frequency in unit
         GHz to compute transmission, should be within the range [400, 1610); the
         largest and the smallest values will be interpreted as the range
-    :type: Union[list, tuple, numpy.array]
+    :type freq_ran: list or tuple or numpy.ndarray
     :param float pwv: float, the pwv in unit mm to compute transmission
     :param int elev: int, the elevation in unit degree to compute
         transmission
@@ -146,13 +146,13 @@ def transmission(freq, pwv, elev=60):
 
     :param freq: int or float or array, the frequency in unit GHz to compute
         transmission, should be within the range [400, 1610)
-    :type: Union[int, float, numpy.array]
+    :type freq: int or float or numpy.ndarray
     :param float pwv: float, the pwv in unit mm to compute transmission
     :param int elev: int, the elevation in unit degree to compute
         transmission
     :return: variable or array recording the transmission computed at the given
         frequency, pwv and elevation, in the same shape as input freq
-    :rtype: Union[int, float, numpy.array]
+    :rtype: int or float or numpy.ndarray
     """
 
     freq_use, trans_use = transmission_range(
@@ -173,7 +173,7 @@ def transmission_smoothed_range(freq_ran, pwv, elev=60, r=1000):
     :param freq_ran: list or tuple or array, the range of frequency in unit
         GHz to compute transmission, must be within the range [400, 1610); the
         largest and the smallest values will be interpreted as the range
-    :type: Union[list, tuple, numpy.array]
+    :type freq_ran: list or tuple or numpy.ndarray
     :param float pwv: float, the pwv in unit mm to compute transmission
     :param int elev: int, the elevation in unit degree to compute
         transmission
@@ -199,10 +199,10 @@ def transmission_smoothed_range(freq_ran, pwv, elev=60, r=1000):
     freq_use, trans_use = transmission_range(
             freq_ran=TRANS_TB["freq"][flag_use], pwv=pwv, elev=elev)
 
-    gaus_kernel = gaussian(freq_use, x0=freq_use.mean(),
-                           sigma=freq_res / 2 / np.sqrt(2 * np.log(2)),
-                           amp=1 * np.diff(freq_use).mean(), norm=True)
-    trans_smoothed_use = convolve(trans_use, gaus_kernel, mode="same")
+    gauss_kernel = gaussian(freq_use, x0=freq_use.mean(),
+                            sigma=freq_res / 2 / np.sqrt(2 * np.log(2)),
+                            amp=1 * np.diff(freq_use).mean(), norm=True)
+    trans_smoothed_use = convolve(trans_use, gauss_kernel, mode="same")
 
     flag_use = (freq_min - 0.10 < freq_use) & \
                (freq_use < freq_max + 0.10)
@@ -221,7 +221,7 @@ def transmission_smoothed(freq, pwv, elev=60, r=1000):
         transmission, must be within the range [400, 1610); the middle value of
         input freq will be used as the representative frequency to calculate
         resolution
-    :type: Union[int, float, numpy.array]
+    :type freq: int or float or numpy.ndarray
     :param float pwv: float, the pwv in unit mm to compute transmission
     :param int elev: int, the elevation in unit degree to compute
         transmission
@@ -230,7 +230,7 @@ def transmission_smoothed(freq, pwv, elev=60, r=1000):
     :return: variable or array recording the transmission computed at the given
         frequency, pwv and elevation, and smoothed to the given spectral
         resolution, in the same shape as input freq
-    :rtype: Union[int, float, numpy.array]
+    :rtype: int or float or numpy.ndarray
     :raises RuntimeError: transmission data not loaded
     :raises ValueError: freq out of the range
     """
@@ -256,7 +256,7 @@ def transmission_window(freq, pwv, elev=60, r=1000, del_freq=0.8):
         transmission, must be within the range [400, 1610); the middle value of
         input freq will be used as the representative frequency to calculate
         resolution
-    :type: Union[int, float, numpy.array]
+    :type freq: int or float or numpy.ndarray
     :param float pwv: float, the pwv in unit mm to compute transmission
     :param int elev: int, the elevation in unit degree to compute
         transmission
@@ -266,17 +266,17 @@ def transmission_window(freq, pwv, elev=60, r=1000, del_freq=0.8):
     :return: variable or array recording the transmission computed at the given
         frequency, pwv and elevation, and smoothed to the given spectral
         resolution, in the same shape as input freq
-    :rtype: Union[int, float, numpy.array]
+    :rtype: int or float or numpy.ndarray
     :raises RuntimeError: transmission data not loaded
     :raises ValueError: freq out of the range
     """
 
     freq_min, freq_max = np.min(freq), np.max(freq)
     freq_use, trans_smoothed_use = transmission_smoothed_range(
-            freq_ran=(freq_min - del_freq, freq_max + del_freq), pwv=pwv, elev=elev,
-            r=r)
+            freq_ran=(freq_min - del_freq, freq_max + del_freq), pwv=pwv,
+            elev=elev, r=r)
 
-    sq_kernel = abs(freq_use - freq_use.mean()) < del_freq / 2
+    sq_kernel = (abs(freq_use - freq_use.mean()) < del_freq / 2).astype(np.float)
     sq_kernel /= sq_kernel.sum()
     trans_win_use = convolve(trans_smoothed_use, sq_kernel, mode="same")
 
@@ -492,7 +492,7 @@ def stack_best_pixels(obs, ref_pixel=None, corr_thre=0.6, min_pix_num=10,
             obs_flattened.proc_along_time("num_is_finite").data_ > 0, axis=0)
     obs_flattened = obs_flattened.take_by_flag_along_axis(
             ~obs_flattened.proc_along_time("num_not_is_finite").
-                get_nanmad_flag(5, axis=0), axis=0)
+            get_nanmad_flag(5, axis=0), axis=0)
     flattened_data = obs_flattened.data_
     masked_data = np.ma.masked_invalid(flattened_data)
     if ref_pixel is None:  # find the best pixel
@@ -979,7 +979,7 @@ def auto_flag_ts(obs, is_flat=False):
     STD_THRE_FLAT
 
     :param obs: Obs or ObsArray object containing the time series
-    :type obs: Union[Obs, ObsArray]
+    :type obs: Obs or ObsArray
     :param bool is_flat: bool, flag indicating this beam is flat field, which will
         use much larger mad flag threshold in the variable MAD_THRE_FLAT
     """
@@ -1046,9 +1046,9 @@ def auto_flag_pix_by_flux(obs_flux, obs_err, pix_flag_list=[], is_flat=False,
     [spat, spec] or [row, col] of pixels to flag, depending on the input type
 
     :param obs_flux: Obs or ObsArray, object containing the flux
-    :type obs_flux: Union[Obs, ObsArray]
+    :type obs_flux: Obs or ObsArray
     :param obs_err: Obs or ObsArray, object containing the error
-    :type obs_err: Union[Obs, ObsArray]
+    :type obs_err: Obs or ObsArray
     :param list pix_flag_list: list, [[spat, spec], ...] of the pixel not to
         consider in the auto flagging procedure, which increases the sensitivity
         to bad pixels
@@ -1098,7 +1098,7 @@ def desnake_beam(obs, ref_pix=None, pix_flag_list=[], corr_thre=CORR_THRE,
     for each pixel, amplitude of the snake model and the snake model
 
     :param obs: Obs or ObsArray object containing the time series
-    :type obs: Union[Obs, ObsArray]
+    :type obs: Obs or ObsArray
     :param list ref_pix: list of 2, [spat, spec] for ObsArray input or
         [row, col] for Obs input, the reference pixel to use in desnaking; will
         automatically determine the best correlated pixel if left None
@@ -1120,7 +1120,7 @@ def desnake_beam(obs, ref_pix=None, pix_flag_list=[], corr_thre=CORR_THRE,
     :param chunk_edges_ncut: int or float, number or fraction of chunk edge
         data points to throw away, passed to gaussian_filter_obs(); use the value
         of CHUNK_EDGES_NCUT by default
-    :rtype chunk_edges_ncut: Union[int, float]
+    :rtype chunk_edges_ncut: int or float
     :return: list, (desnaked_obs, obs_snake, amp_snake, snake_model)
     :rtype: list
     """
@@ -1156,7 +1156,7 @@ def ica_treat_beam(obs, spat_excl=None, pix_flag_list=[], verbose=VERBOSE,
     pixel and noise features
 
     :param obs: Obs or ObsArray, object containing the time series
-    :type obs: Union[Obs, ObsArray]
+    :type obs: Obs or ObsArray
     :param list spat_excl: list, the spatial position range excluded in building
         noise model using ICA, e.g. spat_excl=[0, 2] means pixels at spat=0,1,2
         will not be used; will use all pixels if let None
@@ -1238,7 +1238,7 @@ def plot_beam_ts(obs, title=None, pix_flag_list=[], reg_interest=None,
         iterm is tuple or FigArray.plot() if it's list, the items in the
         tuple/list determined based on type, and if obs_yerr is present,
         FigArray.errorbar() will also be called with kwargs
-    :type obs: Union[Obs, ObsArray, list, tuple, dict]
+    :type obs: Obs or ObsArray or list or tuple or dict
     :param str title: str, title of the figure, will use the first available
         obs_id if left None
     :param list pix_flag_list: list, [[spat, spec], ...] or [[row, col], ...] of
@@ -1328,7 +1328,7 @@ def plot_beam_flux(obs, title=None, pix_flag_list=[], plot_show=False,
     plot flux for the pipeline reduction
 
     :param obs: Obs or ObsArray, the object containing the data to plot
-    :type obs: Union[Obs, ObsArray]
+    :type obs: Obs or ObsArray
     :param str title: str, title of the figure, will use the obs_id if left
         None
     :param list pix_flag_list: list, [[spat, spec], ...] or [[row, col], ...] of
@@ -1371,7 +1371,7 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
     spectrum
 
     :param beam: Obs or ObsArray, with time series data
-    :type beam: Union[Obs, ObsArray]
+    :type beam: Obs or ObsArray
     :param str write_header: str, full path to the title to save files/figures,
         if left None, will write to current folder with obs_id as the title
     :param list pix_flag_list: list, a list including pixels to be flagged
@@ -1385,7 +1385,7 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
     :param bool plot_show: bool, flag whether to call plt.show() and show figure
     :param bool plot_save: bool, flag whether to save the figure
     :return: Obs or ObsArray, containing the average chop-wise rms of each pixel
-    :rtype: Union[Obs, ObsArray]
+    :rtype: Obs or ObsArray
     """
 
     if (write_header is None) and plot:
@@ -1526,10 +1526,10 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flu
     """
     process beam in the standard way, return chop flux, error and weight
 
-    :param beam: Obs or ObsArray, with time series data
-    :type beam: Union[Obs, ObsArray]
-    :param str write_header: str, full path to the title to save files/figures,
-        if left None, will write to current folder with {obs_id} as the title
+    :param Obs or ObsArray beam: Obs or ObsArray object, with time series data
+    :param str or None write_header: str, full path to the title to save
+        files/figures, if left None, will write to current folder with {obs_id} as
+        the title
     :param bool is_flat: bool, flag indicating this beam is flat field, which will
         use much larger mad flag threshold, flag pixel by SNR, and will not use
         weighted mean in calculating flux
@@ -1537,13 +1537,13 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flu
         be combined with auto flagged pixels in making figures and in the returned
         pix_flag_list, the pixels will be flagged in the figure and the process of
         modelling noise
-    :param flat_flux: Obs or ObsArray, the flat field flux to divide in computing the
-        beam flux, must have the same shape and array_map; will ignore if is_flat
-        is True; default is 1
-    :type flat_flux: Union[Obs, ObsArray, int, float]
-    :param flat_err: Obs or ObsArray, the flat field flux err used in computing the
-        beam error, having the same behaviour as flat; default is 0
-    :type flat_err: Union[Obs, ObsArray, int, float]
+    :param flat_flux: Obs or ObsArray or scalar, the flat field flux to divide in
+        computing the beam flux, must have the same shape and array_map; will
+        ignore if is_flat is True; default is 1
+    :type flat_flux: Obs or ObsArray or int or float
+    :param flat_err: Obs or ObsArray or scalar, the flat field flux err used in
+        computing the beam error, having the same behaviour as flat; default is 0
+    :type flat_err: Obs or ObsArray or int or float
     :param bool cross: bool, flag whether the beam is a cross scan; if True, will
         process the beam to get the flux in each chop chunk pair, instead the
         whole scan
@@ -1708,10 +1708,10 @@ def make_raster(beams_flux, beams_err=None, write_header=None, pix_flag_list=[],
 
     :param beams_flux: Obs or ObsArray, with flux of all the beams in the last
         dimension
-    :type beams_flux: Union[Obs, ObsArray]
+    :type beams_flux: Obs or ObsArray
     :param beams_err: Obs or ObsArray, with error of all the beams in the last
         dimension, used for flagging pixels
-    :type beams_err: Union[Obs, ObsArray]
+    :type beams_err: Obs or ObsArray
     :param str write_header: str, full path to the title to save figures,
         if left None, will write to current folder with {obs_id} as the title
     :param list pix_flag_list: list, a list including pixels to be flagged, will
@@ -1728,7 +1728,7 @@ def make_raster(beams_flux, beams_err=None, write_header=None, pix_flag_list=[],
     :param bool plot_save: bool, flag whether to save the figure
     :param raster_thre: int or float, threshold of SNR of the pixel for it not
         to be flagged, by default use the value of RASTER_THRE
-    :type raster_thre: Union[int, float]
+    :type raster_thre: int or float
     :return: tuple (raster_flux, [pix_flag_list]), are (ObsArray recording the
         raster flux reshaped in the last two dimensions. [optional, list of auto
         flagged pixels])
@@ -1851,7 +1851,7 @@ def stack_raster(raster, raster_wt=None, write_header=None, pix_flag_list=[],
     :param ObsArray raster: ObsArray, object containing the raster in the last
         two dimensions
     :param raster_wt: weight of the raster, raster * raster_wt will be stacked
-    :type raster_wt: Union[int, float, numpy.ndarray, Obs, ObsArray]
+    :type raster_wt: int or float or numpy.ndarray or Obs or ObsArray
     :param str write_header: str, full path to the title to save files/figures,
         if left None, will write to current folder with {obs_id}_raster_stack
         as file header
@@ -1950,12 +1950,12 @@ def read_beam(file_header, array_map=None, obs_log=None, flag_ts=True,
     :param bool is_flat: bool, flag whether the beam is flat/skychop, passed to
         auto_flag_ts(), default False
     :return: Obs or ObsArray object containing the data
-    :rtype: Union[Obs, ObsArray]
+    :rtype: Obs or ObsArray
     """
 
     try:
         beam = Obs.read_header(filename=file_header)  # read in data
-    except Exception:
+    except:
         warnings.warn("fail to read in %s." % file_header, UserWarning)
         beam = Obs(obs_id=file_header.split("/")[-1])
     if array_map is not None:  # transform into ObsArray
@@ -2005,9 +2005,9 @@ def read_beam_pair(file_header1, file_header2, array_map=None, obs_log=None,
         when stack the beams; 1 means the two beams will be added together, -1
         means the second beam will be subtracted from the first; use STACK_FACTOR
         by default
-    :type stack_factor: Union[int, float]
+    :type stack_factor: int or float
     :return: Obs or ObsArray object containing the stacked beam pair
-    :rtype: Union[Obs, ObsArray]
+    :rtype: Obs or ObsArray
     """
 
     beam1, beam2 = [read_beam(file_header, array_map=array_map, obs_log=obs_log,
@@ -2152,7 +2152,7 @@ def read_beams(file_header_list, array_map=None, obs_log=None, flag_ts=True,
     :param bool parallel: bool, flag whether to run it in parallelized mode,
         would accelerate the process by many factors on a multi-core machine
     :return: Obs or ObsArray object containing all the data concatenated
-    :rtype: Union[Obs, ObsArray]
+    :rtype: Obs or ObsArray
     """
 
     args_list = []  # build variable list for read_beam

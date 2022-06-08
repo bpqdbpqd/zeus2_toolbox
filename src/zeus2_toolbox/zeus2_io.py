@@ -1,7 +1,7 @@
 # @Date    : 2021-01-29 16:26:51
 # @Credit  : Bo Peng(bp392@cornell.edu), Cody Lamarche, Christopher Rooney
 # @Name    : zeus2_io.py
-# @Version : beta
+# @Version : 2.0
 """
 A package that can help read in MCE data as well as ancillary data such as array
 map, .chop file, .hk file, .ts file, obs_array log, etc. All the data will be
@@ -331,7 +331,7 @@ class DataObj(BaseObj):
 
         :param other: DataObj or list or tuple or array or value, to be
             operated with the current data object
-        :type other: DataObj or list or tuple or numpy.array or int or
+        :type other: DataObj or list or tuple or numpy.ndarray or int or
             float or np.double or bool
         :param operator: function, numpy function that operates on array
         :type operator: function or numpy.ufunc
@@ -413,7 +413,7 @@ class DataObj(BaseObj):
 
         :param other: DataObj or list or tuple or array or value, to be
             added with the current data object
-        :type other: DataObj or list or tuple or numpy.array or int or
+        :type other: DataObj or list or tuple or numpy.ndarray or int or
             float or np.double or bool
         :return: DataObj, with added data
         :rtype: DataObj
@@ -553,7 +553,7 @@ class DataObj(BaseObj):
         Will not make change if object is empty.
 
         :param dtype: numpy.dtype, dtype supported by numpy.array
-        :type dtype: Union[type, numpy.dtype]
+        :type dtype: type or numpy.dtype
         """
 
         self.dtype_ = np.dtype(dtype)
@@ -2268,16 +2268,109 @@ class IdArr(DataObj):
 class ObsInfo(TableObj):
     """
     An object containing observation information in table_, can be initialized
-    input table or using read_hk() class method to read in .hk file
+    input table or using read() class method to read in .hk and .run file
     """
 
     obj_type_ = "ObsInfo"  # type: str
 
     @classmethod
+    def read(cls, filename, try_hk=True, try_run=True):
+        """
+        Return an ObsInfo object initialized by the housekeeping information
+        in .hk and execution information in .run file. Only a selected part of
+        runfile information will be added.
+
+        :param str filename: str, path to .hk or .run file or the data file header
+        :param bool try_hk: bool, flag whether to try to read .hk file
+        :param bool try_run: bool, flag whether to try to read .run file
+        :return obs_info: ObsInfo, new object
+        :rtype: ObsInfo
+        """
+
+        # sections and items to read in .run file
+        runfile_keys = {"HEADER": ["RB rc1 data_mode", "RB rc1 servo_mode",
+                                   "RB rc2 data_mode", "RB rc2 servo_mode",
+                                   "RB rc3 data_mode", "RB rc3 servo_mode",
+                                   "RB tes bias"],
+                        "FRAMEACQ": True}
+
+        tb_in = Tb(masked=True)
+        hk_flag, run_flag = not try_hk, not try_run
+        if filename is not None:
+            if filename[-3:] == ".hk":
+                filename = filename[:-3]
+            elif filename[-4:] == ".run":
+                filename = filename[:-4]
+
+            if try_run:
+                if os.path.isfile(filename + ".hk"):
+                    with open(filename + ".hk", "rb") as file:
+                        arr_in = np.genfromtxt(file, delimiter=":", comments="#",
+                                               dtype=str)
+                    for i, (name, val) in enumerate(arr_in):
+                        type_flag, name, val = False, name.strip(), val.strip()
+                        try:  # try to convert to int
+                            val = int(val)
+                            type_flag = True
+                        except ValueError:
+                            pass
+                        if not type_flag:  # try to convert to float
+                            try:
+                                val = float(val)
+                                type_flag = True
+                            except ValueError:
+                                pass
+                        if not type_flag:  # try to convert to bool
+                            if val.lower() == "true":
+                                val = True
+                                type_flag = True
+                            elif val.lower() == "false":
+                                val = False
+                                type_flag = True
+                        if (not type_flag) and (val.lower().strip() == "none"):
+                            continue  # do not add if val is "None"
+                        else:
+                            tb_in.add_column(
+                                    col=Tb.Column(data=[val], name=name))
+                    hk_flag = True
+                else:
+                    warnings.warn("%s.hk does not exist." % filename)
+
+            if try_run:
+                if os.path.isfile(filename + ".run"):
+                    runfile = MCERunfile(filename=filename + ".run").data
+                    for key in runfile_keys:
+                        if key in runfile:
+                            if runfile_keys[key] is True:  # read all items
+                                for item in runfile[key]:
+                                    tb_in.add_column(
+                                            col=Tb.Column(
+                                                    data=[runfile[key][item]],
+                                                    name=item.replace(" ", "_")))
+                            else:  # read selected items in section
+                                for item in runfile_keys[key]:
+                                    if item in runfile[key]:
+                                        tb_in.add_column(
+                                                col=Tb.Column(
+                                                        data=[runfile[key][item]],
+                                                        name=item.replace(" ", "_")))
+                    run_flag = True
+                else:
+                    warnings.warn("%s.run does not exist." % filename)
+
+            if (not hk_flag) and (not run_flag):
+                raise FileNotFoundError("Failed to read info files for %s" %
+                                        filename)
+
+        obs_info = cls(tb_in=tb_in)  # initialize object
+
+        return obs_info
+
+    @classmethod
     def read_hk(cls, filename):
         """
         Return an ObsInfo object initialized by the housekeeping information
-        in .hk file.
+        in .hk file. Recommended to use ObsInfo.read().
 
         :param str filename: str, path to .hk file, will try to read filename.hk if
             the first attempt of read in fails
@@ -2371,7 +2464,7 @@ class ObsLog(TableObj):
 
         :param filename: str, path to the .html file containing obs_array log,
             returns an empty object if filename is None
-        :type filename: str or Union[None]
+        :type filename: str or None
         :return obs_log: ObsLog, new object
         :rtype: ObsLog
         """
@@ -2488,13 +2581,13 @@ class Obs(DataObj):
             time stream. Can be 1-d, 2-d or 3-d, the last dimension is the time.
             If Obs object is input, all other input will be ignored, and the
             input Obs will be copied and passed as the new object
-        :type arr_in: numpy.array or Obs or DataObj
+        :type arr_in: numpy.ndarray or Obs or DataObj
         :param chop: Chop or DataObj or array or list or tuple, 1-d, containing
             chop data
-        :type chop: Chop or DataObj or numpy.array or list or tuple
+        :type chop: Chop or DataObj or numpy.ndarray or list or tuple
         :param ts: TimeStamps or DataObj or array or list or tuple, 1-d
             containing time stamps
-        :type ts: TimeStamps or DataObj or numpy.array or list or tuple
+        :type ts: TimeStamps or DataObj or numpy.ndarray or list or tuple
         :param obs_info: ObsInfo or TableObj or astropy.table, containing
             observation information
         :type obs_info: ObsInfo or TableObj or astropy.table.table.Table
@@ -2574,7 +2667,7 @@ class Obs(DataObj):
 
         :param filename: str, path to the MCE time stream data, returns an empty
             object if filename is None
-        :type filename: str or Union[None]
+        :type filename: str or None
         :return obs_new: Obs, new object
         :rtype: Obs
         """
@@ -2593,7 +2686,7 @@ class Obs(DataObj):
 
     @classmethod
     def read_header(cls, filename, try_data=True, try_chop=True, try_ts=True,
-                    try_hk=True):
+                    try_hk=True, try_info=True):
         """
         Try to read in time stream, chop (.chop), time stamp (.ts) and
             housekeeping (.hk) files using the file header to initialize
@@ -2602,7 +2695,10 @@ class Obs(DataObj):
         :param bool try_data: bool, flag whether to try to read MCE data file
         :param bool try_chop: bool, flag whether to try to read .chop file
         :param bool try_ts: bool, flag whether to try to read .ts file
-        :param bool try_hk: bool, flag whether to try to read .hk file
+        :param bool try_info: bool, flag whether to try to .hk file, will be
+            overridden if try_info==True
+        :param bool try_info: bool, flag whether to try to read information in
+            .hk and .run file
         :return obs_new: Obs, new object
         :rtype: Obs
         """
@@ -2629,12 +2725,19 @@ class Obs(DataObj):
                 obs_new.update_ts(ts=ts)
             except FileNotFoundError:
                 warnings.warn("%s not found." % (filename + ".ts"))
-        if try_hk:
+        if try_hk and (not try_info):
             try:
                 obs_info = ObsInfo.read_hk(filename=filename + ".hk")
                 obs_new.update_obs_info(obs_info=obs_info)
             except FileNotFoundError:
                 warnings.warn("%s not found." % (filename + ".hk"))
+        if try_info:
+            try:
+                obs_info = ObsInfo.read(filename=filename, try_hk=True,
+                                        try_run=True)
+                obs_new.update_obs_info(obs_info=obs_info)
+            except FileNotFoundError:
+                warnings.warn("%s .hk and .run not found." % filename)
 
         return obs_new
 
@@ -3240,7 +3343,7 @@ class Obs(DataObj):
         :param time_offset: int or float, time offset in second used in
             searching in obs_log, a positive number means the data is delayed
             against obs log entry
-        :type time_offset: Union[int, float]
+        :type time_offset: int or float
         """
 
         obs_log = ObsLog(obs_log)

@@ -1,7 +1,3 @@
-# @Date    : 2021-01-29 16:26:51
-# @Credit  : Bo Peng(bp392@cornell.edu), Cody Lamarche, Christopher Rooney
-# @Name    : tools.py
-# @Version : beta
 """
 A package that has many helper functions
 """
@@ -43,7 +39,7 @@ def gaussian_2d(pos, x0=0, y0=0, sigma_x=1, sigma_y=1, theta=0, amp=1,
     :param pos: list or tuple or array, size two recording the values of x and y
         dimension to evaluate, can be (float, float) or (array, array) of the same
         size
-    :type pos: Union[list, tuple, numpy.ndarray]
+    :type pos: list or tuple or numpy.ndarray
     :param float x0: float, center of gaussian distribution in x dimension
     :param float y0: float, center of gaussian distribution in y dimension
     :param float sigma_x: float, standard deviation of gaussian in the x dimension
@@ -169,17 +165,18 @@ def freq_to_wl(freq, freq_unit="GHz", wl_unit="um"):
     wavelength in wl_unit
 
     :param freq: float or array, value of the frequency to convert
-    :type freq: Union[float, numpy.array]
+    :type freq: float or numpy.ndarray
     :param str freq_unit: str, unit of input frequency, passed to
         astropy.units.Unit()
     :param str wl_unit: str, unit of output wavelength, passed to
         astropy.units.Unit()
     :return: float or array, wavelength in the same shape as input freq in the
         given wavelength unit
-    :rtype: Union[float, numpy.array]
+    :rtype: float or numpy.ndarray
     """
 
-    wl = (constants.c / freq / units.Unit(freq_unit) / units.Unit(wl_unit)).to(1)
+    wl = (constants.c / freq / units.Unit(freq_unit) /
+          units.Unit(wl_unit)).to(1).to_value()
 
     return wl
 
@@ -190,17 +187,18 @@ def wl_to_freq(wl, wl_unit="um", freq_unit="GHz"):
     frequency in freq_unit
 
     :param wl: float or array, value of the wavelength to convert
-    :type wl: Union[float, numpy.array]
+    :type wl: float or numpy.ndarray
     :param str wl_unit: str, unit of input wavelength, passed to
         astropy.units.Unit()
     :param str freq_unit: str, unit of output frequency, passed to
         astropy.units.Unit()
     :return: float or array, frequency in the same shape as input wl in the
         given frequency unit
-    :rtype: Union[float, numpy.array]
+    :rtype: float or numpy.ndarray
     """
 
-    freq = (constants.c / wl / units.Unit(wl_unit) / units.Unit(freq_unit)).to(1)
+    freq = (constants.c / wl / units.Unit(wl_unit) /
+            units.Unit(freq_unit)).to(1).to_value()
 
     return freq
 
@@ -213,7 +211,7 @@ def index_diff_edge(arr, thre_min=0.5, thre_max=None):
     input for numpy.split().
 
     :param arr: list or tuple or arr, 1 dimension of int or float or bool type
-    :type arr: Union[list, tuple, numpy.ndarray]
+    :type arr: list or tuple or numpy.ndarray
     :param float thre_min: float, lower threshold of absolute difference to cut
         the arr
     :param thre_max: float, optional upper threshold of absolute
@@ -467,24 +465,24 @@ def spec_to_wl(spec, spat, grat_idx, order=5, rd=200, rg=0.711111111111111,
     :param spec: int or int array, spectral index used to compute wavelength; if
         input spec is an array, it must be compatible with spat so that
         spat+spec does not raise an error
-    :type spec: Union[int, numpy.ndarray]
+    :type spec: int or numpy.ndarray
     :param spat: int or int array, spatial position considered; if input spat is
         an array, it must be compatible with spec so that spat+spec does not
         raise an error, and the output array shape will be the same as the
         shape of spat+spec array
-    :type spat: Union[int, numpy.ndarray]
+    :type spat: int or numpy.ndarray
     :param int grat_idx: int, grating index
     :param int order: int, grating order to use
     :param rd: int or float, stepper motor, degrees per step
-    :type rd: Union[int, float]
+    :type rd: int or float
     :param float rg: float, grating degrees of movement per rotation of drive
         shaft
     :param px_shift: int or float, shift for spatial position to reconcile sky
         wavelength with fit parameters, will be added to spat to get px in theta
-    :type px_shift: Union[int, float]
+    :type px_shift: int or float
     :param py_shift: int or float, shift for spectral index to reconcile sky
         wavelength with fit parameters, will be added to spec to get py in theta
-    :type py_shift: Union[int, float]
+    :type py_shift: int or float
     :param float alpha_min_index: float, grating angle at the minimum index,
         computed from the reference alpha
     :param float c0: float, fitted coefficient
@@ -499,7 +497,7 @@ def spec_to_wl(spec, spat, grat_idx, order=5, rd=200, rg=0.711111111111111,
     :param str quad: str, allowed values are "spec" "spat", denoting which term
         is the quadratic term in the fit
     :return: float or array of the wavelength(es) for the input spat and spec
-    :rtype: Union[float, numpy.ndarray]
+    :rtype: float or numpy.ndarray
     """
 
     alpha_s = alpha_min_index - grat_idx / (rd * rg)
@@ -529,24 +527,24 @@ def wl_to_spec(wl, spat, grat_idx, order=5, rd=200, rg=0.711111111111111,
     :param wl: float or int array, wavelength used to compute spectral index; if
         input wl is an array, it must be compatible with spat so that spat+wl
         does not raise an error
-    :type wl: Union[float, numpy.ndarray]
+    :type wl: float or numpy.ndarray
     :param spat: int or int array, spatial position considered; if input spat is
         an array, it must be compatible with spec so that spat+wl does not
         raise an error, and the output array shape will be the same as the
         shape of spat+spec array
-    :type spat: Union[int, numpy.ndarray]
+    :type spat: int or numpy.ndarray
     :param int grat_idx: int, grating index
     :param int order: int, grating order to use
     :param rd: int or float, stepper motor, degrees per step
-    :type rd: Union[int, float]
+    :type rd: int or float
     :param float rg: float, grating degrees of movement per rotation of drive
         shaft
     :param px_shift: int or float, shift for spatial position to reconcile sky
         wavelength with fit parameters, will be added to spat to get px in theta
-    :type px_shift: Union[int, float]
+    :type px_shift: int or float
     :param py_shift: int or float, shift for spectral index to reconcile sky
         wavelength with fit parameters, will be added to spec to get py in theta
-    :type py_shift: Union[int, float]
+    :type py_shift: int or float
     :param float alpha_min_index: float, grating angle at the minimum index,
         computed from the reference alpha
     :param float c0: float, fitted coefficient
@@ -561,7 +559,7 @@ def wl_to_spec(wl, spat, grat_idx, order=5, rd=200, rg=0.711111111111111,
     :param str quad: str, allowed values are "spec" "spat", denoting which term
         is the quadratic term in the fit
     :return: float or array of the spectral index(es) for the input spat and wl
-    :rtype: Union[float, numpy.ndarray]
+    :rtype: float or numpy.ndarray
     """
 
     alpha_s = alpha_min_index - grat_idx / (rd * rg)
@@ -600,26 +598,26 @@ def wl_to_grat_idx(wl, spat, spec, order=5, rd=200, rg=0.711111111111111,
         input wl is an array, it must be compatible with spat and spec so that
         wl+spat+spec does not raise an error, and the output array shape
         will be the same as the shape of wl+spat+spec array
-    :type wl: Union[float, numpy.ndarray]
+    :type wl: float or numpy.ndarray
     :param spat: int or int array, spatial position used to compute grating
         index; if input spat is an array, it must be compatible with wl and spec
         so that wl+spat+spec does not raise an error
-    :type spat: Union[int, numpy.ndarray]
+    :type spat: int or numpy.ndarray
     :param spec: int or int array, spectral index used to compute grating index;
         if input spec is an array, it must be compatible with wl and spat so
         that wl+spat+spec does not raise an error
-    :type spec: Union[int, numpy.ndarray]
+    :type spec: int or numpy.ndarray
     :param int order: int, grating order to use
     :param rd: int or float, stepper motor, degrees per step
-    :type rd: Union[int, float]
+    :type rd: int or float
     :param float rg: float, grating degrees of movement per rotation of drive
         shaft
     :param px_shift: int or float, shift for spatial position to reconcile sky
         wavelength with fit parameters, will be added to spat to get px in theta
-    :type px_shift: Union[int, float]
+    :type px_shift: int or float
     :param py_shift: int or float, shift for spectral index to reconcile sky
         wavelength with fit parameters, will be added to spec to get py in theta
-    :type py_shift: Union[int, float]
+    :type py_shift: int or float
     :param float alpha_min_index: float, grating angle at the minimum index,
         computed from the reference alpha
     :param float c0: float, fitted coefficient
@@ -634,7 +632,7 @@ def wl_to_grat_idx(wl, spat, spec, order=5, rd=200, rg=0.711111111111111,
     :param str quad: str, allowed values are "spec" "spat", denoting which term
         is the quadratic term in the fit
     :return: float or array of the grating index(es) for the input spat, spec, wl
-    :rtype: Union[float, numpy.ndarray]
+    :rtype: float or numpy.ndarray
     """
 
     px, py = spat + px_shift, spec + py_shift

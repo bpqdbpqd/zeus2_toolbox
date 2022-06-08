@@ -22,7 +22,7 @@ copyright = '2021, Bo Peng'
 author = 'Bo Peng'
 
 # The full version, including alpha/beta/rc tags
-release = '1.7'
+release = '2.0'
 
 # -- General configuration ---------------------------------------------------
 
@@ -31,8 +31,14 @@ release = '1.7'
 # ones.
 extensions = [
     "sphinx.ext.autodoc",
+    'sphinx.ext.mathjax',
+    'sphinx.ext.viewcode',
+    'sphinx.ext.autosummary',
+    'sphinx.ext.doctest',
+    'sphinx.ext.inheritance_diagram',
     "sphinx.ext.intersphinx",
-    "myst_nb"
+    "myst_nb",
+    # 'numpydoc',
 ]
 
 source_suffix = [".rst", ".md", ".ipynb"]

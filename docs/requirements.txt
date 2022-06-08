@@ -3,6 +3,7 @@ scipy
 astropy
 matplotlib
 scikit-learn
+beautifulsoup4
 setuptools
 
 myst_nb

@@ -9,9 +9,11 @@ converting data unit to physical unit.
 - Add function transmission(), transmission_range(), transmission_smoothed(), transmission_smoothed_range(), and
   transmission_window() to pipeline
 - Add set_xscale() and set_yscale() method to FigArray class
+- Add class method ObsInfo.read() to read .hk and .run at the same time
 - Add xscale parameter to FigArray.psd(), enabling to plot log-log power spectral diagram, and change the behaviour of
   scale parameter
-- Fix a bug in zus2io.proc_along_axis()
+- Fix a bug in zeus2io.proc_along_axis()
+- Fix a bug in FigSpec with twin_axes
 - Change db to 10*log10(power) instead of 20, because power instead of root power is used here
 
 1.6

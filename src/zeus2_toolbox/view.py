@@ -1,7 +1,7 @@
 # @Date    : 2021-02-16 16:28:42
 # @Credit  : Bo Peng(bp392@cornell.edu), Cody Lamarche, Christopher Rooney
 # @Name    : view.py
-# @Version : beta
+# @Version : 2.0
 """
 Visualization of data
 """
@@ -338,7 +338,9 @@ class FigFlux(Figure):
         Set the axis labels of the main axes based on input data array type and
         orientation
 
-        :param str array_type: str, allowed values are 'mce' and 'tes'
+        :param str or Obs or ObsArray array_type: str or Obs or ObsArray,
+            allowed values are 'mce' and 'tes', if input is Obs object, 'mce'
+            will be used, if ObsArray, 'tes' will be used
         :param str orientation: str, orientation of array, allowed values are
             'horizontal' and 'vertical'; if left None, will use the default
             orientation the object is initialized with
@@ -1576,6 +1578,7 @@ class FigSpec(FigFlux):
     axs_fontsize_ = 8  # type: int # fontsize of axes for each spatial position
     x_size_, y_size_ = 0.2, 1.5  # type: float # size of each pixel axes in inch
     axs_list_ = None  # type: list
+    twin_axs_list_ = None  # type: list
     spat_list_ = None  # type: list
     array_spat_llim_ = 0  # type: int
     array_spec_ulim_ = 0  # type: int
@@ -1811,7 +1814,7 @@ class FigSpec(FigFlux):
         :param ObsArray obs_array: ObsArray, object to plot, should be length 1
             if ts is initialized
         :param str where: string of step position passed to axes.step()
-        :param numpy.array mask: bool mask of flagged pixels, should have the
+        :param numpy.ndarray mask: bool mask of flagged pixels, should have the
             same shape as obs_array
         :param list pix_flag_list: list of (spat, spec) of flagged pixels
         :param bool twin_axes: bool flag, whether to plot using the secondary
@@ -1869,7 +1872,7 @@ class FigSpec(FigFlux):
         :param str fmt: str, by default '.'
         :param color: str or tuple or array of rgba
         :type color: str or tuple or numpy.ndarray
-        :param numpy.array mask: bool mask of flagged pixels, should have the
+        :param numpy.ndarray mask: bool mask of flagged pixels, should have the
             same shape as obs_array
         :param list pix_flag_list: list of (spat, spec) of flagged pixels
         :param bool twin_axes: bool flag, whether to use the secondary y-axis
@@ -2027,7 +2030,7 @@ class FigSpec(FigFlux):
         :param color: str or tuple or array of rgba, passed to both step() and
             errorbar()
         :type color: str or tuple or numpy.ndarray
-        :param numpy.array mask: bool mask of flagged pixels, should have the
+        :param numpy.ndarray mask: bool mask of flagged pixels, should have the
             same shape as obs_array
         :param list pix_flag_list: list of (spat, spec) of flagged pixels
         :param kwargs: keyword arguments passed to errorbar()
@@ -2062,7 +2065,7 @@ def check_array_type(array_type):
     :param array_type: str or Obs or ObsArray, allowed string values are 'mce'
         and 'tes', or you can input the object and the function will determine
         the proper type
-    :type array_type: Union[str, Obs, ObsArray]
+    :type array_type: str or Obs or ObsArray
     :return: True if is mce, False if tes
     :rtype: bool
     :raises ValueError: invalid input
