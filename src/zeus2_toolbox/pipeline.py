@@ -136,7 +136,7 @@ def transmission_range(freq_ran, pwv, elev=60):
 
     trans_use[~np.isfinite(trans_use)] = 0
 
-    return freq_use, trans_use
+    return freq_use.data, trans_use.data
 
 
 def transmission(freq, pwv, elev=60):
@@ -242,7 +242,7 @@ def transmission_smoothed(freq, pwv, elev=60, r=1000):
     return trans_smoothed
 
 
-def transmission_window(freq, pwv, elev=60, r=1000, del_freq=0.8):
+def transmission_window(freq, pwv, elev=60, r=1000, d_freq=0.8):
     """
     Because each pixel samples the energy in a certain range of frequency in the
     dispersed light, so the actual transmission is the smoothed curve
@@ -250,7 +250,7 @@ def transmission_window(freq, pwv, elev=60, r=1000, del_freq=0.8):
     (window) function (simulating the effect of pixel), at the central frequency.
     This function convolves the smoothed transmission curve from
     transmission_smoothed_range() with a square function characterized by the
-    width del_freq.
+    width d_freq.
 
     :param freq: int or float or array, the frequency in unit GHz to compute
         transmission, must be within the range [400, 1610); the middle value of
@@ -262,7 +262,7 @@ def transmission_window(freq, pwv, elev=60, r=1000, del_freq=0.8):
         transmission
     :param float r: float, the spectral resolution, defining the gaussian kernel
         by fwhm=1/r*freq.mean()
-    :param float del_freq: float, the width of window function in unit GHz
+    :param float d_freq: float, the width of window function in unit GHz
     :return: variable or array recording the transmission computed at the given
         frequency, pwv and elevation, and smoothed to the given spectral
         resolution, in the same shape as input freq
@@ -273,10 +273,10 @@ def transmission_window(freq, pwv, elev=60, r=1000, del_freq=0.8):
 
     freq_min, freq_max = np.min(freq), np.max(freq)
     freq_use, trans_smoothed_use = transmission_smoothed_range(
-            freq_ran=(freq_min - del_freq, freq_max + del_freq), pwv=pwv,
+            freq_ran=(freq_min - d_freq, freq_max + d_freq), pwv=pwv,
             elev=elev, r=r)
 
-    sq_kernel = (abs(freq_use - freq_use.mean()) < del_freq / 2).astype(np.float)
+    sq_kernel = (abs(freq_use - freq_use.mean()) < d_freq / 2).astype(np.float)
     sq_kernel /= sq_kernel.sum()
     trans_win_use = convolve(trans_smoothed_use, sq_kernel, mode="same")
 
@@ -1971,8 +1971,8 @@ def read_beam(file_header, array_map=None, obs_log=None, flag_ts=True,
     if (obs_log is not None) and (len(obs_log) > 0) and (not beam.empty_flag_):
         with warnings.catch_warnings():
             if is_flat:
-                warnings.filterwarnings("ignore", message=
-                "No entry is found in obs log.")
+                warnings.filterwarnings(
+                        "ignore", message="No entry is found in obs log.")
             beam.match_obs_log(obs_log)  # find entry in obs_log
 
     return beam
@@ -2178,8 +2178,8 @@ def read_beams(file_header_list, array_map=None, obs_log=None, flag_ts=True,
         kwargs["array_map"] = array_map
     else:
         type_result = Obs
-    data_list, ts_list, chop_list, obs_id_list, obs_id_arr_list, \
-    obs_info_list = [], [], [], [], [], []
+    data_list, ts_list, chop_list = [], [], []
+    obs_id_list, obs_id_arr_list, obs_info_list = [], [], []
     for beam in results:
         if not beam.empty_flag_:
             data_list.append(beam.data_)

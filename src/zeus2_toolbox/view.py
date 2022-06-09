@@ -1108,10 +1108,10 @@ class FigArray(FigFlux):
         :type obs_array: Obs or ObsArray
         :param yerr: Obs or ObsArray or DataObj or array, must have the same
             shape as obs_array
-        :type: Obs or ObsArray or DataObj or numpy.ndarray
+        :type yerr: Obs or ObsArray or DataObj or numpy.ndarray
         :param xerr: Obs or ObsArray or DataObj or array, must have the same
             shape as obs_array
-        :type: Obs or ObsArray or DataObj or numpy.ndarray
+        :type yerr: Obs or ObsArray or DataObj or numpy.ndarray
         :param str fmt: str, by default '.'
         :param color: str or tuple or array of rgba
         :type color: str or tuple or numpy.ndarray
@@ -1452,8 +1452,8 @@ class FigArray(FigFlux):
             shape as obs_array
         :type xerr: Obs or ObsArray or DataObj or numpy.ndarray
         :param str fmt: str, by default '.'
-        :param color: str or tuple or array of rgba
-        :type: color: str or tuple or numpy.ndarray
+        :param color: str or tuple or array of rgba values
+        :type color: str or tuple or numpy.ndarray
         :param str orientation: str, allowed are 'horizontal' and 'vertical', if
             'horizontal', row will be spatial positional and column will be
             spectral position; if left None, class default 'horizontal' will be

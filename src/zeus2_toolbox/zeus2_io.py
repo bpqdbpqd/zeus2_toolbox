@@ -228,7 +228,7 @@ class DataObj(BaseObj):
     obj_type_ = "DataObj"  # type: str
     data_ = np.empty(0, dtype=float)  # type: numpy.ndarray
     # instance variable hosting data array
-    dtype_ = None  # type: numpy.dtype # type of data in array
+    dtype_ = None  # type: numpy.dtype or None # type of data in array
     shape_ = (0,)  # type: tuple # shape of data
     ndim_ = 0  # type: int # number of dimension of data
 
@@ -946,9 +946,13 @@ class ArrayMap(DataObj):
     mce_row_llim_ = mce_row_ulim_ = -1
     mce_col_llim_ = mce_col_ulim_ = -1
     wl_flag_ = False  # type: bool # flag whether wavelength is initialized
-    wl_kwargs_ = {}  # type: dict # keyword arguments used in tools.spec_to_wl()
-    # to convert to wavelength
-    array_wl_ = np.empty(0, dtype=float)  # type: numpy.ndarray
+    conf_kwargs_ = {}  # type: dict # keyword arguments of the grating and
+    # telescope configuration, used in tools.spec_to_wl()
+    array_wl_ = np.empty(0, dtype=float)  # type: numpy.ndarray # wavelength of
+    # each pixel
+    array_d_wl_ = np.empty(0, dtype=float)  # type: numpy.ndarray # wavelength
+
+    # interval covered by each pixel
 
     @classmethod
     def read(cls, filename):
@@ -982,7 +986,7 @@ class ArrayMap(DataObj):
 
         super(ArrayMap, self).__fill_values__(arr_in=arr_in)
         if self.empty_flag_:
-            self.array_map_ = np.empty((0, 4), dtype=int)
+            self.array_map_ = np.empty((0, 4), dtype=self.dtype_)
         else:
             if self.ndim_ != 2:  # check shape of the input array
                 raise ValueError("Invalid dimension for input array.")
@@ -1121,6 +1125,9 @@ class ArrayMap(DataObj):
 
         self.band_ = band
         self.band_flag_ = True
+        if self.wl_flag_:
+            self.array_wl_ = self.array_wl_[flag_arr]
+            self.array_d_wl_ = self.array_d_wl_[flag_arr]
 
     def take_by_flag(self, flag_arr):
         """
@@ -1138,10 +1145,15 @@ class ArrayMap(DataObj):
 
         if self.len_ != len(flag_arr):
             raise ValueError("Inconsistent length of input flag_arr.")
-        flag_arr = np.array(flag_arr, dtype=bool)
+        flag_arr = np.array(flag_arr, dtype=bool).flatten()
         array_map_new = self.take_by_flag_along_axis(flag_arr, axis=0)
         if self.band_flag_:
             array_map_new.set_band(self.band_)
+        array_map_new.conf_kwargs = self.conf_kwargs_.copy()
+        if self.wl_flag_:
+            array_map_new.wl_flag_ = True
+            array_map_new.array_wl_ = self.array_wl_[flag_arr]
+            array_map_new.array_d_wl_ = self.array_d_wl_[flag_arr]
 
         return array_map_new
 
@@ -1163,9 +1175,19 @@ class ArrayMap(DataObj):
         if (self.band_flag_ != other.band_flag_) or \
                 (self.band_ != other.band_):
             raise ValueError("The bands do not match.")
+        else:
+            if self.conf_kwargs_ == {}:  # replace empty conf_kwargs
+                self.conf_kwargs_ = other.conf_kwargs_.copy()
+            elif (other.conf_kwargs_ != {}) and \
+                    (self.conf_kwargs_ != other.conf_kwargs_):
+                self.conf_kwargs_ = {}  # drop mismatched conf_kwargs
 
         self.append_along_axis(other, axis=0)
         self.__fill_values__(self.data_)
+        if self.wl_flag_ and other.wl_flag_:
+            self.array_wl_ = np.concatenate((self.array_wl_, other.array_wl_))
+            self.array_d_wl_ = np.concatenate(
+                    (self.array_d_wl_, other.array_d_wl_))
 
     def get_flag_where(self, spec=None, spec_ran=None, spec_list=None,
                        spat=None, spat_ran=None, spat_list=None,
@@ -1469,7 +1491,7 @@ class ArrayMap(DataObj):
             conditions are flagged; if input 'or' or '|' or False or 0, then
             pixels meeting any of the selection conditions are flagged
         :type logic: str or bool or int
-        :return array_map_new: ArrayMap object, in which only the pixels in the
+        :return: ArrayMap object, in which only the pixels in the
             current array map that match any/all of the criteria are present. The
             band and origin will be passed to the new ArrayMap object
         :rtype: ArrayMap
@@ -1498,13 +1520,7 @@ class ArrayMap(DataObj):
                                        row_col_list=row_col_list,
                                        logic=logic)
 
-        # cut the current array map, and initialized a new one
-        array_map_new = super(ArrayMap, self).take_by_flag_along_axis(
-                flag_arr=flag_arr, axis=0)
-        if self.band_flag_:
-            array_map_new.set_band(self.band_)
-
-        return array_map_new
+        return self.take_by_flag(flag_arr=flag_arr)
 
     def exclude_where(self, spec=None, spec_ran=None, spec_list=None,
                       spat=None, spat_ran=None, spat_list=None,
@@ -1518,7 +1534,7 @@ class ArrayMap(DataObj):
         the selection criteria. The keywords are the same as
         ArrayMap.take_where().
 
-        :return array_map_new: ArrayMap object, in which only the pixels in the
+        :return: ArrayMap object, in which only the pixels in the
             current array map that match any or all of the criteria are present.
             The band and origin will be passed to the new ArrayMap object
         :rtype: ArrayMap
@@ -1536,13 +1552,7 @@ class ArrayMap(DataObj):
                                        row_col_list=row_col_list,
                                        logic=logic)
 
-        # cut the current array map, and initialized a new one
-        array_map_new = super(ArrayMap, self).take_by_flag_along_axis(
-                flag_arr=~flag_arr, axis=0)
-        if self.band_flag_:
-            array_map_new.set_band(self.band_)
-
-        return array_map_new
+        return self.take_by_flag(flag_arr=~flag_arr)
 
     def index_sort(self, keys):
         """
@@ -1612,37 +1622,57 @@ class ArrayMap(DataObj):
         array_map_new = self.replace(arr_in=self.data_[idx_arr])
         if self.band_ != 0:
             array_map_new.set_band(self.band_)
+        array_map_new.conf_kwargs_ = self.conf_kwargs_.copy()
+        if self.wl_flag_:
+            array_map_new.wl_flag_ = True
+            array_map_new.array_wl_ = self.array_wl_[idx_arr]
+            array_map_new.array_d_wl_ = self.array_d_wl_[idx_arr]
 
         return array_map_new
 
-    def init_wl(self, grat_idx, **kwargs):
+    def init_wl(self, **kwargs):
         """
         Converting the spectral indices to wavelength in micron using
-        tools.spec_to_wl() function.
+        tools.spec_to_wl() function. The function will calculate the wavelength
+        and wavelength interval of each pixel, recorded in self.array_wl_ and
+        self.array_d_wl_ variables, and changing self.wl_flag_ to True. The
+        kwargs passed to tools.spec_to_wl() will combine the parameters in the
+        input kwargs and self.conf_kwargs, following the priority input keyword
+        argument > self.conf_kwargs.
 
-        :param int grat_idx: int, grating index used for observation
-        :param kwargs: keyword arguments passed to tools.spec_to_wl(), if not
-            empty, will also overwrite the wl_kwargs_ variable, otherwise the
-            wl_kwargs_ variable will be used
+        :param dict kwargs: keyword arguments passed to tools.spec_to_wl()
+            except spec and spat, for a list of accepted parameters, please
+            refer to the function tools.spec_to_wl().
         """
 
-        if kwargs != {}:
-            self.wl_kwargs_ = kwargs
+        conf_kwargs = {}
+        for var_name in inspect.getfullargspec(spec_to_wl)[0]:
+            if (var_name != "spec") & (var_name != "spec"):
+                if var_name in kwargs:
+                    conf_kwargs[var_name] = kwargs[var_name]
+                elif var_name in self.conf_kwargs_:
+                    conf_kwargs[var_name] = self.conf_kwargs_[var_name]
         wl = spec_to_wl(spec=self.array_spec_, spat=self.array_spat_,
-                        grat_idx=grat_idx, **self.wl_kwargs_)
+                        **conf_kwargs)
+        d_wl = spec_to_wl(spec=self.array_spec_ + 0.5, spat=self.array_spat_,
+                          **conf_kwargs) - \
+               spec_to_wl(spec=self.array_spec_ - 0.5, spat=self.array_spat_,
+                          **conf_kwargs)
+
         self.wl_flag_ = True
         self.array_wl_ = wl
+        self.array_d_wl_ = abs(d_wl)
 
     def read_wl_conf(self, filename):
         """
-        Initialize wl_kwargs_ variable by reading in the configuration parameters
-        .ini file. The format of the configuration file should follow Windows
-        Registry extended version of INI syntax, and the allowed section should
-        be 200, 350, 450 and 600. The ArrayMap object will automatically pick
-        the section corresponding to the band_. In the case of uninitialized
-        band_ or band_ mismatching with available configuration sections, an
-        error will be raised. The wl_kwargs_ variable will be over-written, and
-        all the existing values will be lost.
+        Initialize conf_kwargs_ variable by reading in the configuration
+        parameters .ini file. The format of the configuration file should follow
+        Windows Registry extended version of INI syntax, and the allowed section
+        should be 200, 350, 450 and 600. The ArrayMap object will automatically
+        pick the section corresponding to the band_. In the case of
+        uninitialized band_ or band_ mismatching with available configuration
+        sections, an error will be raised. The conf_kwargs_ variable will be
+        over-written, and all the existing values will be lost.
 
         :param str filename: str, path to the file containing
         :raises RuntimeError: band_flags_ == False
@@ -1660,15 +1690,14 @@ class ArrayMap(DataObj):
             raise ReferenceError("band %i not found in configuration." %
                                  self.band_)
         else:
-            wl_kwargs = {}
-            for var_name in inspect.getfullargspec(spec_to_wl)[0]:
-                if var_name in config[band]:
-                    try:
-                        value = float(config[band][var_name])
-                    except ValueError:
-                        value = config[band][var_name]
-                    wl_kwargs[var_name] = value
-            self.wl_kwargs_ = wl_kwargs
+            conf_kwargs = {}
+            for key in config[band]:
+                try:
+                    value = float(config[band][key])
+                except ValueError:
+                    value = config[band][key]
+                conf_kwargs[key] = value
+            self.conf_kwargs_ = conf_kwargs
 
 
 class Chop(DataObj):
@@ -2221,7 +2250,8 @@ class TimeStamps(DataObj):
             ts_new[idx_i:] = \
                 t_start + (idxs[idx_i:] - idx_i + 1) * interv + chunk_interv * \
                 (idxs[idx_i:, None] >=
-                 chop_chunk_edge_idxs[None, idx_chunk_i:]).sum(axis=-1)
+                 chop_chunk_edge_idxs[None, idx_chunk_i:]).astype(float). \
+                    sum(axis=-1)
 
         warnings.warn("Times stamp is rebuilt.", UserWarning)
         return TimeStamps(arr_in=ts_new)

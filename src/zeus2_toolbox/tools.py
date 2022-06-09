@@ -1,5 +1,5 @@
 """
-A package that has many helper functions
+A submodule including many helper functions
 """
 
 import warnings
@@ -24,6 +24,9 @@ def gaussian(x, x0=0, sigma=1, amp=1, norm=False):
         will be the peak value, otherwise amp will be the integrated value
     :param bool norm: bool, whether to normalize the peak to represent an
         actual pdf
+    :return: array or value, evaluated at the given position in the same shape
+        as input pos
+    :rtype: float or numpy.ndarray
     """
 
     a = amp if not norm else amp / np.sqrt(2 * np.pi) / sigma
@@ -50,7 +53,9 @@ def gaussian_2d(pos, x0=0, y0=0, sigma_x=1, sigma_y=1, theta=0, amp=1,
         will be the peak value, otherwise amp will be the integrated value
     :param bool norm: bool, whether to normalize the peak to represent an
         actual pdf
-    :return: array or value evaluated at the given position
+    :return: array or value, evaluated at the given position in the same shape
+        as input pos
+    :rtype: float or numpy.ndarray
     """
 
     xx, yy = pos
@@ -78,7 +83,7 @@ def weighted_mean(arr, wt=None, nan_policy="omit"):
         the data, or to 'propagate' to the result, in which case the mean and
         error will be nan, and weight will be 0
     :return: tuple of (mean, error, summed_weight)
-    :type: tuple
+    :rtype: tuple
     :raises ValueError: inconsistent shape, invalid nan_policy value
     """
 
@@ -121,7 +126,7 @@ def weighted_median(arr, wt=None, nan_policy="omit"):
         or to 'propagate' to the result, in which case the mean and error will
         be nan, and weight will be 0
     :return: tuple of (median, error, summed_weight)
-    :type: tuple
+    :rtype: tuple
     :raises ValueError: inconsistent shape, invalid nan_policy value
     """
 
@@ -292,27 +297,17 @@ def nanmad_flag(arr, thre=20, axis=-1):
                 "ignore", message="All-NaN slice encountered")
         warnings.filterwarnings(
                 "ignore", message="Mean of empty slice")
+        warnings.filterwarnings(
+                "ignore", message="invalid value encountered in greater")
         if ((np.isfinite(arr)).sum() == 0) and (axis is None):
             med = np.full(arr.shape, fill_value=np.nan)
         else:
             med = np.nanmedian(arr, axis=axis, keepdims=True)
-    abs_div = np.abs(arr - med)
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-                "ignore", message="invalid value encountered in greater")
-        warnings.filterwarnings(
-                "ignore", message="All-NaN slice encountered")
-        warnings.filterwarnings(
-                "ignore", message="Mean of empty slice")
+        abs_div = np.abs(arr - med)
         if ((np.isfinite(arr)).sum() == 0) and (axis is None):
             mad = np.full(arr.shape, fill_value=np.nan)
         else:
             mad = np.nanmedian(abs_div, axis=axis, keepdims=True)
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-                "ignore", message="invalid value encountered in greater")
-        warnings.filterwarnings(
-                "ignore", message="All-NaN slice encountered")
         flag_arr = (abs_div > mad * thre)
 
     return flag_arr
@@ -339,6 +334,7 @@ def double_nanmad_flag(arr, thre=20, axis=-1, frac_thre=0.1):
 
     if not 0 <= frac_thre <= 1:
         raise ValueError("Invalid value for frac_thre.")
+
     arr = np.array(arr)  # check input arr and axis
     first_flag_arr = nanmad_flag(arr=arr, thre=thre, axis=axis)
     flagged_arr = np.full_like(arr, fill_value=np.nan)

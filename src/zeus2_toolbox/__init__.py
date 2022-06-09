@@ -5,7 +5,7 @@
 """
 zeus2_toolbox is a python package developed for processing the data acquired by
 the ZEUS2 instrument (Ferkinhoff, C. et al. ApJ 780, 142, 2014). The code
-is availabel at `GitHub <https://github.com/bpqdbpqd/zeus2_toolbox.git>`_, and
+is available at `GitHub <https://github.com/bpqdbpqd/zeus2_toolbox.git>`_, and
 the full documentation can be found at
 `Read the Docs <https://zeus2-toolbox.readthedocs.io>`_.
 
