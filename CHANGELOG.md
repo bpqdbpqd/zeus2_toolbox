@@ -1,19 +1,22 @@
 2.0
 
-2.0 is a major update adding the ability to map array to wavelength, plotting and correcting for transmission, and
+2.0 will be a major update adding the ability to map array to wavelength, plotting and correcting for transmission_raw,
+and
 converting data unit to physical unit.
 
 - Update error prediction to 8/sqrt(3) * rms/sqrt(N) based on the data bandwidth 100 Hz
 - Add method to ArrayMap class to read in grating configuration and converting array map to wavelength
 - Add function freq_to_wl() and wl_to_freq()
-- Add function transmission(), transmission_range(), transmission_smoothed(), transmission_smoothed_range(), and
+- Add function transmission_raw(), transmission_raw_range(), transmission_smoothed(), transmission_smoothed_range(), and
   transmission_window() to pipeline
 - Add set_xscale() and set_yscale() method to FigArray class
 - Add class method ObsInfo.read() to read .hk and .run at the same time
 - Add xscale parameter to FigArray.psd(), enabling to plot log-log power spectral diagram, and change the behaviour of
   scale parameter
+- Add method FigFlux.savefig() which can compress the file size by a factor of three
 - Fix a bug in zeus2io.proc_along_axis()
 - Fix a bug in FigSpec with twin_axes
+- Fix many bugs in tools
 - Change db to 10*log10(power) instead of 20, because power instead of root power is used here
 
 1.6

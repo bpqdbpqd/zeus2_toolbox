@@ -38,3 +38,5 @@ the [zeustools](https://github.com/NanoExplorer/zeustools) project by Christophe
 copied
 from [multi-channel-electronics / mce_script](https://github.com/multi-channel-electronics/mce_script/tree/master/python)
 .
+The real_unit() function is copied
+from [zeustools/iv_tools](https://github.com/NanoExplorer/zeustools/blob/master/zeustools/iv_tools.py).

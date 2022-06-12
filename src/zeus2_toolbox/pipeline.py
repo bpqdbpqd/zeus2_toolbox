@@ -57,12 +57,23 @@ ZPOLD_SHAPE = (3, 3)  # default zpold shape, (az_len, elev_len) or (x_len, y_len
 ZPOLDBIG_SHAPE = (5, 5)  # default zpoldbig raster shape, (az_len, elev_len)
 RASTER_THRE = 2  # default SNR requirement for not flagging a pixel
 
-try:
-    TRANS_TB = Tb.read(pkgutil.get_data(__name__, "data/trans_data.csv").
+try:  # load sky transmission_raw data
+    TRANS_TB = Tb.read(pkgutil.get_data(__name__, "resources/trans_data.csv").
                        decode("utf-8"), format="ascii.csv")
-except:
-    warnings.warn("Failed to load transmission data resource.")
+except Exception as err:
+    warnings.warn("Failed to load transmission_raw data resource " +
+                  "due to %s: %s" % (type(err), err))
     TRANS_TB = None
+try:
+    COL_BIAS_TB = Tb.read(
+            pkgutil.get_data(__name__, "resources/column_line_map.csv").
+            decode("utf-8"), format="ascii.csv")
+    COL_BIAS_MAP = {col_idx: bias_idx for (col_idx, bias_idx) in
+                    zip(COL_BIAS_TB["mce_col"], COL_BIAS_TB["bias_idx"])}
+except Exception as err:
+    warnings.warn("Failed to load MCE column - bias line map resource " +
+                  "due to %s: %s" % (type(err), err))
+    COL_BIAS_MAP = None
 
 warnings.filterwarnings("ignore", message="invalid value encountered in greater")
 warnings.filterwarnings("ignore", message="invalid value encountered in less")
@@ -101,7 +112,7 @@ def check_parallel():
     return flag
 
 
-def transmission_range(freq_ran, pwv, elev=60):
+def transmission_raw_range(freq_ran, pwv, elev=60):
     """
     Compute transmission (curve) using the kappa and eta_0 data recorded in
     TRANS_TB, in the range of frequency specified in freq_ran. For the
@@ -112,16 +123,16 @@ def transmission_range(freq_ran, pwv, elev=60):
         largest and the smallest values will be interpreted as the range
     :type freq_ran: list or tuple or numpy.ndarray
     :param float pwv: float, the pwv in unit mm to compute transmission
-    :param int elev: int, the elevation in unit degree to compute
+    :param float elev: float, the elevation in unit degree to compute
         transmission
-    :return: (freq, trans), arrays recording the frequency and transmission
+    :return: (freq, trans), arrays recording the frequency and raw transmission
         computed in the given frequency range, at the input pwv and elevation
     :rtype: list
     :raises RuntimeError: transmission data not loaded
     """
 
     if TRANS_TB is None:  # check whether TRANS_TB is loaded
-        raise RuntimeError("The resource of transmission data is not loaded.")
+        raise RuntimeError("The resource of transmission_raw data is not loaded.")
 
     freq_min, freq_max = np.min(freq_ran), np.max(freq_ran)
     if np.any(freq_min < TRANS_TB["freq"].min()) or \
@@ -139,23 +150,23 @@ def transmission_range(freq_ran, pwv, elev=60):
     return freq_use.data, trans_use.data
 
 
-def transmission(freq, pwv, elev=60):
+def transmission_raw(freq, pwv, elev=60):
     """
     Compute transmission (curve) at given pwv and elevation by calling
-    transmission_range, resampled at the input freq.
+    transmission_raw_range, resampled at the input freq.
 
     :param freq: int or float or array, the frequency in unit GHz to compute
         transmission, should be within the range [400, 1610)
     :type freq: int or float or numpy.ndarray
     :param float pwv: float, the pwv in unit mm to compute transmission
-    :param int elev: int, the elevation in unit degree to compute
+    :param float elev: float, the elevation in unit degree to compute
         transmission
-    :return: variable or array recording the transmission computed at the given
-        frequency, pwv and elevation, in the same shape as input freq
+    :return: variable or array recording the raw transmission computed at the
+        given frequency, pwv and elevation, in the same shape as input freq
     :rtype: int or float or numpy.ndarray
     """
 
-    freq_use, trans_use = transmission_range(
+    freq_use, trans_use = transmission_raw_range(
             freq_ran=freq, pwv=pwv, elev=elev)
     trans = np.interp(freq, freq_use, trans_use)
 
@@ -167,7 +178,7 @@ def transmission_smoothed_range(freq_ran, pwv, elev=60, r=1000):
     Compute transmission (curve) smoothed according to the given spectral
     resolution using the kappa and eta_0 data recorded in TRANS_TB, in the range
     of frequency specified in freq_ran. The function convolves the
-    transmission curve from transmission_range() with a gaussian peak of
+    transmission curve from transmission_raw_range() with a gaussian peak of
     fwhm=freq_rep/R.
 
     :param freq_ran: list or tuple or array, the range of frequency in unit
@@ -175,7 +186,7 @@ def transmission_smoothed_range(freq_ran, pwv, elev=60, r=1000):
         largest and the smallest values will be interpreted as the range
     :type freq_ran: list or tuple or numpy.ndarray
     :param float pwv: float, the pwv in unit mm to compute transmission
-    :param int elev: int, the elevation in unit degree to compute
+    :param float elev: float, the elevation in unit degree to compute
         transmission
     :param float r: float, the spectral resolution, defining the gaussian kernel
         by fwhm=1/R*freq.mean()
@@ -196,7 +207,7 @@ def transmission_smoothed_range(freq_ran, pwv, elev=60, r=1000):
     freq_res = freq_rep / r  # FWHM of the resolution element
     flag_use = (freq_min - freq_res * 5 < TRANS_TB["freq"]) & \
                (TRANS_TB["freq"] < freq_max + freq_res * 5)
-    freq_use, trans_use = transmission_range(
+    freq_use, trans_use = transmission_raw_range(
             freq_ran=TRANS_TB["freq"][flag_use], pwv=pwv, elev=elev)
 
     gauss_kernel = gaussian(freq_use, x0=freq_use.mean(),
@@ -223,7 +234,7 @@ def transmission_smoothed(freq, pwv, elev=60, r=1000):
         resolution
     :type freq: int or float or numpy.ndarray
     :param float pwv: float, the pwv in unit mm to compute transmission
-    :param int elev: int, the elevation in unit degree to compute
+    :param float elev: float, the elevation in unit degree to compute
         transmission
     :param float r: float, the spectral resolution, defining the gaussian kernel
         by fwhm=1/r*freq.mean()
@@ -242,7 +253,7 @@ def transmission_smoothed(freq, pwv, elev=60, r=1000):
     return trans_smoothed
 
 
-def transmission_window(freq, pwv, elev=60, r=1000, d_freq=0.8):
+def transmission_pixel(freq, pwv, elev=60, r=1000, d_freq=0.8):
     """
     Because each pixel samples the energy in a certain range of frequency in the
     dispersed light, so the actual transmission is the smoothed curve
@@ -253,12 +264,12 @@ def transmission_window(freq, pwv, elev=60, r=1000, d_freq=0.8):
     width d_freq.
 
     :param freq: int or float or array, the frequency in unit GHz to compute
-        transmission, must be within the range [400, 1610); the middle value of
-        input freq will be used as the representative frequency to calculate
+        transmission, must be within the range [400, 1610); the middle value
+        of input freq will be used as the representative frequency to calculate
         resolution
     :type freq: int or float or numpy.ndarray
     :param float pwv: float, the pwv in unit mm to compute transmission
-    :param int elev: int, the elevation in unit degree to compute
+    :param float elev: float, the elevation in unit degree to compute
         transmission
     :param float r: float, the spectral resolution, defining the gaussian kernel
         by fwhm=1/r*freq.mean()
@@ -283,6 +294,53 @@ def transmission_window(freq, pwv, elev=60, r=1000, d_freq=0.8):
     trans_win = np.interp(freq, freq_use, trans_win_use)
 
     return trans_win
+
+
+def get_transmission_raw_obs_array(array_map, pwv, elev=60):
+    """
+    get an ObsArray object corresponding to the raw sky transmission of the
+    array, the array_map_ of the output obe_array object will correspond to the
+    frequency of transmission_raw_range() output instead of input array_map.
+    This function is primarily written for plotting raw transmission curve
+
+    :param ArrayMap array_map: ArrayMap object, must have wavelength initialized
+    :param float pwv: float, the pwv in unit mm to compute transmission
+    :param float elev: float, the elevation in unit degree to compute
+        transmission
+    :return: ObsArray object of transmission
+    :rtype: ObsArray
+    :raises RuntimeError: array_map wavelength not initialized
+    :raises ValueError: grat_idx not found in array_map.conf_kwargs
+    """
+
+    if not array_map.wl_flag_:
+        raise RuntimeError("array_map is not initialized with wavelength.")
+    if "grat_idx" not in array_map.conf_kwargs_:
+        raise ValueError("grat_idx not found in array_map.conf_kwargs.")
+
+    wl_edge = np.concatenate((array_map.array_wl_ - array_map.array_d_wl_ / 2,
+                              array_map.array_wl_ + array_map.array_d_wl_ / 2))
+    freq_arr, trans_arr = transmission_raw_range(
+            wl_to_freq(wl_edge), pwv=pwv, elev=elev)
+    wl_arr = freq_to_wl(freq_arr)
+    spat_arr = np.arange(array_map.array_spat_llim_,
+                         array_map.array_spat_ulim_ + 1)
+    wl = np.repeat(wl_arr, len(spat_arr))
+    trans = np.repeat(trans_arr, len(spat_arr))
+    spat = np.repeat(spat_arr[None, :], len(wl_arr), axis=0).flatten()
+    spec = wl_to_spec(wl=wl, spat=spat, **array_map.conf_kwargs_)
+
+    array_map_new = ArrayMap(np.array([spat, spec, spat, spec]).transpose())
+    obs_array_new = ObsArray(arr_in=trans[:, None], array_map=array_map_new)
+    if array_map.band_flag_:
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                    "ignore",
+                    message="The array map is incompatible with input band.")
+            array_map_new.set_band(array_map.band_)
+        obs_array_new = obs_array_new.take_by_array_map(array_map_new)
+
+    return obs_array_new
 
 
 def gaussian_filter_obs(obs, freq_sigma=0.3, freq_center=0,
@@ -2140,7 +2198,7 @@ def read_beams(file_header_list, array_map=None, obs_log=None, flag_ts=True,
     recommended to clean the memory or start a new thread before running it in
     parallel.
 
-    :param dict file_header_list: list, of the paths to the headers of the data
+    :param list file_header_list: list, of the paths to the headers of the data
     :param ArrayMap array_map: ArrayMap, optional, if not None, will transform
         flat data into ObsArray and then process
     :param ObsLog obs_log: ObsLog, optional, if not None, will try to find the

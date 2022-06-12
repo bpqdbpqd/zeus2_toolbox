@@ -337,7 +337,7 @@ class DataObj(BaseObj):
         :type operator: function or numpy.ufunc
         :param bool r: bool, default False, reverse operation flag
         :return: DataObj, with data_ operated
-        :rtype: DataObj
+        :rtype: DataObj or subclass
         :raises TypeError: invalid type
         :raises ValueError: can not operate between shapes
         """
@@ -572,12 +572,8 @@ class DataObj(BaseObj):
         :raises ValueError: invalid input shape
         """
 
-        if mask.shape != self.shape_:  # check mask shape
-            raise ValueError('Invalid input mask shape. Expect %s.' %
-                             str(self.shape_))
         arr_new = self.data_
-        arr_new[mask] = fill_value
-        arr_new = arr_new.astype(self.dtype_)
+        np.putmask(arr_new, mask, fill_value)
         self.__fill_values__(arr_new)
 
     def fill_by_flag_along_axis(self, flag_arr, fill_value=np.nan, axis=-1):
@@ -596,7 +592,7 @@ class DataObj(BaseObj):
         :raise ValueError: invalid axis, inconsistent length
         """
 
-        flag_arr = np.array(flag_arr, dtype=bool)
+        flag_arr = np.asarray(flag_arr, dtype=bool)
         axis = self.__check_axis__(axis=axis)
         if (len(flag_arr.shape) > 1) or (self.shape_[axis] != len(flag_arr)):
             raise ValueError("Inconsistent length of input flag_arr.")
@@ -660,7 +656,7 @@ class DataObj(BaseObj):
         :raise ValueError: invalid axis, inconsistent length
         """
 
-        flag_arr = np.array(flag_arr, dtype=bool).flatten()
+        flag_arr = np.asarray(flag_arr, dtype=bool).flatten()
         axis = self.__check_axis__(axis=axis)
         if self.shape_[axis] != len(flag_arr):
             raise ValueError("Inconsistent length of input flag_arr.")
@@ -735,12 +731,11 @@ class DataObj(BaseObj):
         Process data_ using the method in the specified axis. returns a new
         Object with the same ndim_, but length 1 in the given axis.
 
-        :param str method: str, default 'nanmean', allowed values are 'nanmean',
-            'nanmedian', 'nansum', 'nanstd', 'nanmin', 'nanmax', 'nanmad'
-            'mean', 'median', 'sum', 'std', 'min', 'max', 'mad',
-            'num', 'num_is_nan', 'num_not_is_nan', 'num_is_finite',
-            'num_not_is_finite', the method to calculate data value along the
-            given axis
+        :param str method: str, default 'nanmean', the function name to
+            process data along the given axis by calling proc_array(); valid
+            method names are numpy function names, and function names defined
+            in proc_array() including 'nanmad', 'mad', 'num', 'num_is_nan',
+            'num_not_is_nan', 'num_is_finite', 'num_not_is_finite'
         :param int axis: int, axis index to process the data, allow range is
             -ndim_ to ndim_-1
         :return data_proc: DataObj, dtype_ will be np.double for calculations
@@ -752,35 +747,10 @@ class DataObj(BaseObj):
         """
 
         axis = self.__check_axis__(axis=axis)
-        func = {"nanmean": np.nanmean, "nanmedian": np.nanmedian,
-                "nansum": np.nansum, "nanstd": np.nanstd, "nanmin": np.nanmin,
-                "nanmax": np.nanmax,
-                "nanmad": lambda arr, axis: median_abs_deviation(
-                        arr, axis=axis, nan_policy="omit"),
-                "mean": np.mean, "median": np.median,
-                "sum": np.sum, "std": np.std, "min": np.min, "max": np.max,
-                "mad": lambda arr, axis: median_abs_deviation(
-                        arr, axis=axis, nan_policy="propagate"),
-                "num": lambda arr, axis:
-                np.count_nonzero(np.ones(arr.shape), axis=axis),
-                "num_is_nan": lambda arr, axis:
-                np.count_nonzero(np.isnan(arr), axis=axis),
-                "num_not_is_nan": lambda arr, axis:
-                np.count_nonzero(~np.isnan(arr), axis=axis),
-                "num_is_finite": lambda arr, axis:
-                np.count_nonzero(np.isfinite(arr), axis=axis),
-                "num_not_is_finite": lambda arr, axis:
-                np.count_nonzero(~np.isfinite(arr), axis=axis)
-                }[method]
         dtype = int if method in ["num", "num_not_is_nan", "num_is_finite"] \
             else np.double
-        with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", message="Mean of empty slice")
-            warnings.filterwarnings("ignore", message="All-NaN slice encountered")
-            warnings.filterwarnings("ignore", message="Mean of empty slice")
-            warnings.filterwarnings(
-                    "ignore", message="Degrees of freedom <= 0 for slice.")
-            arr_proc = func(self.data_, axis=axis)
+
+        arr_proc = proc_array(self.data_, method=method, axis=axis)
         arr_proc = np.expand_dims(arr_proc, axis=axis)
         arr_proc = arr_proc.astype(dtype)
         data_proc = self.replace(arr_in=arr_proc, **kwargs)
@@ -859,32 +829,6 @@ class DataObj(BaseObj):
         :raises ValueError: invalid method value
         """
 
-        # check method value
-        if method not in ["nanmean", "nanmedian", "nansum", "nanstd", "nanmin",
-                          "nanmax", "mean", "median", "sum", "std", "min", "max",
-                          "num", "num_is_nan", "num_not_is_nan",
-                          "num_is_finite", "num_not_is_finite"]:
-            raise ValueError("Invalid input for method.")
-        func = {"nanmean": np.nanmean, "nanmedian": np.nanmedian,
-                "nansum": np.nansum, "nanstd": np.nanstd, "nanmin": np.nanmin,
-                "nanmax": np.nanmax,
-                "nanmad": lambda arr, axis: median_abs_deviation(
-                        arr, axis=axis, nan_policy="omit"),
-                "mean": np.mean, "median": np.median,
-                "sum": np.sum, "std": np.std, "min": np.min, "max": np.max,
-                "mad": lambda arr, axis: median_abs_deviation(
-                        arr, axis=axis, nan_policy="propagate"),
-                "num": lambda arr, axis:
-                np.count_nonzero(np.ones(arr.shape), axis=axis),
-                "num_is_nan": lambda arr, axis:
-                np.count_nonzero(np.isnan(arr), axis=axis),
-                "num_not_is_nan": lambda arr, axis:
-                np.count_nonzero(~np.isnan(arr), axis=axis),
-                "num_is_finite": lambda arr, axis:
-                np.count_nonzero(np.isfinite(arr), axis=axis),
-                "num_not_is_finite": lambda arr, axis:
-                np.count_nonzero(~np.isfinite(arr), axis=axis)
-                }[method]
         dtype = int if method in ["num", "num_is_nan", "num_not_is_nan",
                                   "num_is_finite", "num_not_is_finite"] \
             else np.double
@@ -897,19 +841,12 @@ class DataObj(BaseObj):
         chunk_arr = np.empty(chunk_shape, dtype=dtype)
         for i, (idx_i, idx_e) in enumerate(zip(chunk_edge_idxs[:-1],
                                                chunk_edge_idxs[1:])):
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", message="Mean of empty slice")
-                warnings.filterwarnings("ignore",
-                                        message="All-NaN slice encountered")
-                warnings.filterwarnings("ignore", message="Mean of empty slice")
-                warnings.filterwarnings(
-                        "ignore", message="Degrees of freedom <= 0 for slice.")
-                if keep_shape:
-                    chunk_arr[..., idx_i:idx_e] = \
-                        func(self.data_[..., idx_i:idx_e], axis=-1)[..., None]
-                else:
-                    chunk_arr[..., i] = \
-                        func(self.data_[..., idx_i:idx_e], axis=-1)
+            arr_proc = proc_array(self.data_[..., idx_i:idx_e],
+                                  method=method, axis=-1)
+            if keep_shape:
+                chunk_arr[..., idx_i:idx_e] = arr_proc[..., None]
+            else:
+                chunk_arr[..., i] = arr_proc
 
         data_chunked = self.replace(arr_in=chunk_arr, **kwargs)
 
@@ -925,7 +862,7 @@ class ArrayMap(DataObj):
     """
 
     obj_type_ = "ArrayMap"  # type: str
-    dtype_ = np.dtype(int)  # type: numpy.dtype
+    # dtype_ = np.dtype(int)  # type: numpy.dtype
     band_flag_ = False  # type: bool # flag if band is set
     band_ = 0  # type: int # band of the array map, optional
     array_map_ = np.empty((0, 4), dtype=int)  # type: numpy.ndarray
@@ -1117,7 +1054,7 @@ class ArrayMap(DataObj):
         # set lower and upper limit of index of pixel
         llim, ulim = {200: (0, 23), 350: (0, 19), 450: (20, 39),
                       400: (0, 39), 600: (0, 11)}[band]
-        flag_arr = self.get_flag_where(spec_ran=(llim, ulim))
+        flag_arr = self.get_flag_where(spec_ran=(llim - 0.5, ulim + 0.5))
         if (self.len_ > 0) and (flag_arr.sum() == 0):
             warnings.warn("The array map is incompatible with input band.",
                           UserWarning)
@@ -1145,15 +1082,17 @@ class ArrayMap(DataObj):
 
         if self.len_ != len(flag_arr):
             raise ValueError("Inconsistent length of input flag_arr.")
-        flag_arr = np.array(flag_arr, dtype=bool).flatten()
+        flag_arr = np.asarray(flag_arr, dtype=bool)
         array_map_new = self.take_by_flag_along_axis(flag_arr, axis=0)
         if self.band_flag_:
             array_map_new.set_band(self.band_)
-        array_map_new.conf_kwargs = self.conf_kwargs_.copy()
+        array_map_new.conf_kwargs_.update(self.conf_kwargs_)
         if self.wl_flag_:
             array_map_new.wl_flag_ = True
-            array_map_new.array_wl_ = self.array_wl_[flag_arr]
-            array_map_new.array_d_wl_ = self.array_d_wl_[flag_arr]
+            array_map_new.array_wl_ = np.extract(
+                    condition=flag_arr, arr=self.array_wl_)
+            array_map_new.array_d_wl_ = np.extract(
+                    condition=flag_arr, arr=self.array_d_wl_)
 
         return array_map_new
 
@@ -1293,27 +1232,27 @@ class ArrayMap(DataObj):
             if var is not None:
                 if not isinstance(var, (int, float, np.integer, np.double)):
                     raise TypeError("Input spec,spat,row,col should be a number")
-                flag_list.append((array_use == int(var)).tolist())
+                flag_list.append((array_use == self.dtype_.type(var)).tolist())
             if var_ran is not None:
                 if not isinstance(var_ran, (list, tuple, np.ndarray)):
                     raise TypeError("Input _ran should be size 2 list or array")
-                llim, ulim = int(np.nanmin(var_ran)), int(np.nanmax(var_ran))
-                search_arr = np.arange(llim, ulim + 1, 1, dtype=int)
-                flag_list.append([i in search_arr for i in array_use])
+                llim, ulim = np.nanmin(var_ran), np.nanmax(var_ran)
+                flag_list.append([(llim <= i <= ulim) for i in array_use])
             if (var_list is not None) and (len(var_list) > 0):
                 if not isinstance(var_ran, (list, tuple, np.ndarray)):
                     raise TypeError("Input _ran should be size 2 list or array")
-                var_arr = np.array(var_list, dtype=int)
+                var_arr = np.array(var_list, dtype=self.dtype_)
                 flag_list.append([i in var_arr for i in array_use])
         if spat_spec is not None:
             try:
-                spt, spc = int(spat_spec[0]), int(spat_spec[1])
+                spt, spc = self.dtype_.type(spat_spec[0]), \
+                           self.dtype_.type(spat_spec[1])
             except TypeError:
                 raise TypeError("Invalid type or shape for input spat_spec.")
             flag_list.append(((self.array_spat_ == spt) &
                               (self.array_spec_ == spc)).tolist())
         if (spat_spec_list is not None) and (len(spat_spec_list) > 0):
-            spat_spec_arr = np.array(spat_spec_list, dtype=int)
+            spat_spec_arr = np.array(spat_spec_list, dtype=self.dtype_)
             if spat_spec_arr.shape == (2,):
                 spat_spec_arr = spat_spec_arr.reshape(1, 2)
             elif (spat_spec_arr.ndim != 2) or \
@@ -1324,13 +1263,14 @@ class ArrayMap(DataObj):
                               for (i, j) in self.array_idxs_])
         if row_col is not None:
             try:
-                ro, co = int(row_col[0]), int(row_col[1])
+                ro, co = self.dtype_.type(row_col[0]), \
+                         self.dtype_.type(row_col[1])
             except TypeError:
                 raise TypeError("Invalid type or shape for input row_col")
             flag_list.append(((self.mce_row_ == ro) &
                               (self.mce_col_ == co)).tolist())
         if (row_col_list is not None) and (len(row_col_list) > 0):
-            row_col_arr = np.array(row_col_list, dtype=int)
+            row_col_arr = np.array(row_col_list, dtype=self.dtype_)
             if row_col_arr.shape == (2,):
                 row_col_arr = row_col_arr.reshape(1, 2)
             elif (row_col_arr.ndim != 2) or \
@@ -1646,12 +1586,14 @@ class ArrayMap(DataObj):
         """
 
         conf_kwargs = {}
-        for var_name in inspect.getfullargspec(spec_to_wl)[0]:
-            if (var_name != "spec") & (var_name != "spec"):
-                if var_name in kwargs:
-                    conf_kwargs[var_name] = kwargs[var_name]
-                elif var_name in self.conf_kwargs_:
-                    conf_kwargs[var_name] = self.conf_kwargs_[var_name]
+        conf_kwargs.update(self.conf_kwargs_)
+        conf_kwargs.update(kwargs)  # initialize kwargs with the priority
+
+        func_vars = inspect.getfullargspec(spec_to_wl)[0]
+        for key in conf_kwargs:
+            if (key in ("spec", "spat")) or (key not in func_vars):
+                conf_kwargs.pop(key)
+
         wl = spec_to_wl(spec=self.array_spec_, spat=self.array_spat_,
                         **conf_kwargs)
         d_wl = spec_to_wl(spec=self.array_spec_ + 0.5, spat=self.array_spat_,
@@ -1697,7 +1639,7 @@ class ArrayMap(DataObj):
                 except ValueError:
                     value = config[band][key]
                 conf_kwargs[key] = value
-            self.conf_kwargs_ = conf_kwargs
+            self.conf_kwargs_.update(conf_kwargs)
 
 
 class Chop(DataObj):
@@ -2275,7 +2217,7 @@ class TimeStamps(DataObj):
         :rtype: numpy.ndarray
         """
 
-        return self.get_time.to_datetime(timezone=timezone.utc)
+        return self.get_time().to_datetime(timezone=timezone.utc)
 
 
 class IdArr(DataObj):
@@ -2611,19 +2553,22 @@ class Obs(DataObj):
             time stream. Can be 1-d, 2-d or 3-d, the last dimension is the time.
             If Obs object is input, all other input will be ignored, and the
             input Obs will be copied and passed as the new object
-        :type arr_in: numpy.ndarray or Obs or DataObj
+        :type arr_in: numpy.ndarray or Obs or DataObj or None
         :param chop: Chop or DataObj or array or list or tuple, 1-d, containing
             chop data
-        :type chop: Chop or DataObj or numpy.ndarray or list or tuple
+        :type chop: Chop or DataObj or numpy.ndarray or list or tuple or None
         :param ts: TimeStamps or DataObj or array or list or tuple, 1-d
             containing time stamps
-        :type ts: TimeStamps or DataObj or numpy.ndarray or list or tuple
+        :type ts: TimeStamps or DataObj or numpy.ndarray or list or tuple or
+            None
         :param obs_info: ObsInfo or TableObj or astropy.table, containing
             observation information
-        :type obs_info: ObsInfo or TableObj or astropy.table.table.Table
+        :type obs_info: ObsInfo or TableObj or astropy.table.table.Table or
+            None
         :param str obs_id: str, less than 40 characters
         :param list obs_id_list: list, of obs_id
-        :param IdArr obs_id_arr: IdArr, indicating the obs_id of each timestamp
+        :param obs_id_arr: IdArr, indicating the obs_id of each timestamp
+        :type obs_id_arr: IdArr or numpy.ndarray or None
         :param astropy.time.Time t_start_time: Time
         :param astropy.time.Time t_end_time: Time
         """
@@ -2725,8 +2670,8 @@ class Obs(DataObj):
         :param bool try_data: bool, flag whether to try to read MCE data file
         :param bool try_chop: bool, flag whether to try to read .chop file
         :param bool try_ts: bool, flag whether to try to read .ts file
-        :param bool try_info: bool, flag whether to try to .hk file, will be
-            overridden if try_info==True
+        :param bool try_hk: bool, flag whether to try to .hk file, will be
+            overridden if try_info==True, kept only for compatibility
         :param bool try_info: bool, flag whether to try to read information in
             .hk and .run file
         :return obs_new: Obs, new object
@@ -2884,7 +2829,7 @@ class Obs(DataObj):
 
         :param array_map: ArrayMap or list or tuple or array, to initialize
             ArrayMap object
-        :type array_map: ArrayMap or list or tuple or numpy.ndarray
+        :type array_map: ArrayMap or list or tuple or numpy.ndarray or None
         :return obs_array: ObsArray object
         :rtype ObsArray: ObsArray
         :raises ValueError: not enough dim, data_ shape smaller than array map
@@ -3377,10 +3322,9 @@ class Obs(DataObj):
         """
 
         obs_log = ObsLog(obs_log)
-        entries = obs_log.take_by_time(
-                time=self.t_start_time_ +
-                     (self.t_end_time_ - self.t_start_time_) / 2 -
-                     time_offset * units.s)
+        entries = obs_log.take_by_time(time=self.t_start_time_ + (
+                self.t_end_time_ - self.t_start_time_) / 2 -
+                                            time_offset * units.s)
         self.obs_info_.expand(entries)
 
 
@@ -3963,8 +3907,8 @@ class ObsArray(Obs):
                           ::(1 if horizontal else -1)]
             row_num, col_num = np.diff(array_bound).flatten() + 1
             colname_main, colname_repeat = \
-                ("spatial_position", "spectral_index")[
-                ::(1 if horizontal else -1)]
+                ("spatial_position", "spectral_index")[::(
+                    1 if horizontal else -1)]
 
             row_idx_arr = np.arange(array_bound[0][0], array_bound[0][1] + 1,
                                     dtype=int)
@@ -4170,4 +4114,58 @@ def nfft_obs(obs, nfft=5., noverlap=4.):
 
     return obs_nfft, freq_ts
 
-# TODO: def LS_spec_obs()
+
+def real_units(bias, fb, mce_bias_r=467, dewar_bias_r=49, shunt_r=180E-6,
+               dewar_fb_r=5280, butterworth_constant=1218,
+               rel_fb_inductance=9, max_bias_voltage=5, max_fb_voltage=0.958,
+               bias_dac_bits=16, fb_dac_bits=14):
+    """
+    Given an array of biases and corresponding array of feedbacks (all in DAC units)
+    calculate the actual current and voltage going through the TES.
+    Returns: (TES voltage array, TES current array) in Volts and Amps respectively.
+    The default values are taken from Carl's script
+
+    Modified from `zeustools/iv_tools
+    <https://github.com/NanoExplorer/zeustools/blob/master/zeustools/iv_tools.py>`_
+
+    :param bias: scalar or array, tes bias value(s) in adc unit
+    :rtype bias: int or float or numpy.ndarray
+    :param fb: scalar or array, sq1 feedback value(s) in adc unit, must have the
+        shape such that bias * fb yields valid result
+    :rtype fb: int or float or numpy.ndarray
+    :param int or float mce_bias_r: scalar, MCE bias resistance in ohm, default
+        467 ohm
+    :param int or float dewar_bias_r: scalar, dewar bias resistance in ohm,
+        default 49 ohm
+    :param int or float shunt_r: scalar, shunt resistance in ohm, default 180
+        uOhm
+    :param int or float dewar_fb_r: scalar, dewar feedback resistance in ohm,
+        default 5280 ohm
+    :param int or float butterworth_constant: scalar, when running in data mode 2
+        and the low pass filter is in the loop, all signals are multiplied by
+        this factor
+    :param int or float rel_fb_inductance: scalar, feedback inductance ratio,
+        default 9 which means for a change of 1 uA in the TES, the squid will
+        have to change 9 uA to keep up
+    :param int or float max_bias_voltage: scalar, maximum bias voltage in V,
+        default 5
+    :param int or float max_fb_voltage: scalar, maximum feedback voltage in V,
+        default 0.958
+    :param int bias_dac_bits: int, bias DAC bit number, default 16
+    :param int fb_dac_bits: int, feedback DAC bit number, default 14
+    """
+
+    bias_raw_voltage = bias / 2 ** bias_dac_bits * max_bias_voltage * 2
+    # last factor of 2 is because voltage is bipolar
+    bias_current = bias_raw_voltage / (dewar_bias_r + mce_bias_r)
+    fb_real_dac = fb / butterworth_constant
+    fb_raw_voltage = fb_real_dac / 2 ** fb_dac_bits * max_fb_voltage * 2
+    # again, last factor of 2 is because voltage is bipolar
+    fb_current = fb_raw_voltage / dewar_fb_r
+    tes_current = fb_current / rel_fb_inductance
+
+    shunt_current = bias_current - tes_current
+
+    tes_voltage = shunt_current * shunt_r
+
+    return tes_voltage, tes_current

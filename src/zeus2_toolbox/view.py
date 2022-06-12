@@ -9,6 +9,8 @@ Visualization of data
 from matplotlib import cm, colors, font_manager
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
+from PIL import Image
+from io import BytesIO
 
 from .zeus2_io import *
 
@@ -127,8 +129,14 @@ class FigFlux(Figure):
                 extent = get_corr_extent(self.extent_)
             self.__init_main_axes__(extent=extent)
         ax = self.main_axes_
-        ax.imshow(arr, cmap=self.cmap_, norm=self.norm_, interpolation="none",
-                  origin="upper", extent=extent, aspect="auto", **kwargs)
+        use_kwargs = kwargs.copy()
+        default_kwargs = {"cmap": self.cmap_, "norm": self.norm_,
+                          "interpolation": "none", "origin": "upper",
+                          "extent": extent, "aspect": "auto"}
+        for key in default_kwargs:
+            if key not in use_kwargs:
+                use_kwargs[key] = default_kwargs[key]
+        ax.imshow(arr, **use_kwargs)
         self.__set_ticks__()
 
     def __plot_colorbar__(self, **kwargs):
@@ -241,6 +249,8 @@ class FigFlux(Figure):
             ran = np.nanmax(abs(arr[~arr_mask]))
 
         # transform data to RGBA
+        if "cmap" in kwargs:
+            self.cmap_ = plt.get_cmap(kwargs["cmap"])
         self.norm_ = colors.Normalize(vmin=-ran, vmax=ran)
         flag_nan = np.isnan(arr)
         np.putmask(arr, np.isnan(arr), 0)  # replace nan by 0
@@ -314,6 +324,34 @@ class FigFlux(Figure):
                 ax.text(x=extent_round[0] + col - 0.3,
                         y=extent_round[2] + row + 0.3,
                         s=arr[row, col], fontsize=self.text_fontsize_, **kwargs)
+
+    def savefig(self, fname, *args, compress=True, **kwargs):
+        """
+        instead of using the default savefig function in matplotlib, this
+        function can convert the Figure object to PIL.Image.Image object,
+        converting the mode from "RGB" to "P" which reduces the file size by a
+        factor of three, and then save the figure to the specified filename
+
+        :param str fname: str, filename, passed to
+            matplotlib.figure.Figure.savefig()
+        :param bool compress: bool flag whether to do compress size, default True
+        """
+
+        if not compress:
+            return super(FigFlux, self).savefig(fname=fname, *args, **kwargs)
+        else:
+            save_kwarg, fmt = kwargs.copy(), None
+            if "format" in save_kwarg:
+                fmt = save_kwarg["format"]
+                save_kwarg.pop("format")
+            with BytesIO() as buffer:  # write to memory
+                super(FigFlux, self).savefig(buffer, *args, **save_kwarg)
+                buffer.seek(0)
+                with Image.open(buffer) as im:
+                    im2 = im.convert('RGB').convert(
+                            'P', palette=Image.Palette.ADAPTIVE)
+                    return im2.save(fp=fname, format=fmt, optimize=True,
+                                    quality=50)
 
     def set_title(self, title, fontsize=None):
         """
@@ -788,7 +826,7 @@ class FigArray(FigFlux):
         :param xlim: xlim to set for individual (Obs/ObsArray input) or all
             (tuple input) pixel axes. If left None, will pick the xlim suitable
             xlim for all pixel axes
-        :type xlim: tuple or list or Obs or ObsArray
+        :type xlim: tuple or list or Obs or ObsArray or None
         :raises ValueError: axes list not initialized
         :raises TypeError: invalid xlim type
         """
@@ -830,7 +868,7 @@ class FigArray(FigFlux):
         :param ylim: ylim to set for individual (Obs/ObsArray input) or all
             (tuple input) pixel axes. If left None, will pick the ylim suitable
             ylim for all pixel axes
-        :type ylim: tuple or list or Obs or ObsArray
+        :type ylim: tuple or list or Obs or ObsArray or None
         :param bool twin_axes: bool flag, whether to apply on the secondary
             y-axis
         :raises ValueError: axes list not initialized
@@ -1606,11 +1644,11 @@ class FigSpec(FigFlux):
         y = 1 - self.fontsize_ * 4.6 / 72 / figsize[1] - dy
 
         axs_list, spat_list = [], []
-        for spat in range(extent_round[2], extent_round[3] + 1):
+        for spat in np.arange(extent_round[2], extent_round[3] + 1):
             axp = self.add_axes(
                     (x, y - (spat - extent_round[2]) * self.y_size_ / figsize[1],
                      dx, dy), zorder=10)
-            axp.patch.set_alpha(0.7)
+            axp.patch.set_alpha(0.4)
             axp.tick_params(axis="both", direction="in",
                             bottom=True, top=True, left=True, right=True,
                             labelbottom=False, labeltop=False)
@@ -1637,6 +1675,9 @@ class FigSpec(FigFlux):
             twin_ax = ax.twinx()
             twin_ax.tick_params(axis="both", direction="in",
                                 bottom=True, top=True, left=True, right=True)
+            for item in ([twin_ax.yaxis.label, twin_ax.yaxis.offsetText] +
+                         twin_ax.get_yticklabels()):
+                item.set_fontsize(self.axs_fontsize_)
             twin_axs_list.append(twin_ax)
         self.twin_axs_list_ = twin_axs_list
 
@@ -1806,6 +1847,55 @@ class FigSpec(FigFlux):
             kwargs["fontsize"] = self.axs_fontsize_
         ax.legend(*args, **kwargs)
 
+    def plot(self, obs_array, *args, mask=None, pix_flag_list=None,
+             twin_axes=False, **kwargs):
+        """
+        plot input obs_array on the axes of obs_array.array_map_.array_spec_ on
+        each spat, calling axes.plot()
+
+        :param ObsArray obs_array: ObsArray, object to plot, should be length 1
+            if ts is initialized
+        :param args: arguments passed to axes.plot()
+        :param numpy.ndarray mask: bool mask of flagged pixels, should have the
+            same shape as obs_array
+        :param list pix_flag_list: list of (spat, spec) of flagged pixels
+        :param bool twin_axes: bool flag, whether to plot using the secondary
+            y-axis
+        :param kwargs: keyword arguments passed to axes.plot()
+        """
+
+        obs_array = ObsArray(arr_in=obs_array)
+        if (obs_array.ts_.empty_flag_ and obs_array.ndim_ > 1 and
+            obs_array.len_ > 1) or (not obs_array.ts_.empty_flag_ and
+                                    ((obs_array.ndim_ > 2) or
+                                     (obs_array.len_ > 1))):
+            raise ValueError("Input obs_array should have length 1.")
+        array_map = obs_array.array_map_
+        if mask is None:
+            mask = np.full(obs_array.shape_, fill_value=False, dtype=bool)
+        mask_obs = ObsArray(arr_in=mask)
+        mask_obs.update_array_map(array_map)
+        pix_flag = array_map.get_flag_where(spat_spec_list=pix_flag_list)
+        mask_obs.fill_by_flag_along_axis(pix_flag, axis=0, fill_value=True)
+
+        if self.axs_list_ is None:
+            self.__init_axs_list__(array_map=array_map)
+        if twin_axes:
+            if self.twin_axs_list_ is None:
+                self.__init_twin_axs_list__()
+            axs_use = self.twin_axs_list_
+        else:
+            axs_use = self.axs_list_
+
+        for spat, ax in zip(self.spat_list_, axs_use):
+            array_map_use = array_map.take_where(spat=spat)
+            if not array_map_use.empty_flag_:
+                x, data = get_spat_data(
+                        obs_array=obs_array, spat=spat, mask_obs=mask_obs)
+                data = data.flatten()
+                if np.count_nonzero(np.isfinite(data)) > 0:
+                    ax.plot(x, data, *args, **kwargs)
+
     def step(self, obs_array, *args, where='mid', mask=None, pix_flag_list=None,
              twin_axes=False, **kwargs):
         """
@@ -1813,6 +1903,7 @@ class FigSpec(FigFlux):
 
         :param ObsArray obs_array: ObsArray, object to plot, should be length 1
             if ts is initialized
+        :param args: arguments passed to axes.step()
         :param str where: string of step position passed to axes.step()
         :param numpy.ndarray mask: bool mask of flagged pixels, should have the
             same shape as obs_array
@@ -1905,34 +1996,23 @@ class FigSpec(FigFlux):
             axs_use = self.twin_axs_list_
         else:
             axs_use = self.axs_list_
-        x = np.arange(array_map.array_spec_llim_,
-                      array_map.array_spec_ulim_ + 1)
 
         for spat, ax in zip(self.spat_list_, axs_use):
-            spec = np.full(len(x), fill_value=np.nan, dtype=float)
             array_map_use = array_map.take_where(spat=spat)
             if not array_map_use.empty_flag_:
-                spec_idxs = array_map_use.array_spec_
-                data_use = obs_array.take_by_array_map(array_map_use).data_. \
-                    flatten()
-                mask_use = mask_obs.take_by_array_map(array_map_use).data_. \
-                    flatten()
-                spec[spec_idxs[~mask_use] - array_map.array_spec_llim_] = \
-                    data_use[~mask_use]
+                x, spec = get_spat_data(
+                        obs_array=obs_array, spat=spat, mask_obs=mask_obs)
+                spec = spec.flatten()
                 if xerr_obs is not None:
-                    spec_xerr = np.full(len(x), fill_value=np.nan, dtype=float)
-                    xerr_use = xerr_obs.take_by_array_map(array_map_use). \
-                        data_.flatten()
-                    spec_xerr[spec_idxs[~mask_use] -
-                              array_map.array_spec_llim_] = xerr_use[~mask_use]
+                    (_, spec_xerr) = get_spat_data(
+                            obs_array=xerr_obs, spat=spat, mask_obs=mask_obs)
+                    spec_xerr = spec_xerr.flatten()
                 else:
                     spec_xerr = None
                 if yerr_obs is not None:
-                    spec_yerr = np.full(len(x), fill_value=np.nan, dtype=float)
-                    yerr_use = yerr_obs.take_by_array_map(array_map_use). \
-                        data_.flatten()
-                    spec_yerr[spec_idxs[~mask_use] -
-                              array_map.array_spec_llim_] = yerr_use[~mask_use]
+                    (_, spec_yerr) = get_spat_data(
+                            obs_array=yerr_obs, spat=spat, mask_obs=mask_obs)
+                    spec_yerr = spec_yerr.flatten()
                 else:
                     spec_yerr = None
                 if np.count_nonzero(np.isfinite(spec)) > 0:
@@ -2169,3 +2249,25 @@ def get_chop_color(chop):
         color = "black"
 
     return color
+
+
+def get_spat_data(obs_array, spat, mask_obs=None):
+    """
+    return the spec and data recorded at the given spat
+    """
+
+    array_map_use = obs_array.array_map_.take_where(spat=spat).sort("spec")
+
+    x = array_map_use.array_spec_
+    data_use = obs_array.take_by_array_map(array_map_use).data_
+    data = np.full(data_use.shape, fill_value=np.nan, dtype=float)
+
+    if mask_obs is not None:
+        mask_use = mask_obs.take_by_array_map(array_map_use).data_
+        np.putmask(data, ~mask_use, data_use)
+    else:
+        data = data_use
+    if data.ndim > 1:
+        data = data.transpose()
+
+    return x, data

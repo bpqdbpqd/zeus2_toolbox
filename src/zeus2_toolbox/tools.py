@@ -70,6 +70,62 @@ def gaussian_2d(pos, x0=0, y0=0, sigma_x=1, sigma_y=1, theta=0, amp=1,
            gaussian(x=yyp, x0=y0p, sigma=sigma_y, norm=norm)
 
 
+def proc_array(arr, method="mean", axis=None, **kwargs):
+    """
+    a wrapper function to process array which enables to process array by
+    specifying the function name by calling np.{method}(arr, axis=axis), also
+    expands the range of available methods including 'nanmad', 'mad',
+    'num', 'num_is_nan', 'num_not_is_nan', 'num_is_finite', 'num_not_is_finite'
+
+    :param list or tuple or numpy.ndarray arr: array to be processed
+    :param str method: str, method name to be used to process array, can either
+        be a numpy function, or method names specified in the document
+    :param int or None axis: int or None, axis to process the array, if left
+        None, the function will be applied across the whole array
+    :param dict kwargs: keyword arguments passed to np.{method}() function
+    :return: processed array
+    :rtype: numpy.ndarray
+    :raises ValueError: invalid method name
+    """
+
+    arr = np.asarray(arr)
+    func_dict = {"nanmad": lambda arr, axis: median_abs_deviation(
+            arr, axis=axis, nan_policy="omit"),
+                 "mad": lambda arr, axis: median_abs_deviation(
+                         arr, axis=axis, nan_policy="propagate"),
+                 "num": lambda arr, axis:
+                 np.count_nonzero(np.ones(arr.shape), axis=axis),
+                 "num_is_nan": lambda arr, axis:
+                 np.count_nonzero(np.isnan(arr), axis=axis),
+                 "num_not_is_nan": lambda arr, axis:
+                 np.count_nonzero(~np.isnan(arr), axis=axis),
+                 "num_is_finite": lambda arr, axis:
+                 np.count_nonzero(np.isfinite(arr), axis=axis),
+                 "num_not_is_finite": lambda arr, axis:
+                 np.count_nonzero(~np.isfinite(arr), axis=axis)}
+
+    if method in func_dict:
+        func = func_dict[method]
+    elif hasattr(np, method):
+        func = eval("np.%s" % method)
+    else:
+        raise ValueError("Input method is not a numpy function or valid name.")
+
+    try:
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message="Mean of empty slice")
+            warnings.filterwarnings("ignore", message="All-NaN slice encountered")
+            warnings.filterwarnings("ignore", message="Mean of empty slice")
+            warnings.filterwarnings(
+                    "ignore", message="Degrees of freedom <= 0 for slice.")
+            arr_proc = func(arr, axis=axis, **kwargs)
+    except Exception as err:
+        raise RuntimeError("Failed to call %s with %s." % (method, func)) \
+            from err
+
+    return arr_proc
+
+
 def weighted_mean(arr, wt=None, nan_policy="omit"):
     """
     Calculate the weighted mean of 1-d array, return the flux, error and summed
@@ -280,12 +336,12 @@ def nanmad_flag(arr, thre=20, axis=-1):
     :param float thre: float, data with abs distance > thre*MAD will be flagged
     :param int axis: int, axis along which the mad will be checked, if input is
         None, will use the median of the whole array
-    :return flag_arr: array, bool values of flag
+    :return flag_arr: array, bool values of flag in the same shape as arr
     :rtype: numpy.ndarray
     :raises ValueError: invalid axis value
     """
 
-    arr = np.array(arr)  # check input arr and axis
+    arr = np.asarray(arr)  # check input arr and axis
     ndim, shape = len(arr.shape), arr.shape
     if axis is not None:
         if int(axis) not in range(-ndim, ndim):  # check axis value
@@ -293,22 +349,17 @@ def nanmad_flag(arr, thre=20, axis=-1):
         axis = int(axis) if (axis >= 0) else int(arr.ndim + axis)
 
     with warnings.catch_warnings():
-        warnings.filterwarnings(
-                "ignore", message="All-NaN slice encountered")
-        warnings.filterwarnings(
-                "ignore", message="Mean of empty slice")
-        warnings.filterwarnings(
-                "ignore", message="invalid value encountered in greater")
-        if ((np.isfinite(arr)).sum() == 0) and (axis is None):
-            med = np.full(arr.shape, fill_value=np.nan)
+        warnings.filterwarnings("ignore", message="All-NaN slice encountered")
+        warnings.filterwarnings("ignore", message="Mean of empty slice")
+        warnings.filterwarnings("ignore",
+                                message="invalid value encountered in greater")
+        if (proc_array(arr, method="num_is_finite") == 0) and (axis is None):
+            flag_arr = np.full(arr.shape, fill_value=False)
         else:
             med = np.nanmedian(arr, axis=axis, keepdims=True)
-        abs_div = np.abs(arr - med)
-        if ((np.isfinite(arr)).sum() == 0) and (axis is None):
-            mad = np.full(arr.shape, fill_value=np.nan)
-        else:
+            abs_div = np.abs(arr - med)
             mad = np.nanmedian(abs_div, axis=axis, keepdims=True)
-        flag_arr = (abs_div > mad * thre)
+            flag_arr = (abs_div > mad * thre)
 
     return flag_arr
 
@@ -318,7 +369,7 @@ def double_nanmad_flag(arr, thre=20, axis=-1, frac_thre=0.1):
     Similar to nanmad_flag(), but do nanmad_flag a second time on the data flagged
     by nanmad_flag(), if frac_thre of data is flagged in the first time in a
     certain entry of arr, to account for the sudden jump often witnessed in time
-    series
+    series or bimodal distribution
 
     :param numpy.ndarray arr: array, to be checked
     :param float thre: float, data with abs distance > thre*MAD will be flagged
@@ -335,19 +386,19 @@ def double_nanmad_flag(arr, thre=20, axis=-1, frac_thre=0.1):
     if not 0 <= frac_thre <= 1:
         raise ValueError("Invalid value for frac_thre.")
 
-    arr = np.array(arr)  # check input arr and axis
-    first_flag_arr = nanmad_flag(arr=arr, thre=thre, axis=axis)
+    arr = np.asarray(arr)  # check input arr and axis
+    flag_arr = nanmad_flag(arr=arr, thre=thre, axis=axis)
     flagged_arr = np.full_like(arr, fill_value=np.nan)
+
     with warnings.catch_warnings():
         warnings.filterwarnings(
                 "ignore", message="invalid value encountered in greater")
-        do_flag = (np.nansum(first_flag_arr, axis=axis, keepdims=True) /
-                   first_flag_arr.shape[axis]) > frac_thre
-    flagged_arr[first_flag_arr & do_flag] = arr[first_flag_arr & do_flag]
+        do_flag = (np.nansum(flag_arr, axis=axis, keepdims=True) /
+                   flag_arr.shape[axis]) > frac_thre
+    np.putmask(flagged_arr, flag_arr & do_flag, arr)
     second_flag_arr = nanmad_flag(arr=flagged_arr, thre=thre, axis=axis)
-    flag_arr = first_flag_arr
-    flag_arr[np.full_like(first_flag_arr, fill_value=True) & do_flag] = \
-        second_flag_arr[np.full_like(first_flag_arr, fill_value=True) & do_flag]
+    np.putmask(flag_arr, np.full_like(flag_arr, fill_value=True) & do_flag,
+               second_flag_arr)
 
     return flag_arr
 
@@ -368,10 +419,12 @@ def naninterp(x, xp, fp, fill_value=np.nan):
     """
 
     finite_mask = np.isfinite(xp) & np.isfinite(fp)
-    if finite_mask.sum() == 0:
-        return np.full(x.shape, fill_value=fill_value)
+    if np.count_nonzero(finite_mask) == 0:
+        result = np.full(x.shape, fill_value=fill_value)
     else:
-        return np.interp(x, xp[finite_mask], fp[finite_mask])
+        result = np.interp(x, xp[finite_mask], fp[finite_mask])
+
+    return result
 
 
 def nanlstsq(a, b, rcond=None, fill_value=np.nan):
@@ -387,11 +440,13 @@ def nanlstsq(a, b, rcond=None, fill_value=np.nan):
     """
 
     finite_flag_arr = np.all(np.isfinite(a), axis=-1) & np.isfinite(b)
-    if len(finite_flag_arr) == 0:
+    if np.count_nonzero(finite_flag_arr) == 0:
         lstsq_0 = lstsq(np.zeros(a.shape), np.zeros(b.shape), rcond=rcond)
-        return (np.full(lstsq_0[0].shape, fill_value=fill_value),) + lstsq_0[1:]
+        result = (np.full(lstsq_0[0].shape, fill_value=fill_value),) + lstsq_0[1:]
     else:
-        return lstsq(a[finite_flag_arr, :], b[finite_flag_arr], rcond=rcond)
+        result = lstsq(a[finite_flag_arr, :], b[finite_flag_arr], rcond=rcond)
+
+    return result
 
 
 def check_orientation(orientation):
