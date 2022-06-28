@@ -16,7 +16,8 @@ from collections import Counter
 from datetime import datetime, timezone
 
 import astropy
-from astropy.table import vstack, hstack, unique, Table as Tb
+import numpy as np
+from astropy.table import vstack, hstack, unique, np_utils, Table as Tb
 from astropy.time import Time
 
 from .mce_data import *
@@ -82,11 +83,11 @@ class TableObj(BaseObj):
                 tb_in = tb_in.table_.copy()
             elif isinstance(tb_in, Tb):
                 if (len(tb_in) > 0) or (len(tb_in.colnames) > 0):
-                    tb_in = Tb(tb_in, masked=True)
+                    tb_in = Tb(tb_in, masked=True, copy=True)
                 else:
                     tb_in = Tb(masked=True)
-            elif isinstance(tb_in, (np.ndarray, Tb)):
-                tb_in = Tb(tb_in, masked=True)
+            elif isinstance(tb_in, np.ndarray):
+                tb_in = Tb(tb_in, masked=True, copy=True)
             else:
                 raise TypeError("Invalid type of tb_in. Expect astropy.table.")
             self.__fill_values__(tb_in=tb_in)
@@ -150,8 +151,25 @@ class TableObj(BaseObj):
             if self.empty_flag_:
                 table_new = other.table_
             else:
-                table_new = vstack([self.table_, other.table_],
-                                   join_type="outer")
+                try:
+                    table_new = vstack([self.table_, other.table_],
+                                       join_type="outer")
+                except np_utils.TableMergeError as err:
+                    if "columns have incompatible types" in err.args[0]:
+                        colname = err.args[0].split("'")[1]
+                        tb_tmp, tb_other_tmp = self.table_.copy(), \
+                                               other.table_.copy()
+                        try:
+                            tb_tmp[colname] = tb_tmp[colname].astype(
+                                    tb_other_tmp[colname].dtype)
+                        except TypeError:
+                            tb_other_tmp[colname] = tb_other_tmp[colname].astype(
+                                    tb_tmp[colname].dtype)
+                        table_new = vstack([tb_tmp, tb_other_tmp],
+                                           join_type="outer")
+                        del (tb_tmp, tb_other_tmp)
+                    else:
+                        raise err
             self.__fill_values__(tb_in=table_new)
 
     def expand(self, other):
@@ -257,9 +275,9 @@ class DataObj(BaseObj):
             self.__from_instance__(arr_in)
         else:
             if isinstance(arr_in, DataObj):
-                arr_in = arr_in.data_.copy()
+                arr_in = arr_in.data_
             elif isinstance(arr_in, (np.ndarray, list, tuple)):
-                arr_in = np.array(arr_in)
+                arr_in = np.asarray(arr_in)
             else:
                 raise TypeError("Invalid type of arr_in. Expect array.")
             self.__fill_values__(arr_in=arr_in)
@@ -287,8 +305,8 @@ class DataObj(BaseObj):
         :param numpy.ndarray arr_in: array, containing data
         """
 
-        arr_in = np.array(arr_in)
-        if (arr_in.shape[-1] == 0) and (len(arr_in.shape) == 1):
+        arr_use = np.asarray(arr_in)
+        if (arr_use.shape[-1] == 0) and (len(arr_use.shape) == 1):
             self.len_ = 0
             self.shape_ = (0,)
             self.ndim_ = 1
@@ -296,12 +314,12 @@ class DataObj(BaseObj):
             self.data_ = np.empty(self.shape_, dtype=self.dtype_)
             self.empty_flag_ = True
         else:
-            self.len_ = arr_in.shape[-1]
-            self.ndim_ = arr_in.ndim
-            self.shape_ = arr_in.shape
+            self.len_ = arr_use.shape[-1]
+            self.ndim_ = arr_use.ndim
+            self.shape_ = arr_use.shape
             if self.dtype_ is None:
-                self.dtype_ = arr_in.dtype
-            self.data_ = arr_in.astype(self.dtype_)
+                self.dtype_ = arr_use.dtype
+            self.data_ = arr_use.astype(self.dtype_, copy=True)
             self.empty_flag_ = False
 
     def __repr__(self):
@@ -455,6 +473,41 @@ class DataObj(BaseObj):
                     message="invalid value encountered in true_divide")
             return self.__operate__(other, np.divide, r=True)
 
+    def __floordiv__(self, other):
+        return self.__operate__(other, np.floor_divide)
+
+    def __mod__(self, other):
+        return self.__operate__(other, np.remainder)
+
+    def __lt__(self, other):
+        return self.__operate__(other, np.less)
+
+    def __le__(self, other):
+        return self.__operate__(other, np.less_equal)
+
+    def __gt__(self, other):
+        return self.__operate__(other, np.greater)
+
+    def __ge__(self, other):
+        return self.__operate__(other, np.greater_equal)
+
+    def __and__(self, other):
+        return self.__operate__(other, np.logical_and)
+
+    def __or__(self, other):
+        return self.__operate__(other, np.logical_or)
+
+    def __xor__(self, other):
+        return self.__operate__(other, np.logical_xor)
+
+    def __not__(self):
+        arr_new = np.logical_not(self.data_)
+        return self.replace(arr_in=arr_new)
+
+    def __invert__(self):
+        arr_new = np.invert(self.data_)
+        return self.replace(arr_in=arr_new)
+
     def __neg__(self):
         return self.__rsub__(0)
 
@@ -500,11 +553,14 @@ class DataObj(BaseObj):
                                   UserWarning)
                 same_flag = same_flag & (self.empty_flag_ ==
                                          other.empty_flag_)
-                same_flag = same_flag & (self.dtype_ is other.dtype_)
+                same_flag = same_flag & (self.dtype_ == other.dtype_)
                 same_flag = same_flag & (self.shape_ == other.shape_)
                 same_flag = same_flag & np.all(self.data_ == other.data_)
 
         return same_flag
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
     def sqrt(self):
         """
@@ -552,12 +608,27 @@ class DataObj(BaseObj):
         Update dtype_ instance variable and dtype of data_ to the given value.
         Will not make change if object is empty.
 
-        :param dtype: numpy.dtype, dtype supported by numpy.array
-        :type dtype: type or numpy.dtype
+        :param dtype: type information supported by numpy.dtype()
+        :type dtype: type or numpy.dtype or str
         """
 
         self.dtype_ = np.dtype(dtype)
         self.__fill_values__(self.data_.astype(dtype))
+
+    def as_type(self, dtype):
+        """
+        return an object with the data_ converted to the input dtype
+
+        :param dtype: type information supported by numpy.dtype()
+        :type dtype: type or numpy.dtype or str
+        :return: new DataObj or subclass object with the data converted
+        :rtype: DataObj or subclass
+        """
+
+        new_dtype = np.dtype(dtype)
+        new_arr = self.data_.astype(new_dtype)
+
+        return self.replace(arr_in=new_arr)
 
     def fill_by_mask(self, mask, fill_value=np.nan):
         """
@@ -565,15 +636,18 @@ class DataObj(BaseObj):
         value. Can be used to null the flagged elements, or change values of
         some elements.
 
-        :param numpy.ndarray mask: array, shape is the same as data obj,
-            with the elements to change flagged as True
+        :param mask: array or DataObj or subclass object, shape is the same as
+            data obj, with the elements to change flagged as True
+        :type mask: numpy.ndarray or DataObj
         :param fill_value: default np.nan, value to fill. The value may not work
             as expected due to the dtype, e.g. bool(np.nan)
         :raises ValueError: invalid input shape
         """
 
+        if isinstance(mask, DataObj):
+            mask = mask.data_
         arr_new = self.data_
-        np.putmask(arr_new, mask, fill_value)
+        np.putmask(arr_new, mask=mask, values=fill_value)
         self.__fill_values__(arr_new)
 
     def fill_by_flag_along_axis(self, flag_arr, fill_value=np.nan, axis=-1):
@@ -592,7 +666,7 @@ class DataObj(BaseObj):
         :raise ValueError: invalid axis, inconsistent length
         """
 
-        flag_arr = np.asarray(flag_arr, dtype=bool)
+        flag_arr = np.asarray(flag_arr, dtype=bool).flatten()
         axis = self.__check_axis__(axis=axis)
         if (len(flag_arr.shape) > 1) or (self.shape_[axis] != len(flag_arr)):
             raise ValueError("Inconsistent length of input flag_arr.")
@@ -871,20 +945,26 @@ class ArrayMap(DataObj):
     #   [:,1]: spectral index(spec),
     #   [:,2]: MCE row,
     #   [:,3]: MCE column(col)
-    pix_idxs_ = np.empty(0, dtype=int)  # indices of pixels in the array map
-    array_idxs_ = np.empty((0, 2), dtype=int)  # TES array, (spat, spec)
-    array_spat_ = np.empty(0, dtype=int)  # TES array spatial position
-    array_spec_ = np.empty(0, dtype=int)  # TES array spectral index
-    mce_idxs_ = np.empty((0, 2), dtype=int)  # MCE index, (row, col)
-    mce_row_ = np.empty(0, dtype=int)  # MCE row
-    mce_col_ = np.empty(0, dtype=int)  # MCE column
+    pix_idxs_ = np.empty(0, dtype=int)  # type: numpy.ndarray
+    # indices of pixels in the array map
+    array_idxs_ = np.empty((0, 2), dtype=int)  # type: numpy.ndarray
+    # TES array, (spat, spec)
+    array_spat_ = np.empty(0, dtype=int)  # type: numpy.ndarray
+    # TES array spatial position
+    array_spec_ = np.empty(0, dtype=int)  # type: numpy.ndarray
+    # TES array spectral index
+    mce_idxs_ = np.empty((0, 2), dtype=int)  # type: numpy.ndarray
+    # MCE index, (row, col)
+    mce_row_ = np.empty(0, dtype=int)  # type: numpy.ndarray  # MCE row
+    mce_col_ = np.empty(0, dtype=int)  # type: numpy.ndarray  # MCE column
     array_spat_llim_ = array_spat_ulim_ = -1  # range of array spat, default -1
     array_spec_llim_ = array_spec_ulim_ = -1
     mce_row_llim_ = mce_row_ulim_ = -1
     mce_col_llim_ = mce_col_ulim_ = -1
     wl_flag_ = False  # type: bool # flag whether wavelength is initialized
-    conf_kwargs_ = {}  # type: dict # keyword arguments of the grating and
-    # telescope configuration, used in tools.spec_to_wl()
+    conf_kwargs_ = dict()  # type: dict # keyword arguments of the grating and
+    # telescope configuration, initialized by read_conf() and used in
+    # init_wl() method
     array_wl_ = np.empty(0, dtype=float)  # type: numpy.ndarray # wavelength of
     # each pixel
     array_d_wl_ = np.empty(0, dtype=float)  # type: numpy.ndarray # wavelength
@@ -1027,44 +1107,103 @@ class ArrayMap(DataObj):
         other = self.__class__(arr_in=other)
         if (not other.empty_flag_) and (other.len_ > 0):
             return np.all(np.apply_along_axis(lambda arr: np.any(
-                    ~np.any((self.array_map_ - arr).astype(bool), axis=1)),
-                                              axis=1, arr=other.array_map_))
+                    ~np.any((self.array_idxs_ - arr).astype(bool), axis=1)),
+                                              axis=1, arr=other.array_idxs_))
         else:
             return True
 
-    def set_band(self, band):
+    def set_band(self, band=None):
         """
         Specify the band used for the array map and truncate array map given
-        the prior knowledge of TES array layout. This is unnecessary unless
-        you need dump half of the array in the case of 350 or 450 micron array.
+        the array configuration saved in conf_kwargs_ or the prior knowledge of
+        TES array layout. This is necessary if you would like to initialize the
+        wavelength of the array map. The function will first search in
+        self.conf_kwargs_ for the input band, if spec_llim or/and spec_ulim
+        or/and spat_llim or/and spat_ulim exist in the corresponding section(s)
+        in self.conf_kwargs_, the array will be truncated accordingly; if
+        none of the parameters exist, or the section for the input band is not
+        found, the function will fall back to the
+        default layout:
+            =========  =====  =====  =====  =====  =====
+            band       200    350    450    400    600
+            ---------  -----  -----  -----  -----  -----
+            spec llim  0      0      20     0      0
+            spec ulim  23     19     39     39     11
+            spat ulim  9      8      8      8      5
+            spat llim  0      0      0      0      0
+            =========  =====  =====  =====  =====  =====
 
-        :param int band: int, allowed values are 200, 350, 450, 400 and 600. All
-            physical spectral indices will be used if band=200, 400 or 600.
-        :raises ValueError: invalid input of band, array map is incompatible
-            with input band
+        :param int or None band: int or None, if the input band can not be found
+            in the keys in conf_kwargs_ attribute, the default acceptable values
+            are 200, 350, 450, 400, 600; if left None, the band information will
+            be reset and band_flag_ will be set to False
+        :raises ValueError: invalid input of band
         """
 
-        # check input data type
-        band = int(band)
-        # check input validity
-        if band not in (200, 350, 450, 400, 600):
-            raise ValueError('''Invalid input of band. Accepted values are
-            200, 350, 450, 400, 600''')
+        # check whether to reset
+        if band is None:
+            self.band_ = ArrayMap.band_
+            self.band_flag_ = False
+            print("Band reset.")
+        else:
+            band = int(band)
+            extents = []  # list of [(spec_llim, spec_ulim, spat_ulim, spat_llim),
+            # ..]
 
-        # set lower and upper limit of index of pixel
-        llim, ulim = {200: (0, 23), 350: (0, 19), 450: (20, 39),
-                      400: (0, 39), 600: (0, 11)}[band]
-        flag_arr = self.get_flag_where(spec_ran=(llim - 0.5, ulim + 0.5))
-        if (self.len_ > 0) and (flag_arr.sum() == 0):
-            warnings.warn("The array map is incompatible with input band.",
-                          UserWarning)
-        self.__fill_values__(arr_in=self.data_[flag_arr])
+            # check in conf_kwargs_
+            conf_kwargs_list, conf_flag = [], True
+            for key in self.conf_kwargs_:  # looking for sections matching band
+                if (str(band) in key) and (type(self.conf_kwargs_[key]) is dict):
+                    conf_kwargs_use = self.conf_kwargs_.copy()
+                    conf_kwargs_use.update(self.conf_kwargs_[key])
+                    conf_kwargs_list.append(conf_kwargs_use)
+            if len(conf_kwargs_list) > 0:
+                for conf_kwargs in conf_kwargs_list:
+                    key_flag, extent = False, []
+                    for key in ("spec_llim", "spec_ulim",
+                                "spat_ulim", "spat_llim"):
+                        if key in conf_kwargs:
+                            extent.append(conf_kwargs[key])
+                            key_flag = True
+                        else:
+                            extent.append(getattr(self, "array_%s_" % key))
+                    extents.append(extent)
+                    conf_flag &= key_flag
+            else:
+                conf_flag = False
 
-        self.band_ = band
-        self.band_flag_ = True
-        if self.wl_flag_:
-            self.array_wl_ = self.array_wl_[flag_arr]
-            self.array_d_wl_ = self.array_d_wl_[flag_arr]
+            if not conf_flag:  # Fall back to default
+                if band not in (200, 350, 450, 400, 600):
+                    raise ValueError("Invalid input of band, accepted " +
+                                     "values are 200, 350, 450, 400, 600")
+
+                # set default extent of the array
+                extents = [{200: (0, 23, 9, 0), 350: (0, 19, 8, 0),
+                            450: (20, 39, 8, 0), 400: (0, 39, 8, 0),
+                            600: (0, 11, 8, 0)}[band]]
+
+            print("Setting band using %s." % ("array configuration" if conf_flag
+                                              else "default layout"))
+            mask_list = []
+            for extent in extents:
+                mask_list.append((self.array_spec_ > extent[0] - 0.5) &
+                                 (self.array_spec_ < extent[1] + 0.5) &
+                                 (self.array_spat_ < extent[2] + 0.5) &
+                                 (self.array_spat_ > extent[3] - 0.5))
+            flag_arr = np.any(mask_list, axis=0)
+            if np.any(np.sum(mask_list, axis=0) > 1):
+                warnings.warn("The matching array configurations overlap.",
+                              UserWarning)
+            if (self.len_ > 0) and (flag_arr.sum() == 0):
+                warnings.warn("The array map is incompatible with input band.",
+                              UserWarning)
+            self.__fill_values__(arr_in=self.data_[flag_arr])
+
+            self.band_ = band
+            self.band_flag_ = True
+            if self.wl_flag_:
+                self.array_wl_ = self.array_wl_[flag_arr]
+                self.array_d_wl_ = self.array_d_wl_[flag_arr]
 
     def take_by_flag(self, flag_arr):
         """
@@ -1080,9 +1219,10 @@ class ArrayMap(DataObj):
         :raise ValueError: inconsistent length
         """
 
+        flag_arr = np.asarray(flag_arr, dtype=bool).flatten()
         if self.len_ != len(flag_arr):
             raise ValueError("Inconsistent length of input flag_arr.")
-        flag_arr = np.asarray(flag_arr, dtype=bool)
+
         array_map_new = self.take_by_flag_along_axis(flag_arr, axis=0)
         if self.band_flag_:
             array_map_new.set_band(self.band_)
@@ -1111,8 +1251,9 @@ class ArrayMap(DataObj):
         if not isinstance(other, ArrayMap):
             raise TypeError("Invalid type of input, expect ArrayMap.")
         # check band
-        if (self.band_flag_ != other.band_flag_) or \
-                (self.band_ != other.band_):
+        if (not self.empty_flag_ and not other.empty_flag_) and \
+                ((self.band_flag_ != other.band_flag_) or
+                 (self.band_ != other.band_)):
             raise ValueError("The bands do not match.")
         else:
             if self.conf_kwargs_ == {}:  # replace empty conf_kwargs
@@ -1570,6 +1711,55 @@ class ArrayMap(DataObj):
 
         return array_map_new
 
+    def get_conf(self, **kwargs):
+        """
+        Assemble a list of dictionaries with parameters in conf_kwargs_ matching
+        the band_ of the object; the input keyword arguments will override any
+        value saved in conf_kwargs_
+
+        :return: [conf_kwargs1, [conf_kwargs2], ...] list of dict of keyword
+            arguments; if the array map band corresponds none or only one
+            section in conf_kwargs_, the return list will only contain one item,
+            otherwise more than one kwargs items will be in the returned list
+            which is the case of 400 um array
+        :rtype: list[dict]
+        """
+
+        conf_kwargs, conf_kwargs_list = self.conf_kwargs_.copy(), []
+
+        if not self.band_flag_:  # update kwargs according to band
+            warnings.warn("ArrayMap band not set, will use the input " +
+                          "arguments and all available bands in conf_kwargs_.",
+                          UserWarning)
+            band = str()
+        else:
+            band = str(self.band_)
+
+        for key in conf_kwargs:  # looking for sections matching band
+            if (band in key) and (type(conf_kwargs[key]) is dict):
+                conf_kwargs_use = conf_kwargs.copy()
+                conf_kwargs_use.update(conf_kwargs[key])
+                conf_kwargs_use.update(kwargs)
+                conf_kwargs_list.append(conf_kwargs_use)
+
+        if len(conf_kwargs_list) == 0:  # build one conf_kwargs
+            warnings.warn("No band specific config information found, will use " +
+                          "the input kwargs only the DEFAULT configurations " +
+                          "in conf_kwargs_.", UserWarning)
+            conf_kwargs_use = conf_kwargs.copy()
+            conf_kwargs_use.update(kwargs)
+            conf_kwargs_list.append(conf_kwargs_use)
+        elif len(conf_kwargs_list) > 1:  # remove redundant
+            pop_idx = []
+            for i, conf_kwargs1 in enumerate(conf_kwargs_list[:-1]):
+                for j, conf_kwargs2 in enumerate(conf_kwargs_list[i + 1:]):
+                    if conf_kwargs1 == conf_kwargs2:
+                        pop_idx.append(j + i + 1)
+            for idx in np.sort(pop_idx)[::-1]:
+                conf_kwargs_list.pop(idx)
+
+        return conf_kwargs_list
+
     def init_wl(self, **kwargs):
         """
         Converting the spectral indices to wavelength in micron using
@@ -1577,69 +1767,82 @@ class ArrayMap(DataObj):
         and wavelength interval of each pixel, recorded in self.array_wl_ and
         self.array_d_wl_ variables, and changing self.wl_flag_ to True. The
         kwargs passed to tools.spec_to_wl() will combine the parameters in the
-        input kwargs and self.conf_kwargs, following the priority input keyword
-        argument > self.conf_kwargs.
+        input kwargs and self.conf_kwargs by calling self.get_conf(), following
+        the priority input keyword argument > self.conf_kwargs.
 
         :param dict kwargs: keyword arguments passed to tools.spec_to_wl()
             except spec and spat, for a list of accepted parameters, please
-            refer to the function tools.spec_to_wl().
+            refer to the function tools.spec_to_wl(); remember to supply
+            grat_idx parameter if it is not set in self.conf_kwargs
         """
 
-        conf_kwargs = {}
-        conf_kwargs.update(self.conf_kwargs_)
-        conf_kwargs.update(kwargs)  # initialize kwargs with the priority
-
+        conf_kwargs_list = self.get_conf(**kwargs)
+        if len(conf_kwargs_list[0]) == 0:
+            warnings.warn("empty configuration, will use the default values " +
+                          "spec_to_wl() function.", UserWarning)
+        wl, d_wl = np.full(self.len_, dtype=float, fill_value=np.nan), \
+                   np.full(self.len_, dtype=float, fill_value=np.nan)
         func_vars = inspect.getfullargspec(spec_to_wl)[0]
-        for key in conf_kwargs:
-            if (key in ("spec", "spat")) or (key not in func_vars):
-                conf_kwargs.pop(key)
 
-        wl = spec_to_wl(spec=self.array_spec_, spat=self.array_spat_,
-                        **conf_kwargs)
-        d_wl = spec_to_wl(spec=self.array_spec_ + 0.5, spat=self.array_spat_,
-                          **conf_kwargs) - \
-               spec_to_wl(spec=self.array_spec_ - 0.5, spat=self.array_spat_,
-                          **conf_kwargs)
+        for conf_kwargs in conf_kwargs_list:
+            kwargs_use = conf_kwargs.copy()
+            for key in conf_kwargs:
+                if (key in ("spec", "spat")) or (key not in func_vars):
+                    kwargs_use.pop(key)
+            wl_use = spec_to_wl(spec=self.array_spec_, spat=self.array_spat_,
+                                **kwargs_use)
+            d_wl_use = \
+                spec_to_wl(spec=self.array_spec_ + 0.5, spat=self.array_spat_,
+                           **kwargs_use) - \
+                spec_to_wl(spec=self.array_spec_ - 0.5, spat=self.array_spat_,
+                           **kwargs_use)
+
+            extent = []
+            for key in ("spec_llim", "spec_ulim", "spat_ulim", "spat_llim"):
+                if key in conf_kwargs:
+                    extent.append(conf_kwargs[key])
+                else:
+                    extent.append(getattr(self, "array_%s_" % key))
+            wl_mask = (self.array_spec_ > extent[0] - 0.5) & \
+                      (self.array_spec_ < extent[1] + 0.5) & \
+                      (self.array_spat_ < extent[2] + 0.5) & \
+                      (self.array_spat_ > extent[3] - 0.5)
+            np.putmask(wl, wl_mask, wl_use)
+            np.putmask(d_wl, wl_mask, d_wl_use)
 
         self.wl_flag_ = True
         self.array_wl_ = wl
         self.array_d_wl_ = abs(d_wl)
 
-    def read_wl_conf(self, filename):
+    def read_conf(self, filename):
         """
         Initialize conf_kwargs_ variable by reading in the configuration
         parameters .ini file. The format of the configuration file should follow
-        Windows Registry extended version of INI syntax, and the allowed section
-        should be 200, 350, 450 and 600. The ArrayMap object will automatically
-        pick the section corresponding to the band_. In the case of
-        uninitialized band_ or band_ mismatching with available configuration
-        sections, an error will be raised. The conf_kwargs_ variable will be
-        over-written, and all the existing values will be lost.
+        Windows Registry extended version of INI syntax, and the section keyword
+        should be band wavelength, such as 200, 350, 400 etc. The current
+        conf_kwargs_ variable will be updated with the new variables and values
 
         :param str filename: str, path to the file containing
-        :raises RuntimeError: band_flags_ == False
-        :raises ReferenceError: band_ not in configuration sections
         """
-
-        if not self.band_flag_:
-            raise RuntimeError("band not initialized.")
 
         config = configparser.ConfigParser()
         config.read(filename)
 
-        band = str(self.band_)
-        if band not in config:
-            raise ReferenceError("band %i not found in configuration." %
-                                 self.band_)
-        else:
-            conf_kwargs = {}
-            for key in config[band]:
+        conf_kwargs = self.conf_kwargs_.copy()
+        for section in config:
+            if section != "DEFAULT":
+                conf_kwargs[section] = {}
+            for key in config[section]:
                 try:
-                    value = float(config[band][key])
+                    value = float(config[section][key])
                 except ValueError:
-                    value = config[band][key]
-                conf_kwargs[key] = value
-            self.conf_kwargs_.update(conf_kwargs)
+                    value = config[section][key]
+                if section == "DEFAULT":
+                    conf_kwargs[key] = value
+                else:
+                    conf_kwargs[section][key] = value
+
+        self.conf_kwargs_ = conf_kwargs
 
 
 class Chop(DataObj):
@@ -2200,7 +2403,7 @@ class TimeStamps(DataObj):
 
     def get_time(self):
         """
-        Return an astro.time.Time object corresponding to the time stamps.
+        Return an astropy.time.Time object corresponding to the time stamps.
 
         :return: Time object
         :rtype: astropy.time.core.Time
@@ -2483,10 +2686,10 @@ class ObsLog(TableObj):
         the time in 'UTC' and 'UTC' + 'Scan duration' columns. An empty ObsLog
         will be returned if no entry is found
 
-        :param time: float or str or datetime.datetime or astro.time.Time,
+        :param time: float or str or datetime.datetime or astropy.time.Time,
             float input should be value of time stamp, string input should be
             time in iso format or isot format
-        :type time: float or str or datetime.datetime or astro.time.Time
+        :type time: float or str or datetime.datetime or astropy.time.Time
         :return obs_log_new: the entry of obs_array log selected by time
         :rtype: ObsLog
         """
@@ -3703,15 +3906,12 @@ class ObsArray(Obs):
         if array_map_use not in self.array_map_:
             raise ValueError("Input array map should be a subset of the " +
                              "object array_map_.")
-        idxs_list = []
-        for (spat, spec) in array_map_use.array_idxs_:
-            idx = self.array_map_.get_index_where(spat_spec=[spat, spec])[0]
-            idxs_list.append(idx)
-        if len(idxs_list) > 0:
-            idxs_arr = np.array(idxs_list)
-            data_use = self.data_[idxs_arr]
-        else:
-            data_use = np.empty((0,) + self.shape_[1:], dtype=self.dtype_)
+
+        idxs_arr = np.asarray([
+            self.array_map_.get_index_where(spat_spec=[spat, spec])[0] for
+            (spat, spec) in array_map_use.array_idxs_])
+        data_use = self.data_[idxs_arr] if len(idxs_arr) > 0 else \
+            np.empty((0,) + self.shape_[1:], dtype=self.dtype_)
 
         return super(ObsArray, self).replace(
                 arr_in=data_use, array_map=array_map_use, **kwargs)

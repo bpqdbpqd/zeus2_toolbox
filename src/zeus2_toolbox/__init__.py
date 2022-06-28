@@ -4,7 +4,8 @@
 # @Version : 2.0
 """
 zeus2_toolbox is a python package developed for processing the data acquired by
-the ZEUS2 instrument (Ferkinhoff, C. et al. ApJ 780, 142, 2014). The code
+the ZEUS2 instrument (`Ferkinhoff, C. et al. ApJ 780, 142, 2014
+<https://ui.adsabs.harvard.edu/abs/2014ApJ...780..142F/abstract>`_). The code
 is available at `GitHub <https://github.com/bpqdbpqd/zeus2_toolbox.git>`_, and
 the full documentation can be found at
 `Read the Docs <https://zeus2-toolbox.readthedocs.io>`_.

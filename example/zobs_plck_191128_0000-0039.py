@@ -8,18 +8,18 @@ from zeus2_toolbox import pipeline as z2pipl
 
 # ========================= reduction configuration =============================
 
-ARRAY_MAP_PATH = "../ref/array_map_excel_alternative_20211101.csv"
+ARRAY_MAP_PATH = "../data/array_map_excel_alternative_20211203.csv"
 # path to the array map file, leave None if you don't want to use any array map
-OBS_LOG_DIR = None
+OBS_LOG_DIR = "../data/all_apex_2019/apex_logs/obslogs"
 # path to the folder containing the APEX html observation log files, leave None
 # if you don't need/have obs logs
-BAND = 350  # choose the band you would like to use for the array map, the
+BAND = 400  # choose the band you would like to use for the array map, the
 # accepted values are 200, 350, 400 and 450, leave None if you
 # want to use the whole array map
 
-DATA_DIR = "/data/cryo/20191128/"
+DATA_DIR = "../data/all_apex_2019/20191128/"
 # path to the folder containing the data
-WRITE_DIR = "../test"
+WRITE_DIR = "../nb/test"
 # path to the folder to save the reduction result like figures or tables, leave
 # None if you want to use the current folder
 

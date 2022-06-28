@@ -5,7 +5,7 @@ for the science data taken with the zobs command.
 
 from zeus2_toolbox import pipeline as z2pipl
 
-# ========================= reduction configuration =============================
+# =========================== reduction configuration ===========================
 
 ARRAY_MAP_PATH = None  # path to the array map file, leave None if you don't want
 # to use any array map
@@ -77,7 +77,7 @@ PLOT_SAVE = True  # flag whether to save the figures as png files
 ANALYZE = True  # flag whether to perform pixel performance analyze based on rms
 # and power spectrum
 
-# ======================= run the reduction pipeline ===========================
+# ========================= run the reduction pipeline =========================
 
 array_map = z2pipl.ArrayMap.read(ARRAY_MAP_PATH)
 if BAND is not None:

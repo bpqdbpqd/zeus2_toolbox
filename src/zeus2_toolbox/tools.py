@@ -9,6 +9,14 @@ from numpy.linalg import lstsq
 from astropy import units, constants
 
 
+def custom_formatwarning(message, category, *args, **kwargs):
+    # ignore everything except the message
+    return "%s: %s\n" % (category.__name__, message)
+
+
+warnings.formatwarning = custom_formatwarning
+
+
 def gaussian(x, x0=0, sigma=1, amp=1, norm=False):
     """
     return the evaluation of gaussian distribution with center x0 and sigma at
@@ -88,7 +96,6 @@ def proc_array(arr, method="mean", axis=None, **kwargs):
     :raises ValueError: invalid method name
     """
 
-    arr = np.asarray(arr)
     func_dict = {"nanmad": lambda arr, axis: median_abs_deviation(
             arr, axis=axis, nan_policy="omit"),
                  "mad": lambda arr, axis: median_abs_deviation(
@@ -107,7 +114,7 @@ def proc_array(arr, method="mean", axis=None, **kwargs):
     if method in func_dict:
         func = func_dict[method]
     elif hasattr(np, method):
-        func = eval("np.%s" % method)
+        func = np.__dict__[method]
     else:
         raise ValueError("Input method is not a numpy function or valid name.")
 
@@ -236,8 +243,8 @@ def freq_to_wl(freq, freq_unit="GHz", wl_unit="um"):
     :rtype: float or numpy.ndarray
     """
 
-    wl = (constants.c / freq / units.Unit(freq_unit) /
-          units.Unit(wl_unit)).to(1).to_value()
+    wl = (constants.c / units.Unit(freq_unit)).to(units.Unit(wl_unit)). \
+             to_value() / freq
 
     return wl
 
@@ -258,8 +265,8 @@ def wl_to_freq(wl, wl_unit="um", freq_unit="GHz"):
     :rtype: float or numpy.ndarray
     """
 
-    freq = (constants.c / wl / units.Unit(wl_unit) /
-            units.Unit(freq_unit)).to(1).to_value()
+    freq = (constants.c / units.Unit(wl_unit)).to(units.Unit(freq_unit)). \
+               to_value() / wl
 
     return freq
 

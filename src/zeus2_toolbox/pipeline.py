@@ -1,10 +1,8 @@
 """
-Functions for the pipeline reduction. requirements: BeautifulSoup, numpy >= 1.13
+Functions for the pipeline reduction.
 
-Note: intel dist Python has a problem with Numpy such that operations on very
-large arrays may create a lock, which make any future multiprocessing threads
-wait forever, breaking the parallelization function. If you notice the thread
-seems to frozen with parallel=True, try running it against with parallel=False
+requirements:
+    beautifulsoup4, numpy >= 1.13, scipy
 """
 
 import multiprocessing
@@ -12,9 +10,17 @@ import pkgutil
 
 from scipy.optimize import curve_fit
 from scipy.signal import convolve
-from sklearn.decomposition import FastICA
 
 from .view import *
+
+try:
+    import sklearnex
+
+    sklearnex.patch_sklearn()
+except ImportError:
+    pass
+
+from sklearn.decomposition import FastICA
 
 # define many default values used for the pipeline reduction
 MATCH_SAME_PHASE = False  # default phase matching flag for stacking beam pairs,
@@ -23,7 +29,7 @@ STACK_FACTOR = 1  # default factor for the second beam in stacking beam pairs
 
 MAD_THRE_BEAM = 7  # default MAD threshold for flagging ordinary observation
 STD_THRE_FLAT = 2  # default MAD threshold for flagging skychop/flat
-THRE_FLAG = 1E7  # absolute value threshold of the time series to flag a pixel
+THRE_FLAG = 5E7  # absolute value threshold of the time series to flag a pixel
 SNR_THRE = 50  # default SNR threshold to flag pixel for flat field
 MAD_THRE_BEAM_ERR = 10  # default MAD threshold for flagging pixel based on error
 
@@ -48,7 +54,7 @@ CHUNK_WEIGHT = True  # default flag for using weighted average of chunk when
 
 ORIENTATION = "horizontal"  # default orientation for making figure
 
-MAX_THREAD_NUM = multiprocessing.cpu_count() - 1
+MAX_THREAD_NUM = multiprocessing.cpu_count()
 
 NOD_PHASE = -1  # -1 means source is in on chop when beam is right, otherwise 1
 NOD_COLNAME = "beam_is_R"  # column name in obs_info recording nodding phase
@@ -62,31 +68,36 @@ try:  # load sky transmission_raw data
                        decode("utf-8"), format="ascii.csv")
 except Exception as err:
     warnings.warn("Failed to load transmission_raw data resource " +
-                  "due to %s: %s" % (type(err), err))
+                  "due to %s: %s" % (type(err), err), UserWarning)
     TRANS_TB = None
-try:
-    COL_BIAS_TB = Tb.read(
-            pkgutil.get_data(__name__, "resources/column_line_map.csv").
-            decode("utf-8"), format="ascii.csv")
+try:  # load bias line - MCE column map table
+    COL_BIAS_TB = Tb.read(pkgutil.get_data(
+            __name__, "resources/column_line_map.csv").decode("utf-8"),
+                          format="ascii.csv")
     COL_BIAS_MAP = {col_idx: bias_idx for (col_idx, bias_idx) in
                     zip(COL_BIAS_TB["mce_col"], COL_BIAS_TB["bias_idx"])}
 except Exception as err:
     warnings.warn("Failed to load MCE column - bias line map resource " +
-                  "due to %s: %s" % (type(err), err))
+                  "due to %s: %s" % (type(err), err), UserWarning)
     COL_BIAS_MAP = None
 
 warnings.filterwarnings("ignore", message="invalid value encountered in greater")
 warnings.filterwarnings("ignore", message="invalid value encountered in less")
 warnings.filterwarnings("ignore", message="invalid value encountered in multiply")
 warnings.filterwarnings("ignore", message="divide by zero encountered in log10")
+warnings.filterwarnings(
+        "ignore", message="Warning: converting a masked element to nan.")
+warnings.filterwarnings(
+        "ignore", message="From version 1.3 whiten='unit-variance' will " +
+                          "be used by default.", category=FutureWarning)
 
-
-def custom_formatwarning(message, category, *args, **kwargs):
-    # ignore everything except the message
-    return "%s: %s\n" % (category.__name__, message)
-
-
-warnings.formatwarning = custom_formatwarning
+if hasattr(np, "__mkl_version__"):
+    warnings.warn("""
+    intel dist Python has a problem with Numpy such that operations on very
+    large arrays may create a lock, which makes any future multiprocessing 
+    threads wait forever, breaking the parallelization function. If you notice 
+    that the program seems to frozen with parallel=True, try running it again 
+    with parallel=False.""", UserWarning)
 
 
 def check_parallel():
@@ -103,13 +114,32 @@ def check_parallel():
         warnings.warn("Parallelization is not supported on this machine: " +
                       "multiprocessing.Pool.starmap() is not found, " +
                       "need Python >= 3.3.", UserWarning)
-    elif MAX_THREAD_NUM <= 1:
+    elif MAX_THREAD_NUM <= 2:
         warnings.warn("Parallelization is not supported on this machine: " +
-                      "MAX_THREAD_NUM <= 1.", UserWarning)
+                      "MAX_THREAD_NUM <= 2.", UserWarning)
     else:
         flag = True
 
     return flag
+
+
+def parallel_run(func, args_list):
+    """
+    a helper function to run in parallel
+
+    :param func: function to run in parallel
+    :param list args_list: list of args as input for the input func
+    """
+
+    gc.collect()
+    num_thread = np.clip(len(args_list), a_min=2,
+                         a_max=int(MAX_THREAD_NUM * 4 / 5))
+    with multiprocessing.get_context("fork").Pool(
+            min(MAX_THREAD_NUM, len(args_list))) as pool:
+        print("running in parallel on %i threads." % num_thread)
+        results = pool.starmap(func, args_list)
+
+    return results
 
 
 def transmission_raw_range(freq_ran, pwv, elev=60):
@@ -522,7 +552,7 @@ def stack_best_pixels(obs, ref_pixel=None, corr_thre=0.6, min_pix_num=10,
     other pixels as the reference pixel. But this process may take a long time
     because a correlation matrix of all the pixels in the input data will be
     calculated. After the well correlated pixels are found, they are stacked by
-    first dividing by their nanstd along time, then take the average of all
+    first dividing by their nanstd in time axis, then take the average of all
     pixels at each time stamp.
 
     :param obs: Obs or ObsArray Object
@@ -829,7 +859,7 @@ def get_match_phase_pair(obs):
     :param obs: the input object
     :type obs: Obs or ObsArray
     :return: tuple of (obs_on, obs_off) containing the part that are on and off
-        chop phase that an be paired
+        chop phase that can be paired
     :rtype: tuple
     """
 
@@ -850,7 +880,7 @@ def weighted_proc_along_axis(obs, method="nanmean", weight=None, axis=-1):
     :type obs: Obs or ObsArray
     :param str method: method of mean calculation, supported values are 'mean',
         'median', 'nanmean', 'nanmedian'
-    :param weight: Obs or ObsArray object containing weight, should of the same
+    :param weight: Obs or ObsArray object containing weight, should be the same
         type as obs. If left None, will treat all data point as the same weight.
     :type weight: Obs or ObsArray
     :param int axis: the axis along which the mean of obs.data_ will be
@@ -936,7 +966,7 @@ def get_chop_flux(obs, chunk_method="nanmedian", method="nanmean",
         weighted_proc_along_axis() to calculate the flux and error, suggested
         values are "nanmean" or "nanmedian"
     :param str err_type: str, allowed values are 'internal' and 'external'
-    :param weight: Obs or ObsArray object containing weight, should of the same
+    :param weight: Obs or ObsArray object containing weight, should be the same
         type as obs. If left None, will treat all data point as the same weight.
     :type weight: Obs or ObsArray
     :param bool on_off: bool flag of flux calculation using on chop - off chop,
@@ -1058,7 +1088,8 @@ def auto_flag_ts(obs, is_flat=False):
                 abs(obs_new - obs_new.proc_along_time(method="nanmean")).data_ > \
                 STD_THRE_FLAT * obs_new.proc_along_time(method="nanstd").data_
         else:  # flag by MAD
-            outlier_mask = obs_new.get_double_nanmad_flag(thre=MAD_THRE_BEAM, axis=-1)
+            outlier_mask = obs_new.get_double_nanmad_flag(
+                    thre=MAD_THRE_BEAM, axis=-1)
     else:  # flat on and off chop separately by MAD
         outlier_mask = np.full(obs_new.shape_, fill_value=False, dtype=bool)
         outlier_mask[..., obs_new.chop_.data_] = \
@@ -1089,12 +1120,8 @@ def auto_flag_pix_by_ts(obs, thre_flag=THRE_FLAG):
     obs_array = ObsArray(obs)
     array_map = obs_array.array_map_
 
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-                "ignore", message="invalid value encountered in greater")
-        return array_map.take_by_flag(np.any(
-                abs(obs_array.data_) > thre_flag, axis=-1)). \
-            array_idxs_.tolist()
+    return array_map.take_by_flag(np.any(abs(
+            obs_array.data_) > thre_flag, axis=-1)).array_idxs_.tolist()
 
 
 def auto_flag_pix_by_flux(obs_flux, obs_err, pix_flag_list=[], is_flat=False,
@@ -1255,8 +1282,8 @@ def ica_treat_beam(obs, spat_excl=None, pix_flag_list=[], verbose=VERBOSE,
                     n_components=min(n_components_init, obs_use.shape_[0]),
                     fun='exp', max_iter=max_iter, random_state=random_state)
             obs_use = gaussian_filter_obs(
-                    obs_use, freq_sigma=15, chunk_edges_ncut=0,
-                    edge_chunks_ncut=0)
+                    obs_use, freq_sigma=15, chunk_edges_ncut=4,
+                    edge_chunks_ncut=1)
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", message=
                 "FastICA did not converge. Consider increasing tolerance or" +
@@ -1330,8 +1357,8 @@ def plot_beam_ts(obs, title=None, pix_flag_list=[], reg_interest=None,
         write_header = obs0.obs_id_
     if isinstance(obs0, (Obs, ObsArray)) and (not obs0.ts_.empty_flag_):
         obs_t_len = obs0.t_end_time_ - obs0.t_start_time_
-        x_size = min(max((obs_t_len / units.hour).to(1).value / 2,
-                         FigArray.x_size_), FigArray.x_size_ * 20)
+        x_size = np.clip(obs_t_len.to(units.hour).to_value() / 2,
+                         a_min=FigArray.x_size_, a_max=FigArray.x_size_ * 40)
     else:
         x_size = FigArray.x_size_
     array_map_use = array_map if reg_interest is None else \
@@ -1339,7 +1366,7 @@ def plot_beam_ts(obs, title=None, pix_flag_list=[], reg_interest=None,
     x_len = array_map_use.array_spec_.max() - array_map_use.array_spec_.min() + \
             1 if check_orientation(orientation=orientation) else \
         array_map_use.array_spat_.max() - array_map_use.array_spat_.min() + 1
-    x_size = min(x_size, 1200 / x_len)
+    x_size = min(x_size, 400 / x_len)
 
     fig = FigArray.init_by_array_map(array_map_use,
                                      orientation=orientation, x_size=x_size)
@@ -1449,8 +1476,7 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
     if (write_header is None) and plot:
         write_header = os.path.join(os.getcwd(), beam.obs_id_)
     beam_chop_rms = beam.chunk_proc(method="nanstd")
-    beam_chop_rms.fill_by_mask(
-            beam.chunk_proc(method="num_is_finite").data_ <= 10)
+    beam_chop_rms.fill_by_mask(beam.chunk_proc(method="num_is_finite") <= 10)
     beam_chop_rms.fill_by_mask(
             beam_chop_rms.get_nanmad_flag(thre=MAD_THRE_BEAM, axis=-1))
     beam_chop_wt = beam.chunk_proc(method="num_is_finite")
@@ -1762,7 +1788,7 @@ def make_raster(beams_flux, beams_err=None, write_header=None, pix_flag_list=[],
     format the last dimension of the input object recording beams flux into 2-d
     raster, then plot the raster; the raster always starts from the lower left,
     then swipe to the right, move upwards by one, swiping to the left and so on,
-    zigzaging to the top row.
+    zigzagging to the top row.
 
     :param beams_flux: Obs or ObsArray, with flux of all the beams in the last
         dimension
@@ -1831,7 +1857,7 @@ def make_raster(beams_flux, beams_err=None, write_header=None, pix_flag_list=[],
         beams_flux_obs_array = \
             beams_flux_obs_array.take_by_idx_along_time(range(raster_len))
 
-    raster_flux = beams_flux_obs_array.replace(arr_in=np.where(  # rearrange shpe
+    raster_flux = beams_flux_obs_array.replace(arr_in=np.where(  # rearrange shape
             np.arange(raster_shape[1])[:, None] % 2,
             beams_flux_obs_array.data_.reshape(
                     *beams_flux_obs_array.shape_[:-1],
@@ -1875,7 +1901,7 @@ def make_raster(beams_flux, beams_err=None, write_header=None, pix_flag_list=[],
                     result = curve_fit(
                             gauss_2d_fit, xdata=(xx[finite_mask], yy[finite_mask]),
                             ydata=pix_raster[finite_mask], p0=(0, 0, 1, 1, 0))
-                    text_list += [["x0=%.2f\ny0=%.2f\nsigma=%.1f" %
+                    text_list += [["x0=%.2f\ny0=%.2f\n sigma=%.1f" %
                                    tuple(result[0][:3])]]
                 except RuntimeError:
                     text_list += [["fitting\nfailed"]]
@@ -1949,7 +1975,7 @@ def stack_raster(raster, raster_wt=None, write_header=None, pix_flag_list=[],
         fig.set_xlabel("azimuth")
         fig.set_ylabel("altitude")
         fig.set_labels(raster, orientation=ORIENTATION)
-        fig.set_title(title="%s\nstacked raster" % write_header.split("/")[-1])
+        fig.set_title(title="%s\n stacked raster" % write_header.split("/")[-1])
         if plot_show:
             plt.show()
         if plot_save:
@@ -1971,7 +1997,7 @@ def stack_raster(raster, raster_wt=None, write_header=None, pix_flag_list=[],
                     result = curve_fit(
                             gauss_2d_fit, xdata=(xx[finite_mask], yy[finite_mask]),
                             ydata=pix_raster[finite_mask], p0=(0, 0, 1, 1, 0))
-                    text_list += [["x0=%.2f\ny0=%.2f\nsigma=%.1f" %
+                    text_list += [["x0=%.2f\ny0=%.2f\n sigma=%.1f" %
                                    tuple(result[0][:3])]]
                 except RuntimeError:
                     text_list += [["fitting\nfailed"]]
@@ -1981,7 +2007,7 @@ def stack_raster(raster, raster_wt=None, write_header=None, pix_flag_list=[],
         fig = FigArray.write_text(
                 stacked_raster.replace(arr_in=text_list),
                 orientation=ORIENTATION, text_fontsize=20)
-        fig.set_title(title="%s\nstacked raster fit" %
+        fig.set_title(title="%s\n stacked raster fit" %
                             write_header.split("/")[-1])
         if plot_show:
             plt.show()
@@ -2208,7 +2234,7 @@ def read_beams(file_header_list, array_map=None, obs_log=None, flag_ts=True,
     :param bool is_flat: bool, flag whether the beam is flat/skychop, passed to
         auto_flag_ts(), default False
     :param bool parallel: bool, flag whether to run it in parallelized mode,
-        would accelerate the process by many factors on a multi-core machine
+        would accelerate the process by many factors on a multicore machine
     :return: Obs or ObsArray object containing all the data concatenated
     :rtype: Obs or ObsArray
     """
@@ -2221,10 +2247,7 @@ def read_beams(file_header_list, array_map=None, obs_log=None, flag_ts=True,
         args_list.append(args)
 
     if parallel and check_parallel():
-        gc.collect()
-        with multiprocessing.get_context("fork").Pool(
-                min(MAX_THREAD_NUM, len(args_list))) as pool:
-            results = pool.starmap(read_beam, args_list)
+        results = parallel_run(func=read_beam, args_list=args_list)
     else:
         results = []
         for args in args_list:
@@ -2280,9 +2303,9 @@ def reduce_beams(data_header, data_dir=None, write_dir=None, write_suffix="",
     args_list = []  # build variable list for reduce_beam()
     flat_flux_group_flag, flat_err_group_flag = False, False
     if isinstance(flat_flux, (Obs, ObsArray)) and flat_flux.len_ > 1:
-        flat_flux_group_flag, flat_flux_group = True, flat_flux
+        flat_flux_group_flag, flat_flux_group = True, flat_flux.copy()
     if isinstance(flat_err, (Obs, ObsArray)) and flat_err.len_ > 1:
-        flat_err_group_flag, flat_err_group = True, flat_err
+        flat_err_group_flag, flat_err_group = True, flat_err.copy()
     i = 0
     for header in data_header:
         for idxs in data_header[header]:
@@ -2300,10 +2323,7 @@ def reduce_beams(data_header, data_dir=None, write_dir=None, write_suffix="",
                 args_list.append(args)
 
     if parallel and check_parallel():
-        gc.collect()
-        with multiprocessing.get_context("fork").Pool(
-                min(MAX_THREAD_NUM, len(args_list))) as pool:
-            results = pool.starmap(reduce_beam, args_list)
+        results = parallel_run(func=reduce_beam, args_list=args_list)
     else:
         results = []
         for args in args_list:
@@ -2419,14 +2439,12 @@ def reduce_beam_pairs(data_header, data_dir=None, write_dir=None,
                 for var_name in inspect.getfullargspec(reduce_beam_pair)[0]:
                     args += (locals()[var_name],)
                 args_list.append(args)
+            del beams_info, beams_left, beams_right
         if len(args_list) == 0:
             raise RuntimeError("No beam pair is matched, may not be nodding.")
 
     if parallel and check_parallel():
-        gc.collect()
-        with multiprocessing.get_context("fork").Pool(
-                min(MAX_THREAD_NUM, len(args_list))) as pool:
-            results = pool.starmap(reduce_beam_pair, args_list)
+        results = parallel_run(func=reduce_beam_pair, args_list=args_list)
     else:
         results = []
         for args in args_list:
@@ -2826,6 +2844,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
 
 # TODO: return intermediate result
 # TODO: add write suffix automatically
+
 
 def reduce_calibration(data_header, data_dir=None, write_dir=None,
                        write_suffix="", array_map=None, obs_log=None,

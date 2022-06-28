@@ -4,6 +4,9 @@
 # @Version : 2.0
 """
 Visualization of data
+
+requirements:
+    matplotlib, pillow
 """
 
 from matplotlib import cm, colors, font_manager
@@ -348,8 +351,9 @@ class FigFlux(Figure):
                 super(FigFlux, self).savefig(buffer, *args, **save_kwarg)
                 buffer.seek(0)
                 with Image.open(buffer) as im:
-                    im2 = im.convert('RGB').convert(
-                            'P', palette=Image.Palette.ADAPTIVE)
+                    palette = Image.Palette.ADAPTIVE if \
+                        hasattr(Image, "Palette") else Image.ADAPTIVE
+                    im2 = im.convert("RGB").convert("P", palette=palette)
                     return im2.save(fp=fname, format=fmt, optimize=True,
                                     quality=50)
 
@@ -1053,6 +1057,8 @@ class FigArray(FigFlux):
         ax = axs_use[idx[0]]
         if "fontsize" not in kwargs:
             kwargs["fontsize"] = self.axs_fontsize_
+        if "loc" not in kwargs:
+            kwargs["loc"] = "lower right" if twin_axes else "upper left"
         ax.legend(*args, **kwargs)
 
     def scatter(self, obs_array, s=0.2, c=None, marker=".", twin_axes=False,
@@ -1520,7 +1526,7 @@ class FigArray(FigFlux):
 
     @classmethod
     def plot_psd(cls, obs_array, freq_ran=(0.5, 6), scale="linear",
-                 orientation=None, dpi=150, fontsize=None,
+                 xscale="linear", orientation=None, dpi=150, fontsize=None,
                  axs_fontsize=None, x_size=None, y_size=None, **kwargs):
         """
         Initialize a figure with the size best suited for the input data, then
@@ -1535,6 +1541,8 @@ class FigArray(FigFlux):
         :type freq_ran: tuple or list or numpy.ndarray
         :param str scale: str flag of the scale, only "linear", "log" and "dB"
             are accepted
+        :param str xscale: str, passed to set_xscale() method setting the scale
+            of the plotted x-axis
         :param str orientation: str, allowed values are 'horizontal' and
             'vertical', if 'horizontal', row will be spatial positional and
             column will be spectral position; if left None, class default
@@ -1552,7 +1560,8 @@ class FigArray(FigFlux):
                 array_map=obs_array_plot.array_map_, orientation=orientation,
                 dpi=dpi, fontsize=fontsize, axs_fontsize=axs_fontsize,
                 x_size=x_size, y_size=y_size)
-        fig.psd(obs_array=obs_array, scale=scale, freq_ran=freq_ran, **kwargs)
+        fig.psd(obs_array=obs_array, scale=scale, xscale=xscale,
+                freq_ran=freq_ran, **kwargs)
         array_type = "tes" if isinstance(obs_array, ObsArray) else "mce"
         fig.set_labels(array_type=array_type, orientation=orientation)
 
@@ -1702,7 +1711,7 @@ class FigSpec(FigFlux):
         :param xlim: xlim to set for individual (Obs/ObsArray input) or all
             (tuple input) pixel axes. If left None, will pick the xlim suitable
             xlim all spatial axes
-        :type xlim: tuple or list or Obs or ObsArray
+        :type xlim: tuple or list or Obs or ObsArray or None
         :param bool twin_axes: bool flag, whether to apply on the secondary
             y-axis
         :raises ValueError: axes list not initialized
@@ -1751,7 +1760,7 @@ class FigSpec(FigFlux):
         :param ylim: ylim to set for individual (Obs/ObsArray input) or all
             (tuple input) pixel axes. If left None, will pick the ylim suitable
             ylim for all pixel axes
-        :type ylim: tuple or list or Obs or ObsArray
+        :type ylim: tuple or list or Obs or ObsArray or None
         :param bool twin_axes: bool flag, whether to apply on the secondary
             y-axis
         :raises ValueError: axes list not initialized
@@ -1845,6 +1854,8 @@ class FigSpec(FigFlux):
         ax = axs_use[0]
         if "fontsize" not in kwargs:
             kwargs["fontsize"] = self.axs_fontsize_
+        if "loc" not in kwargs:
+            kwargs["loc"] = "lower right" if twin_axes else "upper left"
         ax.legend(*args, **kwargs)
 
     def plot(self, obs_array, *args, mask=None, pix_flag_list=None,

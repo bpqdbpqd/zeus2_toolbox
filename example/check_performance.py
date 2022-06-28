@@ -6,7 +6,7 @@ The time taken to run the analysis on spectrosaurusrex is roughly 0.1s/pix/beam
 
 from zeus2_toolbox import pipeline as z2pipl
 
-# ========================= reduction configuration =============================
+# =========================== reduction configuration ===========================
 
 ARRAY_MAP_PATH = None  # path to the array map file, leave None if you don't want
 # to use any array map
@@ -61,7 +61,7 @@ PLOT_FLUX = True  # flag whether to plot the rms in 2-d array layout
 PLOT_SHOW = False  # flag whether to show the figures, can slow down the reduction
 PLOT_SAVE = True  # flag whether to save the figures as png files
 
-# ======================= run the reduction pipeline ===========================
+# ========================= run the reduction pipeline =========================
 
 array_map = z2pipl.ArrayMap.read(ARRAY_MAP_PATH)
 if BAND is not None:
