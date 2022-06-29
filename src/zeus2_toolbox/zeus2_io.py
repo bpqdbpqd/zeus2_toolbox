@@ -4369,7 +4369,7 @@ def real_units(bias, fb, mce_col=-1, mce_bias_r=467, dewar_bias_r=49,
     :param int fb_dac_bits: int, feedback DAC bit number, default 14
     """
 
-    col = np.reshape(mce_col, reshape=(-1, 1))
+    col = np.reshape(mce_col, newshape=(-1, 1))
     alt_col = np.reshape(alt_col_list, newshape=(1, -1))
     shunt_r_use = np.choose(np.any(col == alt_col, axis=1),
                             (shunt_r, alt_shunt_r))  # pick the shunt_r to use
