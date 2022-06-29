@@ -1224,8 +1224,8 @@ class ArrayMap(DataObj):
             raise ValueError("Inconsistent length of input flag_arr.")
 
         array_map_new = self.take_by_flag_along_axis(flag_arr, axis=0)
-        if self.band_flag_:
-            array_map_new.set_band(self.band_)
+        array_map_new.band_flag_ = self.band_flag_
+        array_map_new.band_ = self.band_
         array_map_new.conf_kwargs_.update(self.conf_kwargs_)
         if self.wl_flag_:
             array_map_new.wl_flag_ = True
@@ -1701,9 +1701,9 @@ class ArrayMap(DataObj):
 
         idx_arr = self.index_sort(keys=keys)
         array_map_new = self.replace(arr_in=self.data_[idx_arr])
-        if self.band_ != 0:
-            array_map_new.set_band(self.band_)
-        array_map_new.conf_kwargs_ = self.conf_kwargs_.copy()
+        array_map_new.band_flag_ = self.band_flag_
+        array_map_new.band_ = self.band_
+        array_map_new.conf_kwargs_.update(self.conf_kwargs_)
         if self.wl_flag_:
             array_map_new.wl_flag_ = True
             array_map_new.array_wl_ = self.array_wl_[idx_arr]
@@ -4315,30 +4315,44 @@ def nfft_obs(obs, nfft=5., noverlap=4.):
     return obs_nfft, freq_ts
 
 
-def real_units(bias, fb, mce_bias_r=467, dewar_bias_r=49, shunt_r=180E-6,
+def real_units(bias, fb, mce_col=-1, mce_bias_r=467, dewar_bias_r=49,
+               shunt_r=180E-6, alt_shunt_r=140, alt_col_list=(0, 3, 4),
                dewar_fb_r=5280, butterworth_constant=1218,
                rel_fb_inductance=9, max_bias_voltage=5, max_fb_voltage=0.958,
                bias_dac_bits=16, fb_dac_bits=14):
     """
-    Given an array of biases and corresponding array of feedbacks (all in DAC units)
-    calculate the actual current and voltage going through the TES.
+    Given an array of biases and corresponding array of feedbacks (all in DAC
+    units), calculate the actual current and voltage going through the TES.
     Returns: (TES voltage array, TES current array) in Volts and Amps respectively.
     The default values are taken from Carl's script
 
-    Modified from `zeustools/iv_tools
+    Modified from `zeustools/iv_tools.real_units
     <https://github.com/NanoExplorer/zeustools/blob/master/zeustools/iv_tools.py>`_
+    and keeps updated
 
     :param bias: scalar or array, tes bias value(s) in adc unit
     :rtype bias: int or float or numpy.ndarray
     :param fb: scalar or array, sq1 feedback value(s) in adc unit, must have the
-        shape such that bias * fb yields valid result
+        shape such that bias * fb * mce_col yields valid result
     :rtype fb: int or float or numpy.ndarray
+    :param int or numpy.ndarray mce_col: int scalar or array, the MCE column
+        number of the input data, because the resistor differs on a column base
+        according to  zeustools.iv_tools.real_units() description; must have the
+        shape such that bias * fb * mce_col yields valid result; default -1 is
+        not a physical column number, but it makes sure that the default
+        shunt_r is used
     :param int or float mce_bias_r: scalar, MCE bias resistance in ohm, default
         467 ohm
     :param int or float dewar_bias_r: scalar, dewar bias resistance in ohm,
         default 49 ohm
-    :param int or float shunt_r: scalar, shunt resistance in ohm, default 180
-        uOhm
+    :param int or float shunt_r: scalar, the default shunt resistance in ohm used
+        for data of MCE column not in the alt_col_list, default 180 uOhm
+        corresponding to actpol_R in zeustools.iv_tools.real_units()
+    :param int or float alt_shunt_r: scalar, the alternative shunt resistance in
+        ohm used for data of MCE column in the alt_col_list, default
+        140 uOhm corresponding to cmb_R in zeustools.iv_tools.real_units()
+    :param tuple or list alt_col_list: list of MCE columns using the alternative
+        shunt resistor, corresponding to cmb_shunts in zeustool.real_units()
     :param int or float dewar_fb_r: scalar, dewar feedback resistance in ohm,
         default 5280 ohm
     :param int or float butterworth_constant: scalar, when running in data mode 2
@@ -4355,6 +4369,11 @@ def real_units(bias, fb, mce_bias_r=467, dewar_bias_r=49, shunt_r=180E-6,
     :param int fb_dac_bits: int, feedback DAC bit number, default 14
     """
 
+    col = np.reshape(mce_col, reshape=(-1, 1))
+    alt_col = np.reshape(alt_col_list, newshape=(1, -1))
+    shunt_r_use = np.choose(np.any(col == alt_col, axis=1),
+                            (shunt_r, alt_shunt_r))  # pick the shunt_r to use
+
     bias_raw_voltage = bias / 2 ** bias_dac_bits * max_bias_voltage * 2
     # last factor of 2 is because voltage is bipolar
     bias_current = bias_raw_voltage / (dewar_bias_r + mce_bias_r)
@@ -4366,6 +4385,6 @@ def real_units(bias, fb, mce_bias_r=467, dewar_bias_r=49, shunt_r=180E-6,
 
     shunt_current = bias_current - tes_current
 
-    tes_voltage = shunt_current * shunt_r
+    tes_voltage = shunt_current * shunt_r_use
 
     return tes_voltage, tes_current
