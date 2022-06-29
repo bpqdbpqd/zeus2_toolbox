@@ -599,9 +599,12 @@ class DataObj(BaseObj):
         return self.replace(arr_in=arr_new)
 
     def __check_axis__(self, axis):
-        if int(axis) not in range(-self.ndim_, self.ndim_):
-            raise ValueError("Invalid axis value: %i." % axis)
-        return int(axis) if (axis >= 0) else int(self.ndim_ + axis)
+        if axis is None:
+            return axis
+        else:
+            if int(axis) not in range(-self.ndim_, self.ndim_):
+                raise ValueError("Invalid axis value: %i." % axis)
+            return int(axis) if (axis >= 0) else int(self.ndim_ + axis)
 
     def update_type(self, dtype):
         """
@@ -682,7 +685,8 @@ class DataObj(BaseObj):
 
         :param float thre: float, data with abs distance > thre*MAD will be
             flagged
-        :param int axis: int, axis along which the mad will be checked
+        :param int or None axis: int, axis along which the mad will be checked,
+            if input is None, the data of the whole array will be used
         :return: array, bool values of flag
         :rtype: numpy.ndarray
         """
@@ -698,8 +702,8 @@ class DataObj(BaseObj):
         series and saves more data
 
         :param float thre: float, data with abs distance > thre*MAD will be flagged
-        :param int axis: int, axis along which the mad will be checked, if input
-            is None, will use the median of the whole array
+        :param int or None axis: int, axis along which the mad will be checked,
+            if input is None, will use the median of the whole array
         :param flat frac_thre: float, between 0 and 1, threshold of the fraction
             of data flagged in the first time nanmad_flag() to perform nanmad_flag()
             and try to unflag some data
@@ -4316,7 +4320,7 @@ def nfft_obs(obs, nfft=5., noverlap=4.):
 
 
 def real_units(bias, fb, mce_col=-1, mce_bias_r=467, dewar_bias_r=49,
-               shunt_r=180E-6, alt_shunt_r=140, alt_col_list=(0, 3, 4),
+               shunt_r=180E-6, alt_shunt_r=140E-6, alt_col_list=(0, 3, 4),
                dewar_fb_r=5280, butterworth_constant=1218,
                rel_fb_inductance=9, max_bias_voltage=5, max_fb_voltage=0.958,
                bias_dac_bits=16, fb_dac_bits=14):
@@ -4369,7 +4373,7 @@ def real_units(bias, fb, mce_col=-1, mce_bias_r=467, dewar_bias_r=49,
     :param int fb_dac_bits: int, feedback DAC bit number, default 14
     """
 
-    col = np.reshape(mce_col, reshape=(-1, 1))
+    col = np.reshape(mce_col, newshape=(-1, 1))
     alt_col = np.reshape(alt_col_list, newshape=(1, -1))
     shunt_r_use = np.choose(np.any(col == alt_col, axis=1),
                             (shunt_r, alt_shunt_r))  # pick the shunt_r to use

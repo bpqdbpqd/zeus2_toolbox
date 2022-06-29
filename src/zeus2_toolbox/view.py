@@ -1357,8 +1357,9 @@ class FigArray(FigFlux):
         Initialize a figure with the size fit for the input array_map, with axes
         corresponding to the pixels in array_map
 
-        :param ArrayMap array_map: ArrayMap of the array layout, the spat and
-            spec information will be used
+        :param array_map: ArrayMap of the array layout, or Obs or ObsArray
+            object, the spat and spec information will be used
+        :type array_map: ArrayMap or Obs or ObsArray
         :param str orientation: str, allowed values are 'horizontal' and
             'vertical', if 'horizontal', row will be spatial positional and
             column will be spectral position; if left None, class default

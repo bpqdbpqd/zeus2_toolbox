@@ -93,7 +93,7 @@ warnings.filterwarnings(
 
 if hasattr(np, "__mkl_version__"):
     warnings.warn("""
-    intel dist Python has a problem with Numpy such that operations on very
+    Intel dist Python has a problem with Numpy such that operations on very
     large arrays may create a lock, which makes any future multiprocessing 
     threads wait forever, breaking the parallelization function. If you notice 
     that the program seems to frozen with parallel=True, try running it again 
@@ -1124,7 +1124,7 @@ def auto_flag_pix_by_ts(obs, thre_flag=THRE_FLAG):
             obs_array.data_) > thre_flag, axis=-1)).array_idxs_.tolist()
 
 
-def auto_flag_pix_by_flux(obs_flux, obs_err, pix_flag_list=[], is_flat=False,
+def auto_flag_pix_by_flux(obs_flux, obs_err, pix_flag_list=None, is_flat=False,
                           snr_thre=SNR_THRE):
     """
     automatically flag pixel by the flux and error of the beam, return a list of
@@ -1134,9 +1134,9 @@ def auto_flag_pix_by_flux(obs_flux, obs_err, pix_flag_list=[], is_flat=False,
     :type obs_flux: Obs or ObsArray
     :param obs_err: Obs or ObsArray, object containing the error
     :type obs_err: Obs or ObsArray
-    :param list pix_flag_list: list, [[spat, spec], ...] of the pixel not to
-        consider in the auto flagging procedure, which increases the sensitivity
-        to bad pixels
+    :param list or None pix_flag_list: list, [[spat, spec], ...] of the pixel not
+        to consider in the auto flagging procedure, which increases the
+        sensitivity to bad pixels
     :param bool is_flat: bool, flag whether the input is a flat field, which follows
         some flagging criteria
     :param int snr_thre: int, SNR threshold of flat for a pixel not to be flagged,
@@ -1145,6 +1145,7 @@ def auto_flag_pix_by_flux(obs_flux, obs_err, pix_flag_list=[], is_flat=False,
     :rtype: list
     """
 
+    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
     obs_flux_array, obs_err_array = ObsArray(obs_flux), ObsArray(obs_err)
     array_map = obs_flux_array.array_map_
     if is_flat:
@@ -1173,7 +1174,7 @@ def auto_flag_pix_by_flux(obs_flux, obs_err, pix_flag_list=[], is_flat=False,
 # ================= intermediate level reduction functions =====================
 
 
-def desnake_beam(obs, ref_pix=None, pix_flag_list=[], corr_thre=CORR_THRE,
+def desnake_beam(obs, ref_pix=None, pix_flag_list=None, corr_thre=CORR_THRE,
                  min_pix_num=MIN_PIX_NUM, freq_sigma=FREQ_SIGMA,
                  edge_chunks_ncut=EDGE_CHUNKS_NCUT,
                  chunk_edges_ncut=CHUNK_EDGES_NCUT):
@@ -1187,9 +1188,9 @@ def desnake_beam(obs, ref_pix=None, pix_flag_list=[], corr_thre=CORR_THRE,
     :param list ref_pix: list of 2, [spat, spec] for ObsArray input or
         [row, col] for Obs input, the reference pixel to use in desnaking; will
         automatically determine the best correlated pixel if left None
-    :param list pix_flag_list: list, [[spat, spec], ...] or [[row, col], ...] of
-        the pixels not to include in building the snake, passed to
-        stack_best_pixels()
+    :param list or None pix_flag_list: list, [[spat, spec], ...] or
+        [[row, col], ...] of the pixels not to include in building the snake,
+        passed to stack_best_pixels()
     :param float corr_thre: float, the minimum correlation to the reference pixel
         requirement to be used for building the snake model, passed to
         stack_best_pixels() ; use the value of CORR_THRE by default
@@ -1210,6 +1211,7 @@ def desnake_beam(obs, ref_pix=None, pix_flag_list=[], corr_thre=CORR_THRE,
     :rtype: list
     """
 
+    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
     if ref_pix in pix_flag_list:
         warnings.warn("Reference pixel is in pix_flag_list, will ignore ref_pix")
         ref_pix = None
@@ -1230,7 +1232,7 @@ def desnake_beam(obs, ref_pix=None, pix_flag_list=[], corr_thre=CORR_THRE,
     return obs - obs_snake, obs_snake, amp_snake, snake_model
 
 
-def ica_treat_beam(obs, spat_excl=None, pix_flag_list=[], verbose=VERBOSE,
+def ica_treat_beam(obs, spat_excl=None, pix_flag_list=None, verbose=VERBOSE,
                    finite_thre=FINITE_THRE, n_components_init=N_COMPONENTS_INIT,
                    n_components_max=N_COMPONENTS_MAX, max_iter=MAX_ITER,
                    random_state=RANDOM_STATE):
@@ -1245,8 +1247,8 @@ def ica_treat_beam(obs, spat_excl=None, pix_flag_list=[], verbose=VERBOSE,
     :param list spat_excl: list, the spatial position range excluded in building
         noise model using ICA, e.g. spat_excl=[0, 2] means pixels at spat=0,1,2
         will not be used; will use all pixels if let None
-    :param list pix_flag_list: list, [[spat, spec], ...] of pixels to exclude
-        from ICA
+    :param list or None pix_flag_list: list, [[spat, spec], ...] of pixels to
+        exclude from ICA
     :param bool verbose: bool, flag whether to print status of FastICA
     :param float finite_thre: float, fraction of finite data required for a pixel to
         be used in ICA; use FINITE_THRE by default
@@ -1261,6 +1263,7 @@ def ica_treat_beam(obs, spat_excl=None, pix_flag_list=[], verbose=VERBOSE,
     :rtype: list
     """
 
+    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
     obs_array, obs_sources = ObsArray(obs), Obs()
     array_map = obs_array.array_map_
     pix_excl_list = pix_flag_list + array_map.take_by_flag(
@@ -1274,9 +1277,7 @@ def ica_treat_beam(obs, spat_excl=None, pix_flag_list=[], verbose=VERBOSE,
 
     # run ICA
     for col in range(array_map.mce_col_llim_, array_map.mce_col_ulim_ + 1):
-        obs_use = obs_array.exclude_where(
-                spat_spec_list=pix_excl_list, spat_ran=spat_excl, logic="or"). \
-            take_where(col=col).flatten()
+        obs_use = obs_flattened.take_where(col=col)
         if obs_use.shape_[0] > 0:
             ica = FastICA(
                     n_components=min(n_components_init, obs_use.shape_[0]),
@@ -1308,7 +1309,7 @@ def ica_treat_beam(obs, spat_excl=None, pix_flag_list=[], verbose=VERBOSE,
     return obs - ics_noise_beam, ics_noise_beam, ica_amp, obs_sources
 
 
-def plot_beam_ts(obs, title=None, pix_flag_list=[], reg_interest=None,
+def plot_beam_ts(obs, title=None, pix_flag_list=None, reg_interest=None,
                  plot_show=False, plot_save=False, write_header=None,
                  orientation=ORIENTATION):
     """
@@ -1326,8 +1327,8 @@ def plot_beam_ts(obs, title=None, pix_flag_list=[], reg_interest=None,
     :type obs: Obs or ObsArray or list or tuple or dict
     :param str title: str, title of the figure, will use the first available
         obs_id if left None
-    :param list pix_flag_list: list, [[spat, spec], ...] or [[row, col], ...] of
-        the flagged pixels, shown in grey shade
+    :param list or None pix_flag_list: list, [[spat, spec], ...] or
+        [[row, col], ...] of the flagged pixels, shown in grey shade
     :param dict reg_interest: dict, indicating the region of array to plot,
         passed to ArrayMap.take_where(); will plot all the input pixels if
         left None
@@ -1342,6 +1343,7 @@ def plot_beam_ts(obs, title=None, pix_flag_list=[], reg_interest=None,
     :rtype: FigArray
     """
 
+    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
     if isinstance(obs, (Obs, ObsArray, np.ndarray)):
         obs0 = obs
     elif isinstance(obs, dict):
@@ -1407,7 +1409,7 @@ def plot_beam_ts(obs, title=None, pix_flag_list=[], reg_interest=None,
     return fig
 
 
-def plot_beam_flux(obs, title=None, pix_flag_list=[], plot_show=False,
+def plot_beam_flux(obs, title=None, pix_flag_list=None, plot_show=False,
                    plot_save=False, write_header=None, orientation=ORIENTATION):
     """
     plot flux for the pipeline reduction
@@ -1416,8 +1418,8 @@ def plot_beam_flux(obs, title=None, pix_flag_list=[], plot_show=False,
     :type obs: Obs or ObsArray
     :param str title: str, title of the figure, will use the obs_id if left
         None
-    :param list pix_flag_list: list, [[spat, spec], ...] or [[row, col], ...] of
-        the flagged pixels, shown in grey shade
+    :param list or None pix_flag_list: list, [[spat, spec], ...] or
+        [[row, col], ...] of the flagged pixels, shown in grey shade
     :param bool plot_show: bool, flag whether to show the figure with plt.show()
     :param bool plot_save: bool, flag whether to save the figure
     :param str write_header: str, path to the file header to write the figure,
@@ -1429,6 +1431,7 @@ def plot_beam_flux(obs, title=None, pix_flag_list=[], plot_show=False,
     :rtype: FigFlux
     """
 
+    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
     if title is None:
         title = obs.obs_id_
     if write_header is None:
@@ -1446,7 +1449,7 @@ def plot_beam_flux(obs, title=None, pix_flag_list=[], plot_show=False,
     return fig
 
 
-def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
+def analyze_performance(beam, write_header=None, pix_flag_list=None, plot=False,
                         plot_rms=False, plot_ts=False, reg_interest=None,
                         plot_psd=True, plot_specgram=False, plot_show=False,
                         plot_save=False):
@@ -1459,7 +1462,7 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
     :type beam: Obs or ObsArray
     :param str write_header: str, full path to the title to save files/figures,
         if left None, will write to current folder with obs_id as the title
-    :param list pix_flag_list: list, a list including pixels to be flagged
+    :param list or None pix_flag_list: list, a list including pixels to be flagged
     :param bool plot: bool, flag whether to make figure
     :param bool plot_rms: bool, flag whether to plot rms in 2-d array layout
     :param bool plot_ts: bool, flag whether to plot time series for each pixel
@@ -1473,6 +1476,7 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
     :rtype: Obs or ObsArray
     """
 
+    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
     if (write_header is None) and plot:
         write_header = os.path.join(os.getcwd(), beam.obs_id_)
     beam_chop_rms = beam.chunk_proc(method="nanstd")
@@ -1601,7 +1605,7 @@ def analyze_performance(beam, write_header=None, pix_flag_list=[], plot=False,
     return beam_rms
 
 
-def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flux=1,
+def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=None, flat_flux=1,
               flat_err=0, cross=False, do_desnake=False, ref_pix=None,
               do_smooth=False, do_ica=False, spat_excl=None, do_clean=False,
               return_ts=False, return_pix_flag_list=False, plot=False,
@@ -1617,10 +1621,10 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flu
     :param bool is_flat: bool, flag indicating this beam is flat field, which will
         use much larger mad flag threshold, flag pixel by SNR, and will not use
         weighted mean in calculating flux
-    :param list pix_flag_list: list, a list including pixels to be flagged, will
-        be combined with auto flagged pixels in making figures and in the returned
-        pix_flag_list, the pixels will be flagged in the figure and the process of
-        modelling noise
+    :param list or None pix_flag_list: list, a list including pixels to be flagged,
+        will be combined with auto flagged pixels in making figures and in the
+        returned pix_flag_list, the pixels will be flagged in the figure and the
+        process of modelling noise
     :param flat_flux: Obs or ObsArray or scalar, the flat field flux to divide in
         computing the beam flux, must have the same shape and array_map; will
         ignore if is_flat is True; default is 1
@@ -1663,7 +1667,8 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flu
     :rtype: tuple
     """
 
-    pix_flag_list = pix_flag_list.copy() + auto_flag_pix_by_ts(beam)  # auto flag
+    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
+    pix_flag_list += auto_flag_pix_by_ts(beam)  # auto flag
     if (write_header is None) and plot:
         write_header = os.path.join(os.getcwd(), beam.obs_id_)
     beam_use, noise_beam = beam, type(beam)()
@@ -1780,7 +1785,7 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=[], flat_flu
     return result
 
 
-def make_raster(beams_flux, beams_err=None, write_header=None, pix_flag_list=[],
+def make_raster(beams_flux, beams_err=None, write_header=None, pix_flag_list=None,
                 raster_shape=ZPOLDBIG_SHAPE, return_pix_flag_list=False,
                 plot=False, reg_interest=None, plot_show=False, plot_save=False,
                 raster_thre=RASTER_THRE):
@@ -1798,9 +1803,10 @@ def make_raster(beams_flux, beams_err=None, write_header=None, pix_flag_list=[],
     :type beams_err: Obs or ObsArray
     :param str write_header: str, full path to the title to save figures,
         if left None, will write to current folder with {obs_id} as the title
-    :param list pix_flag_list: list, a list including pixels to be flagged, will
-        be combined with auto flagged pixels in making figures and in the returned
-        pix_flag_list, additional pixel flagging will be performed based on S/N
+    :param list or None pix_flag_list: list, a list including pixels to be flagged,
+        will be combined with auto flagged pixels in making figures and in the
+        returned pix_flag_list, additional pixel flagging will be performed based
+        on S/N
     :param list raster_shape: list, (az_len, alt_len), dimensional size in the
         azimuthal (horizontal) and elevation (vertical) directions of raster
     :param bool return_pix_flag_list: bool, bool, flag whether to return
@@ -1819,6 +1825,7 @@ def make_raster(beams_flux, beams_err=None, write_header=None, pix_flag_list=[],
     :rtype: tuple
     """
 
+    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
     beams_flux_obs_array = ObsArray(beams_flux.copy())
     array_map = beams_flux_obs_array.array_map_
     raster_len = np.prod(raster_shape, dtype=int)
@@ -1837,7 +1844,7 @@ def make_raster(beams_flux, beams_err=None, write_header=None, pix_flag_list=[],
                   (abs(beams_flux_obs_array - beam_flux_med).data_ > raster_thre *
                    beams_err_obs_array.proc_along_time("nanmedian").data_)),
                 axis=-1)
-        pix_flag_list = pix_flag_list.copy() + array_map.take_by_flag(
+        pix_flag_list += array_map.take_by_flag(
                 pix_flag).array_idxs_.tolist()
         pix_flag_list = np.unique(pix_flag_list, axis=0).tolist()
 
@@ -1926,7 +1933,7 @@ def make_raster(beams_flux, beams_err=None, write_header=None, pix_flag_list=[],
     return result
 
 
-def stack_raster(raster, raster_wt=None, write_header=None, pix_flag_list=[],
+def stack_raster(raster, raster_wt=None, write_header=None, pix_flag_list=None,
                  plot=False, plot_show=False, plot_save=False):
     """
     Stack the raster along spatial dimension to get a high SNR raster, used for
@@ -1939,8 +1946,8 @@ def stack_raster(raster, raster_wt=None, write_header=None, pix_flag_list=[],
     :param str write_header: str, full path to the title to save files/figures,
         if left None, will write to current folder with {obs_id}_raster_stack
         as file header
-    :param list pix_flag_list: list, a list including pixels to be flagged, these
-        pixels will not be used in stacking
+    :param list or None pix_flag_list: list, a list including pixels to be flagged,
+        these pixels will not be used in stacking
     :param bool plot: bool, flag whether to make the figure of the stacked raster
     :param bool plot_show: bool, flag whether to show the figure
     :param bool plot_save: bool, flag whether to save the figure
@@ -1948,6 +1955,7 @@ def stack_raster(raster, raster_wt=None, write_header=None, pix_flag_list=[],
     :rtype: ObsArray
     """
 
+    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
     raster_norm = ObsArray(raster * raster_wt)
     y_len, x_len = raster.shape_[-2:]
     raster_norm -= raster_norm.proc_along_axis("nanmedian", axis=-1). \
@@ -2039,8 +2047,9 @@ def read_beam(file_header, array_map=None, obs_log=None, flag_ts=True,
 
     try:
         beam = Obs.read_header(filename=file_header)  # read in data
-    except:
-        warnings.warn("fail to read in %s." % file_header, UserWarning)
+    except Exception as err:
+        warnings.warn("fail to read in %s due to %s: %s" %
+                      (file_header, type(err), err), UserWarning)
         beam = Obs(obs_id=file_header.split("/")[-1])
     if array_map is not None:  # transform into ObsArray
         if beam.empty_flag_:
@@ -2107,7 +2116,7 @@ def read_beam_pair(file_header1, file_header2, array_map=None, obs_log=None,
 
 
 def reduce_beam(file_header, write_dir=None, write_suffix="", array_map=None,
-                obs_log=None, is_flat=False, pix_flag_list=[], flat_flux=1,
+                obs_log=None, is_flat=False, pix_flag_list=None, flat_flux=1,
                 flat_err=0, cross=False, do_desnake=False, ref_pix=None,
                 do_smooth=False, do_ica=False, spat_excl=None, do_clean=False,
                 return_ts=False,
@@ -2118,8 +2127,8 @@ def reduce_beam(file_header, write_dir=None, write_suffix="", array_map=None,
     a wrapper function to read data and reduce beam in the standard way
     """
 
-    if write_dir is None:
-        write_dir = os.getcwd()
+    write_dir = str(write_dir) if write_dir is not None else os.getcwd()
+    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
     write_suffix = str(write_suffix)
     if (write_suffix != "") and (write_suffix[0] != "_"):
         write_suffix = "_" + write_suffix
@@ -2154,9 +2163,9 @@ def reduce_beam(file_header, write_dir=None, write_suffix="", array_map=None,
 
 
 def reduce_beam_pair(file_header1, file_header2, write_dir=None, write_suffix="",
-                     array_map=None, obs_log=None, is_flat=False, pix_flag_list=[],
-                     flat_flux=1, flat_err=0, do_desnake=False, ref_pix=None,
-                     do_smooth=False, do_ica=False, spat_excl=None,
+                     array_map=None, obs_log=None, is_flat=False,
+                     pix_flag_list=None, flat_flux=1, flat_err=0, do_desnake=False,
+                     ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
                      do_clean=False,
                      return_ts=False, return_pix_flag_list=False, plot=False,
                      plot_ts=False, reg_interest=None, plot_flux=False,
@@ -2165,8 +2174,8 @@ def reduce_beam_pair(file_header1, file_header2, write_dir=None, write_suffix=""
     a wrapper function to read data and reduce beam pair in the standard way
     """
 
-    if write_dir is None:
-        write_dir = os.getcwd()
+    write_dir = str(write_dir) if write_dir is not None else os.getcwd()
+    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
     write_suffix = str(write_suffix)
     if (write_suffix != "") and (write_suffix[0] != "_"):
         write_suffix = "_" + write_suffix
@@ -2285,7 +2294,7 @@ def read_beams(file_header_list, array_map=None, obs_log=None, flag_ts=True,
 
 
 def reduce_beams(data_header, data_dir=None, write_dir=None, write_suffix="",
-                 array_map=None, obs_log=None, is_flat=False, pix_flag_list=[],
+                 array_map=None, obs_log=None, is_flat=False, pix_flag_list=None,
                  flat_flux=1, flat_err=0, cross=False, parallel=False,
                  do_desnake=False, ref_pix=None, do_smooth=False, do_ica=False,
                  spat_excl=None, do_clean=False, return_ts=False,
@@ -2296,10 +2305,9 @@ def reduce_beams(data_header, data_dir=None, write_dir=None, write_suffix="",
     reduce the data of beam in data_header, and return the flux of beams
     """
 
-    if data_dir is None:
-        data_dir = os.getcwd()
-    if write_dir is None:
-        write_dir = os.getcwd()
+    data_dir = str(data_dir) if data_dir is not None else os.getcwd()
+    write_dir = str(write_dir) if write_dir is not None else os.getcwd()
+    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
     args_list = []  # build variable list for reduce_beam()
     flat_flux_group_flag, flat_err_group_flag = False, False
     if isinstance(flat_flux, (Obs, ObsArray)) and flat_flux.len_ > 1:
@@ -2367,7 +2375,7 @@ def reduce_beams(data_header, data_dir=None, write_dir=None, write_suffix="",
 
 def reduce_beam_pairs(data_header, data_dir=None, write_dir=None,
                       write_suffix="", array_map=None, obs_log=None,
-                      is_flat=False, pix_flag_list=[], flat_flux=1, flat_err=0,
+                      is_flat=False, pix_flag_list=None, flat_flux=1, flat_err=0,
                       parallel=False, do_desnake=False, ref_pix=None,
                       do_smooth=False, do_ica=False, spat_excl=None,
                       do_clean=False,
@@ -2381,10 +2389,9 @@ def reduce_beam_pairs(data_header, data_dir=None, write_dir=None,
     :raises RunTimeError: no beam pair is matched
     """
 
-    if data_dir is None:
-        data_dir = os.getcwd()
-    if write_dir is None:
-        write_dir = os.getcwd()
+    data_dir = str(data_dir) if data_dir is not None else os.getcwd()
+    write_dir = str(write_dir) if write_dir is not None else os.getcwd()
+    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
     args_list = []  # build variable list for reduce_beam_pair
     flat_flux_group_flag, flat_err_group_flag = False, False
     if isinstance(flat_flux, (Obs, ObsArray)) and flat_flux.len_ > 1:
@@ -2488,7 +2495,8 @@ def reduce_beam_pairs(data_header, data_dir=None, write_dir=None,
 
 
 def reduce_skychop(flat_header, data_dir=None, write_dir=None, write_suffix="",
-                   array_map=None, obs_log=None, pix_flag_list=[], parallel=False,
+                   array_map=None, obs_log=None, pix_flag_list=None,
+                   parallel=False,
                    return_ts=False, return_pix_flag_list=True, table_save=True,
                    plot=True, plot_ts=True, reg_interest=None, plot_flux=True,
                    plot_show=False, plot_save=True, analyze=False):
@@ -2496,10 +2504,9 @@ def reduce_skychop(flat_header, data_dir=None, write_dir=None, write_suffix="",
     process data taken as skychop
     """
 
-    if data_dir is None:
-        data_dir = os.getcwd()
-    if write_dir is None:
-        write_dir = os.getcwd()
+    data_dir = str(data_dir) if data_dir is not None else os.getcwd()
+    write_dir = str(write_dir) if write_dir is not None else os.getcwd()
+    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
     result = reduce_beams(
             flat_header, data_dir=data_dir, write_dir=write_dir,
             write_suffix=write_suffix, array_map=array_map, obs_log=obs_log,
@@ -2558,8 +2565,8 @@ def reduce_skychop(flat_header, data_dir=None, write_dir=None, write_suffix="",
 
     if analyze:
         beams_rms = analyze_performance(
-                flat_beams_ts, write_header=
-                os.path.join(write_dir, flat_file_header),
+                flat_beams_ts,
+                write_header=os.path.join(write_dir, flat_file_header),
                 pix_flag_list=pix_flag_list, plot=plot, plot_rms=plot_flux,
                 plot_ts=False, reg_interest=reg_interest, plot_psd=plot_ts,
                 plot_specgram=False, plot_show=plot_show, plot_save=plot_save)
@@ -2577,7 +2584,7 @@ def reduce_skychop(flat_header, data_dir=None, write_dir=None, write_suffix="",
 
 
 def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
-                array_map=None, obs_log=None, pix_flag_list=[], flat_flux=1,
+                array_map=None, obs_log=None, pix_flag_list=None, flat_flux=1,
                 flat_err=0, parallel=False, stack=False, do_desnake=False,
                 ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
                 do_clean=False, return_ts=False, return_pix_flag_list=True,
@@ -2591,10 +2598,9 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
     :raises RunTimeError: not nodding
     """
 
-    if data_dir is None:
-        data_dir = os.getcwd()
-    if write_dir is None:
-        write_dir = os.getcwd()
+    data_dir = str(data_dir) if data_dir is not None else os.getcwd()
+    write_dir = str(write_dir) if write_dir is not None else os.getcwd()
+    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
     if (write_suffix != "") and (write_suffix[0] != "_"):
         write_suffix = "_" + write_suffix
     for flag, method in zip((do_desnake, do_smooth, do_clean, do_ica),
@@ -2848,7 +2854,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
 
 def reduce_calibration(data_header, data_dir=None, write_dir=None,
                        write_suffix="", array_map=None, obs_log=None,
-                       is_flat=False, pix_flag_list=[], flat_flux=1, flat_err=0,
+                       is_flat=False, pix_flag_list=None, flat_flux=1, flat_err=0,
                        cross=False, parallel=False, do_desnake=False,
                        ref_pix=None, do_smooth=False, do_ica=False,
                        spat_excl=None, do_clean=False, return_ts=False,
@@ -2860,10 +2866,9 @@ def reduce_calibration(data_header, data_dir=None, write_dir=None,
     but just continuous chop observations like pointing or focus
     """
 
-    if data_dir is None:
-        data_dir = os.getcwd()
-    if write_dir is None:
-        write_dir = os.getcwd()
+    data_dir = str(data_dir) if data_dir is not None else os.getcwd()
+    write_dir = str(write_dir) if write_dir is not None else os.getcwd()
+    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
     if (write_suffix != "") and (write_suffix[0] != "_"):
         write_suffix = "_" + write_suffix
     for flag, method in zip((do_desnake, do_smooth, do_clean, do_ica),
@@ -2944,7 +2949,7 @@ def reduce_calibration(data_header, data_dir=None, write_dir=None,
 
 
 def reduce_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
-                 array_map=None, obs_log=None, is_flat=False, pix_flag_list=[],
+                 array_map=None, obs_log=None, is_flat=False, pix_flag_list=None,
                  flat_flux=1, flat_err=0, parallel=False, do_desnake=False,
                  ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
                  do_clean=False,
@@ -2959,10 +2964,9 @@ def reduce_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
         there should be
     """
 
-    if data_dir is None:
-        data_dir = os.getcwd()
-    if write_dir is None:
-        write_dir = os.getcwd()
+    data_dir = str(data_dir) if data_dir is not None else os.getcwd()
+    write_dir = str(write_dir) if write_dir is not None else os.getcwd()
+    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
     if (write_suffix != "") and (write_suffix[0] != "_"):
         write_suffix = "_" + write_suffix
     for flag, method in zip((do_desnake, do_smooth, do_clean, do_ica),
@@ -3073,7 +3077,8 @@ def reduce_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
 
 
 def reduce_zpoldbig(data_header, data_dir=None, write_dir=None, write_suffix="",
-                    array_map=None, obs_log=None, is_flat=False, pix_flag_list=[],
+                    array_map=None, obs_log=None, is_flat=False,
+                    pix_flag_list=None,
                     flat_flux=1, flat_err=0, parallel=False, do_desnake=False,
                     ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
                     do_clean=False,
@@ -3099,7 +3104,7 @@ def reduce_zpoldbig(data_header, data_dir=None, write_dir=None, write_suffix="",
 
 
 def eval_performance(data_header, data_dir=None, write_dir=None, write_suffix="",
-                     array_map=None, obs_log=None, pix_flag_list=[],
+                     array_map=None, obs_log=None, pix_flag_list=None,
                      parallel=False, return_ts=False, table_save=True,
                      plot=True, plot_ts=True, reg_interest=None, plot_psd=True,
                      plot_specgram=True, plot_flux=True, plot_show=False,
@@ -3109,10 +3114,9 @@ def eval_performance(data_header, data_dir=None, write_dir=None, write_suffix=""
     cautious that plot_specgram can be very slow
     """
 
-    if data_dir is None:
-        data_dir = os.getcwd()
-    if write_dir is None:
-        write_dir = os.getcwd()
+    data_dir = str(data_dir) if data_dir is not None else os.getcwd()
+    write_dir = str(write_dir) if write_dir is not None else os.getcwd()
+    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
     if (write_suffix != "") and (write_suffix[0] != "_"):
         write_suffix = "_" + write_suffix
 
