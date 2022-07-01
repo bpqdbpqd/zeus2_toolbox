@@ -15,6 +15,7 @@ converting data to physical unit.
 - Add method FigFlux.savefig() which can compress the file size by a factor of three
 - Add the ability to append ObsInfo with the same column of different data type
 - Add more logical operators to DataObj class
+- Add an example script array_sky.py to save array wavelength, transmission and sky power to table
 - Fix a bug in zeus2_io.proc_along_axis()
 - Fix a bug in FigSpec with twin_axes
 - Fix many bugs in tools

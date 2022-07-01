@@ -16,7 +16,6 @@ from collections import Counter
 from datetime import datetime, timezone
 
 import astropy
-import numpy as np
 from astropy.table import vstack, hstack, unique, np_utils, Table as Tb
 from astropy.time import Time
 
@@ -3190,7 +3189,9 @@ class Obs(DataObj):
     def proc_along_time(self, method="nanmean", **kwargs):
         """
         Process data_ using the method in the last axis (time axis). returns a
-        new Object with the same ndim_, but length 1 in the last axis.
+        new Object with the same ndim_, but length 1 in the last axis, and chop_
+        ts_ will be averaged by nanmean, obs_id_arr_ will use the obs_id of the
+        object
 
         :param str method: str, default 'nanmean', allowed values are 'nanmean',
             'nanmedian', 'nansum', 'nanstd', 'nanmin', 'nanmax', 'nanmad'
@@ -3202,9 +3203,9 @@ class Obs(DataObj):
         :return Obs obs_new: Obs, new object
         """
 
-        chop_new = self.chop_.proc_along_axis(method=method, axis=-1) \
+        chop_new = self.chop_.proc_along_axis(method="nanmean", axis=-1) \
             if not self.chop_.empty_flag_ else self.chop_
-        ts_new = self.ts_.proc_along_axis(method=method, axis=-1) \
+        ts_new = self.ts_.proc_along_axis(method="nanmean", axis=-1) \
             if not self.ts_.empty_flag_ else self.ts_
         obs_id_arr_new = IdArr(arr_in=[self.obs_id_]) \
             if not self.obs_id_arr_.empty_flag_ else self.obs_id_arr_
