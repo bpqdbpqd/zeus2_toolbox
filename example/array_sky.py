@@ -4,8 +4,7 @@ wavelength [um], wavelength interval [um], sky transmission, the expected sky
 power before the telescope dish [W] for each pixel, saved in .csv files.
 """
 
-imoprt
-os
+import os
 from astropy.modeling import models
 from astropy import units, constants
 
@@ -38,22 +37,26 @@ array_map.init_wl(grat_idx=GRAT_IDX)
 wl_arr, d_wl_arr = array_map.array_wl_, array_map.array_d_wl_
 wl = z2pipl.ObsArray(arr_in=wl_arr[:, None], array_map=array_map)
 d_wl = z2pipl.ObsArray(arr_in=d_wl_arr[:, None], array_map=array_map)
+freq = z2pipl.wl_to_freq(wl)
+d_freq = d_wl / wl * freq
 
 # compute transmission
-freq = z2pipl.wl_to_freq(wl_arr)
-d_freq = np.median(d_wl_arr / wl_arr * freq)
 sky_trans_arr = z2pipl.transmission_pixel(
-        freq=freq, pwv=PWV, elev=ELEV, d_freq=d_freq)
-sky_trans = z2pipl.ObsArray(arr_in=sky_trans_arr[:, None], array_map=array_map)
+        freq=freq.data_, pwv=PWV, elev=ELEV, d_freq=d_freq.data_.mean())
+sky_trans = z2pipl.ObsArray(arr_in=sky_trans_arr, array_map=array_map)
 
 # power on sky without any telescope or instrument efficiency
-sky_power_arr = (models.BlackBody(TEMP * units.K)(freq * units.GHz) *
-                 (1 - sky_trans_arr) *
-                 (d_freq * units.GHz) * (A_TELE * units.m ** 2) *
+sky_power_arr = (models.BlackBody(TEMP * units.K)(freq.data_ * units.GHz) *
+                 (1 - sky_trans.data_) *
+                 (d_freq.data_ * units.GHz) * (A_TELE * units.m ** 2) *
                  (OMEGA * units.arcsec ** 2)).to(units.W).to_value()
-sky_power = z2pipl.ObsArray(arr_in=sky_power_arr[:, None], array_map=array_map)
+sky_power = z2pipl.ObsArray(arr_in=sky_power_arr, array_map=array_map)
 
-wl.to_table().write(os.path.join(WRITE_DIR, "array_wl_%s%s.csv" % (BAND, WRITE_SUFFIX)))
-d_wl.to_table().write(os.path.join(WRITE_DIR, "array_d_wl_%s%s.csv" % (BAND, WRITE_SUFFIX)))
-sky_trans.to_table().write(os.path.join(WRITE_DIR, "sky_transmission_%s%s.csv" % (BAND, WRITE_SUFFIX)))
-sky_power.to_table().write(os.path.join(WRITE_DIR, "sky_power_%s%s.csv" % (BAND, WRITE_SUFFIX)))
+wl.to_table().write(os.path.join(WRITE_DIR, "array_wl_%s%s.csv" %
+                                 (BAND, WRITE_SUFFIX)))
+d_wl.to_table().write(os.path.join(WRITE_DIR, "array_d_wl_%s%s.csv" %
+                                   (BAND, WRITE_SUFFIX)))
+sky_trans.to_table().write(os.path.join(WRITE_DIR, "sky_transmission_%s%s.csv" %
+                                        (BAND, WRITE_SUFFIX)))
+sky_power.to_table().write(os.path.join(WRITE_DIR, "sky_power_%s%s.csv" %
+                                        (BAND, WRITE_SUFFIX)))

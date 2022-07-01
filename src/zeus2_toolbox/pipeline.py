@@ -329,7 +329,6 @@ def transmission_pixel(freq, pwv, elev=60, r=1000, d_freq=0.8):
 def get_transmission_raw_obs_array(array_map, pwv, elev=60):
     """
     CAUTION: currently not working
-    TODO: modify to be compatible with the new ArrayMap.init_wl()
     get an ObsArray object corresponding to the raw sky transmission of the
     array, the array_map_ of the output obe_array object will correspond to the
     frequency of transmission_raw_range() output instead of input array_map.
@@ -344,6 +343,8 @@ def get_transmission_raw_obs_array(array_map, pwv, elev=60):
     :raises RuntimeError: array_map wavelength not initialized
     :raises ValueError: grat_idx not found in array_map.conf_kwargs
     """
+
+    # TODO: modify to be compatible with the new ArrayMap.init_wl()
 
     if not array_map.wl_flag_:
         raise RuntimeError("array_map is not initialized with wavelength.")
