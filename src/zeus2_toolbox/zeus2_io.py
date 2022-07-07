@@ -1828,24 +1828,27 @@ class ArrayMap(DataObj):
         :param str filename: str, path to the file containing
         """
 
-        config = configparser.ConfigParser()
-        config.read(filename)
+        if not os.path.isfile(filename):
+            warnings.warn("input %s does not exist." % filename, UserWarning)
+        else:
+            config = configparser.ConfigParser()
+            config.read(filename)
 
-        conf_kwargs = self.conf_kwargs_.copy()
-        for section in config:
-            if section != "DEFAULT":
-                conf_kwargs[section] = {}
-            for key in config[section]:
-                try:
-                    value = float(config[section][key])
-                except ValueError:
-                    value = config[section][key]
-                if section == "DEFAULT":
-                    conf_kwargs[key] = value
-                else:
-                    conf_kwargs[section][key] = value
+            conf_kwargs = self.conf_kwargs_.copy()
+            for section in config:
+                if section != "DEFAULT":
+                    conf_kwargs[section] = {}
+                for key in config[section]:
+                    try:
+                        value = float(config[section][key])
+                    except ValueError:
+                        value = config[section][key]
+                    if section == "DEFAULT":
+                        conf_kwargs[key] = value
+                    else:
+                        conf_kwargs[section][key] = value
 
-        self.conf_kwargs_ = conf_kwargs
+            self.conf_kwargs_ = conf_kwargs
 
 
 class Chop(DataObj):
@@ -2988,19 +2991,22 @@ class Obs(DataObj):
                 self.obs_id_arr_ = IdArr(arr_in=[self.obs_id_] * self.len_)
             if not self.chop_.empty_flag_:
                 if self.len_ != self.chop_.len_:
-                    warnings.warn("data_ and chop__ length disagree!")
+                    warnings.warn("%s data_ and chop__ length disagree!" %
+                                  self.obs_id_)
                     if (self.len_ > 1) and (self.chop_.len_ > 1):
-                        raise ValueError("data_ and chop_ length disagree " +
-                                         "with both length > 1!")
+                        raise ValueError(("%s data_ and chop_ " % self.obs_id_) +
+                                         "length disagree with both length > 1!")
             elif not self.ts_.empty_flag_:
                 if self.len_ != self.ts_.len_:
-                    warnings.warn("data_ and ts_ length disagree!")
+                    warnings.warn("%s data_ and ts_ length disagree!" %
+                                  self.obs_id_)
         elif not self.chop_.empty_flag_:
             if self.obs_id_arr_.len_ != self.chop_.len_:
                 self.obs_id_arr_ = IdArr([self.obs_id_] * self.chop_.len_)
             if not self.ts_.empty_flag_:
                 if self.chop_.len_ != self.ts_.len_:
-                    warnings.warn("chop_ and ts_ length disagree! Using chop_.")
+                    warnings.warn(("%s chop_ and ts_ length " % self.obs_id_) +
+                                  "disagree! Using chop_.")
         else:
             if not self.ts_.empty_flag_:
                 if self.obs_id_arr_.len_ != self.ts_.len_:
@@ -3567,7 +3573,7 @@ class ObsArray(Obs):
         else:
             if (self.ndim_ > 2) and (array_map is None):
                 super(ObsArray, self).__init__(arr_in=Obs(
-                        arr_in=arr_in, **kwargs).to_obs_array(array_map=None))
+                        arr_in=arr_in, **kwargs).to_obs_array())
             else:
                 if array_map is None:
                     array_map_list = [np.arange(self.shape_[0]).tolist(),
@@ -3774,7 +3780,8 @@ class ObsArray(Obs):
 
         super(ObsArray, self)._Obs__check()
         if self.array_map_.len_ != self.shape_[0]:
-            raise ValueError("Inconsistent length between data and array map.")
+            raise ValueError(("%s inconsistent length " % self.obs_id_) +
+                             "between data and array map.")
 
     def __repr__(self):
         return super(ObsArray, self).__repr__() + "\n\t" + \
@@ -4035,12 +4042,17 @@ class ObsArray(Obs):
 
         return obs_array_chunk_list
 
-    def to_array_shape(self, fill_value=np.nan):
+    def to_obs(self, array_type="tes", fill_value=np.nan):
         """
         Reshape the data to (spat, spec, ...) configuration and return as an
         Obs object. All the elements not in the array map will be set to
         fill_value.
 
+        :param str or Obs or ObsArray array_type: str or Obs or ObsArray,
+            the arrangement of the data_, will use [spat, spec] if array_type=
+            "tes", will use
+            allowed values are 'mce' and 'tes', if input is Obs object, 'mce'
+            will be used, if ObsArray, 'tes' will be used
         :param float fill_value: float, value to fill in the elements not in the
             array map
         :return obs_array
@@ -4152,6 +4164,33 @@ class ObsArray(Obs):
                         col_data, name="%s=%i" % (colname_repeat, col_repeat)))
 
         return tb
+
+
+def check_array_type(array_type):
+    """
+    Check if array_type is valid input or not. Return True if is 'mce',
+    False if 'tes', raise Error if invalid input
+
+    :param array_type: str or Obs or ObsArray, allowed string values are 'mce'
+        and 'tes', or you can input the object and the function will determine
+        the proper type
+    :type array_type: str or Obs or ObsArray
+    :return: True if is mce, False if tes
+    :rtype: bool
+    :raises ValueError: invalid input
+    """
+
+    if isinstance(array_type, ObsArray):
+        array_type = "tes"
+    elif isinstance(array_type, Obs):
+        array_type = "mce"
+
+    if array_type.lower().strip()[0] == "m":
+        return True
+    elif array_type.lower().strip()[0] == "t":
+        return False
+    else:
+        raise ValueError("Invalid input array_type: %s." % array_type)
 
 
 def fft_obs(obs):
@@ -4320,7 +4359,7 @@ def nfft_obs(obs, nfft=5., noverlap=4.):
     return obs_nfft, freq_ts
 
 
-def real_units(bias, fb, mce_col=-1, mce_bias_r=467, dewar_bias_r=49,
+def real_units(bias, fb, mce_col=-1, mce_bias_r=467, dewar_bias_r=120,
                shunt_r=180E-6, alt_shunt_r=140E-6, alt_col_list=(0, 3, 4),
                dewar_fb_r=5280, butterworth_constant=1218,
                rel_fb_inductance=9, max_bias_voltage=5, max_fb_voltage=0.958,
@@ -4349,7 +4388,7 @@ def real_units(bias, fb, mce_col=-1, mce_bias_r=467, dewar_bias_r=49,
     :param int or float mce_bias_r: scalar, MCE bias resistance in ohm, default
         467 ohm
     :param int or float dewar_bias_r: scalar, dewar bias resistance in ohm,
-        default 49 ohm
+        default 120 ohm to match with the bias resistance 587 in Carl's thesis
     :param int or float shunt_r: scalar, the default shunt resistance in ohm used
         for data of MCE column not in the alt_col_list, default 180 uOhm
         corresponding to actpol_R in zeustools.iv_tools.real_units()

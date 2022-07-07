@@ -165,19 +165,19 @@ class FigFlux(Figure):
         idx_b = (array_map.array_spat_llim_, array_map.array_spat_ulim_ + 1,
                  array_map.array_spec_llim_, array_map.array_spec_ulim_ + 1)
         # get reshaped data
-        arr = obs_array.to_array_shape(fill_value=np.nan).data_
+        arr = obs_array.to_obs(fill_value=np.nan).data_
         shape = arr.shape[:2]
         arr = arr.reshape(shape)
         # get reshaped mask, and combine pix_flag_list with mask
         if mask is not None:
             mask = ObsArray(arr_in=mask, array_map=array_map). \
-                to_array_shape(fill_value=False).data_.reshape(shape)
+                to_obs(fill_value=False).data_.reshape(shape)
         else:
             mask = np.full(shape, fill_value=False, dtype=bool)
         if pix_flag_list is not None:
             mask_pix_list = ObsArray(arr_in=array_map.get_flag_where(
                     spat_spec_list=pix_flag_list), array_map=array_map). \
-                to_array_shape(fill_value=False).data_.reshape(shape)
+                to_obs(fill_value=False).data_.reshape(shape)
             mask = mask | mask_pix_list
         arr = arr[idx_b[0]:idx_b[1], idx_b[2]:idx_b[3]]
         mask = mask[idx_b[0]:idx_b[1], idx_b[2]:idx_b[3]]
@@ -192,7 +192,7 @@ class FigFlux(Figure):
         mask_blank = ObsArray(arr_in=np.full(
                 obs_array.shape_[0], fill_value=False, dtype=bool),
                 array_map=array_map). \
-            to_array_shape(fill_value=True).data_.reshape(shape)
+            to_obs(fill_value=True).data_.reshape(shape)
         mask_blank = mask_blank.reshape(shape)
         self.imshow_flag(mask=mask_blank, flag_pix_color=colors.to_rgba(
                 "white", alpha=1), orientation=orientation, extent=extent,
@@ -2147,33 +2147,6 @@ class FigSpec(FigFlux):
 # TODO: class PlotSummary(PlotTS):
 
 # ============================== helper functions ==============================
-
-
-def check_array_type(array_type):
-    """
-    Check if array_type is valid input or not. Return True if is 'mce',
-    False if 'tes', raise Error if invalid input
-
-    :param array_type: str or Obs or ObsArray, allowed string values are 'mce'
-        and 'tes', or you can input the object and the function will determine
-        the proper type
-    :type array_type: str or Obs or ObsArray
-    :return: True if is mce, False if tes
-    :rtype: bool
-    :raises ValueError: invalid input
-    """
-
-    if isinstance(array_type, ObsArray):
-        array_type = "tes"
-    elif isinstance(array_type, Obs):
-        array_type = "mce"
-
-    if array_type.lower().strip()[0] == "m":
-        return True
-    elif array_type.lower().strip()[0] == "t":
-        return False
-    else:
-        raise ValueError("Invalid input array_type: %s." % array_type)
 
 
 def get_extent(obs, orientation="horizontal",
