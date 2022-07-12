@@ -2691,8 +2691,10 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
 
     zobs_flux, zobs_err_ex, zobs_wt = weighted_proc_along_axis(  # flux of zobs
             beam_pairs_flux, weight=1 / beam_pairs_err ** 2)
-    zobs_err_in = (beam_pairs_err ** 2).proc_along_time("nanmean").sqrt() / \
-                  beam_pairs_flux.proc_along_time("num_is_finite").sqrt()
+    # internal error of the weighted mean
+    zobs_err_in = \
+        1 / (1 / beam_pairs_err ** 2).proc_along_time("nansum").sqrt() / \
+        beam_pairs_flux.proc_along_time("num_is_finite").sqrt()
     zobs_err = zobs_err_ex.replace(
             arr_in=np.choose(zobs_err_ex.data_ < zobs_err_in.data_,
                              [zobs_err_ex.data_, zobs_err_in.data_]))
@@ -2783,8 +2785,9 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                     (beam_pairs_flux, beam_pairs_err, beam_pairs_wt)]
                 flux, err_ex, wt = weighted_proc_along_axis(
                         flux_use, weight=1 / err_use ** 2)
-                err_in = (err_use ** 2).proc_along_time("nanmean").sqrt() / \
-                         flux_use.proc_along_time("num_is_finite").sqrt()
+                err_in = \
+                    1 / (1 / err_use ** 2).proc_along_time("nansum").sqrt() / \
+                    flux_use.proc_along_time("num_is_finite").sqrt()
                 err = err_ex.replace(
                         arr_in=np.choose(err_ex.data_ < err_in.data_,
                                          [err_ex.data_, err_in.data_]))
