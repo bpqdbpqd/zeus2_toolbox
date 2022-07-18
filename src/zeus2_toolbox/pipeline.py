@@ -2258,7 +2258,7 @@ def read_beams(file_header_list, array_map=None, obs_log=None, flag_ts=True,
             args += (locals()[var_name],)
         args_list.append(args)
 
-    if parallel and check_parallel():
+    if parallel and check_parallel() and len(args_list) > 1:
         results = parallel_run(func=read_beam, args_list=args_list)
     else:
         results = []
@@ -2333,7 +2333,7 @@ def reduce_beams(data_header, data_dir=None, write_dir=None, write_suffix="",
                     args += (locals()[var_name],)
                 args_list.append(args)
 
-    if parallel and check_parallel():
+    if parallel and check_parallel() and len(args_list) > 1:
         results = parallel_run(func=reduce_beam, args_list=args_list)
     else:
         results = []
@@ -2453,7 +2453,7 @@ def reduce_beam_pairs(data_header, data_dir=None, write_dir=None,
         if len(args_list) == 0:
             raise RuntimeError("No beam pair is matched, may not be nodding.")
 
-    if parallel and check_parallel():
+    if parallel and check_parallel() and len(args_list) > 1:
         results = parallel_run(func=reduce_beam_pair, args_list=args_list)
     else:
         results = []

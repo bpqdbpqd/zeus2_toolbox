@@ -19,6 +19,8 @@ converting data to physical unit.
 - Fix a bug in zeus2_io.proc_along_axis()
 - Fix a bug in FigSpec with twin_axes
 - Fix many bugs in tools
+- Change TableObj.append() to be more flexible in handling incompatible type columns
+- Change TimsStamps.read() to be more robust
 - Change db to 10*log10(power) instead of 20, because power instead of root power is used here
 - Change the behaviour of ObsArray.take_by_array_map()
 
