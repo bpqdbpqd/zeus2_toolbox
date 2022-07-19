@@ -2282,11 +2282,16 @@ def read_beams(file_header_list, array_map=None, obs_log=None, flag_ts=True,
             obs_id_arr_list.append(beam.obs_id_arr_.data_)
             obs_info_list.append(beam.obs_info_.table_)
     kwargs["arr_in"] = np.concatenate(data_list, axis=-1)
+    del data_list
     kwargs["ts"] = np.concatenate(ts_list)
+    del ts_list
     kwargs["chop"] = np.concatenate(chop_list)
+    del chop_list
     kwargs["obs_id_list"] = obs_id_list
     kwargs["obs_id_arr"] = np.concatenate(obs_id_arr_list)
-    kwargs["obs_info"] = vstack(obs_info_list, join_type="outer")
+    del obs_id_arr_list
+    kwargs["obs_info"] = vstack_reconcile(obs_info_list, join_type="outer")
+    del obs_info_list
     kwargs["obs_id"] = obs_id_list[0]
     all_beams = type_result(**kwargs)
 

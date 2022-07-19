@@ -17,7 +17,7 @@ from collections import Counter
 from datetime import datetime, timezone
 
 import astropy
-from astropy.table import vstack, hstack, unique, np_utils, Table as Tb
+from astropy.table import vstack, hstack, unique, Table as Tb
 from astropy.time import Time
 
 from .mce_data import *
@@ -135,7 +135,7 @@ class TableObj(BaseObj):
 
     def append(self, other):
         """
-        Use astropy.table.vstack() to append another TableObj object to the end
+        Use vstack_reconcile() to append another TableObj object to the end
             of the current one
 
         :param other: HKInfo, object to append
@@ -151,7 +151,7 @@ class TableObj(BaseObj):
             if self.empty_flag_:
                 table_new = other.table_
             else:
-                table_new = vstack_reconcile(self.table_, other.table_,
+                table_new = vstack_reconcile([self.table_, other.table_],
                                              join_type="outer")
             self.__fill_values__(tb_in=table_new)
 
@@ -2197,8 +2197,7 @@ class TimeStamps(DataObj):
                                                 (filename, filename))) from err1
                     else:
                         raise RuntimeError(
-                                "failed to read %s, and %s.ts doesn't exist." %
-                                (filename, filename)) from err
+                                "failed to read %s." % filename) from err
             elif os.path.isfile(filename + ".ts"):
                 try:
                     arr_in = Tb.read(filename + ".ts",
@@ -4177,58 +4176,73 @@ class ObsArray(Obs):
         return tb
 
 
-def vstack_reconcile(tb1, tb2, **kwargs):
+def vstack_reconcile(tbs, **kwargs):
     """
-    try to vstack two tables, in the case of incompatible column types, will
-    try to convert the type to a common type and try again
+    try to append tables with astropy.table.vstack(), in the case of
+    incompatible column types, will try to convert the type to a common type
+    and try again
 
-    :param astropy.table.Table tb1: astropy.table class or TableObj instance,
-        the table to be appended
-    :type tb1: astropy.table.table.Table or TableObj
-    :param astropy.table.Table tb2: astropy.table class or TableObj instance,
-        the table to append
-    :type tb2: astropy.table.table.Table or TableObj
-    :param dict kwargs: keyword arguments passed to vstack
+    :param tbs: list or tuple of astropy.table objects, to be appended
+    :type tbs: list or table
+    :param kwargs: keyword arguments passed to astropy.table.vstack()
     :return: stacked table
     :rtype: astropy.table.table.Table
     :raises TypeError: can not reconcile the type
+    :raises ValueError: tbs empty
+    :raises RuntimeError: tbs lenngth invalid
     """
 
-    if isinstance(tb1, TableObj):
-        tb1 = tb1.table_
-    elif not isinstance(tb1, Tb):
-        raise TypeError("Invalid input type for tb1.")
-
-    if isinstance(tb2, TableObj):
-        tb1 = tb2.table_
-    elif not isinstance(tb1, Tb):
-        raise TypeError("Invalid input type for tb2.")
-
-    try:
-        table_new = vstack([tb1, tb2], **kwargs)
-    except Exception as err:
-        if "columns have incompatible types" in err.args[0]:
-            colname = err.args[0].split("'")[1]
-            tb1_tmp, tb2_tmp = tb1.copy(), tb2.copy()
+    if isinstance(tbs, (list, tuple)):
+        tbs_len = len(tbs)
+        if tbs_len == 0:
+            raise ValueError("tbs is empty.")
+        elif tbs_len == 1:
+            table_new = Tb(tbs[0], copy=False)
+        elif tbs_len == 2:
             try:
-                tb1_tmp[colname] = tb1_tmp[colname].astype(
-                        tb2_tmp[colname].dtype)
-            except TypeError:
-                try:
-                    tb2_tmp[colname] = \
-                        tb2_tmp[colname].astype(
-                                tb1_tmp[colname].dtype)
-                except TypeError as err1:
-                    raise TypeError(
-                            "can not reconcile the type " +
-                            "%s and %s of the column %s." %
-                            (tb1_tmp[colname].dtype,
-                             tb2_tmp[colname].dtype, colname)) \
-                        from err
-            table_new = vstack_reconcile(tb1_tmp, tb2_tmp, **kwargs)
-            del (tb1_tmp, tb2_tmp)
+                table_new = vstack(tbs, **kwargs)
+            except Exception as err:
+                if "columns have incompatible types" in err.args[0]:
+                    colname = err.args[0].split("'")[1]
+                    tb1_tmp, tb2_tmp = Tb(tbs[0], copy=True), \
+                                       Tb(tbs[1], copy=True)
+                    try:
+                        tb1_tmp[colname] = tb1_tmp[colname].astype(
+                                tb2_tmp[colname].dtype)
+                    except TypeError:
+                        try:
+                            tb2_tmp[colname] = \
+                                tb2_tmp[colname].astype(
+                                        tb1_tmp[colname].dtype)
+                        except TypeError as err1:
+                            raise TypeError(
+                                    "can not reconcile the type " +
+                                    "%s and %s of the column %s." %
+                                    (tb1_tmp[colname].dtype,
+                                     tb2_tmp[colname].dtype, colname)) \
+                                from err
+                    table_new = vstack_reconcile([tb1_tmp, tb2_tmp], **kwargs)
+                    del (tb1_tmp, tb2_tmp)
+                else:
+                    raise err
+        elif tbs_len > 2:
+            try:
+                table_new = vstack(tbs, **kwargs)
+            except Exception as err:
+                if "columns have incompatible types" in err.args[0]:
+                    mid_idx = int(tbs_len / 2)
+                    table_new = vstack_reconcile(
+                            [vstack_reconcile(tbs[:mid_idx], **kwargs),
+                             vstack_reconcile(tbs[mid_idx:], **kwargs)],
+                            **kwargs)
+                else:
+                    raise err
         else:
-            raise err
+            raise RuntimeError("Length of tbs is invalid.")
+    elif isinstance(tbs, Tb):
+        table_new = tbs
+    else:
+        raise TypeError("Invalid input type for tbs: %s." % type(tbs))
 
     return table_new
 
