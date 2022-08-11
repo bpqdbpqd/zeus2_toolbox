@@ -634,7 +634,7 @@ class FigFlux(Figure):
 
     @classmethod
     def plot_flux(cls, obs_array, mask=None, pix_flag_list=None, ran=None,
-                  orientation=None, extent=None, cmap="coolwarm",
+                  orientation=None, extent=None, cmap="seismic",
                   flag_pix_color="grey", nan_pix_color="white",
                   dpi=100, fontsize=None, x_size=None, y_size=None):
         """

@@ -133,7 +133,7 @@ def parallel_run(func, args_list):
 
     gc.collect()
     num_thread = np.clip(len(args_list), a_min=2,
-                         a_max=int(MAX_THREAD_NUM * 4 / 5))
+                         a_max=int(MAX_THREAD_NUM * 1 / 2))
     with multiprocessing.get_context("fork").Pool(
             min(MAX_THREAD_NUM, len(args_list))) as pool:
         print("running in parallel on %i threads." % num_thread)
@@ -2263,7 +2263,7 @@ def read_beams(file_header_list, array_map=None, obs_log=None, flag_ts=True,
     else:
         results = []
         for args in args_list:
-            results += [read_beam(*args)]
+            results.append(read_beam(*args))
 
     kwargs = {}
     if array_map is not None:  # combine all beams
@@ -2343,7 +2343,7 @@ def reduce_beams(data_header, data_dir=None, write_dir=None, write_suffix="",
     else:
         results = []
         for args in args_list:
-            results += [reduce_beam(*args)]
+            results.append(reduce_beam(*args))
 
     type_result = Obs if array_map is None else ObsArray
     beams_flux, beams_err, beams_wt = type_result(), type_result(), type_result()
@@ -2463,7 +2463,7 @@ def reduce_beam_pairs(data_header, data_dir=None, write_dir=None,
     else:
         results = []
         for args in args_list:
-            results += [reduce_beam_pair(*args)]
+            results.append(reduce_beam_pair(*args))
 
     type_result = Obs if array_map is None else ObsArray
     beam_pairs_flux, beam_pairs_err, beam_pairs_wt = \
@@ -2860,7 +2860,6 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
 
 
 # TODO: return intermediate result
-# TODO: add write suffix automatically
 
 
 def reduce_calibration(data_header, data_dir=None, write_dir=None,

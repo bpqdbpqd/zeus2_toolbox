@@ -17,7 +17,7 @@ from collections import Counter
 from datetime import datetime, timezone
 
 import astropy
-from astropy.table import vstack, hstack, unique, Table as Tb
+from astropy.table import vstack, hstack, unique, Table as Tb, Row
 from astropy.time import Time
 
 from .mce_data import *
@@ -314,7 +314,7 @@ class DataObj(BaseObj):
         Operate on the values in the data_ with another object or array or
         value, return a new DataObj with the new data and origin_.
         If one of them is empty, the other will be copied and returned.
-        The other object or array can have different shape if wither 1) both
+        The other object or array can have different shape if either 1) both
         have the same ndim_, one has only size-one in one of the axis but the
         other has >1 size in that axis; e.g. (5, 1) matches (5, 7), (3, 1, 4)
         matches (3, 5, 4); 2)ndim_ of one object is smaller than the other by
@@ -397,7 +397,7 @@ class DataObj(BaseObj):
             raise ValueError("Can not operate between shape %s and %s." %
                              (str(shape1), str(shape2)))
         else:
-            arr_new = operator(arr1, arr2) if not r else operator(arr1, arr2)
+            arr_new = operator(arr1, arr2) if not r else operator(arr2, arr1)
             if (self.ndim_ - other.ndim_) == -1:
                 return other.replace(arr_in=arr_new)
             else:
@@ -496,6 +496,9 @@ class DataObj(BaseObj):
 
     def __pow__(self, power):
         return self.__operate__(power, np.power)
+
+    def __rpow__(self, other):
+        return self.__operate__(other, np.power, r=True)
 
     def __abs__(self):
         """
@@ -4183,13 +4186,13 @@ def vstack_reconcile(tbs, **kwargs):
     and try again
 
     :param tbs: list or tuple of astropy.table objects, to be appended
-    :type tbs: list or table
+    :type tbs: list or tuple or Tb
     :param kwargs: keyword arguments passed to astropy.table.vstack()
     :return: stacked table
-    :rtype: astropy.table.table.Table
+    :rtype: Tb
     :raises TypeError: can not reconcile the type
     :raises ValueError: tbs empty
-    :raises RuntimeError: tbs lenngth invalid
+    :raises RuntimeError: tbs length invalid
     """
 
     if isinstance(tbs, (list, tuple)):
@@ -4239,8 +4242,8 @@ def vstack_reconcile(tbs, **kwargs):
                     raise err
         else:
             raise RuntimeError("Length of tbs is invalid.")
-    elif isinstance(tbs, Tb):
-        table_new = tbs
+    elif isinstance(tbs, (Tb, Row)):
+        table_new = Tb(tbs, copy=False)
     else:
         raise TypeError("Invalid input type for tbs: %s." % type(tbs))
 
@@ -4456,10 +4459,10 @@ def real_units(bias, fb, mce_col=-1, mce_bias_r=467, dewar_bias_r=120,
     and keeps updated
 
     :param bias: scalar or array, tes bias value(s) in adc unit
-    :rtype bias: int or float or numpy.ndarray
+    :type bias: int or float or numpy.ndarray
     :param fb: scalar or array, sq1 feedback value(s) in adc unit, must have the
         shape such that bias * fb * mce_col yields valid result
-    :rtype fb: int or float or numpy.ndarray
+    :type fb: int or float or numpy.ndarray
     :param int or numpy.ndarray mce_col: int scalar or array, the MCE column
         number of the input data, because the resistor differs on a column base
         according to  zeustools.iv_tools.real_units() description; must have the
@@ -4492,6 +4495,8 @@ def real_units(bias, fb, mce_col=-1, mce_bias_r=467, dewar_bias_r=120,
         default 0.958
     :param int bias_dac_bits: int, bias DAC bit number, default 16
     :param int fb_dac_bits: int, feedback DAC bit number, default 14
+    :return: tuple(tes_voltage, tes_current)
+    :rtype: tuple
     """
 
     col = np.reshape(mce_col, newshape=(-1, 1))
