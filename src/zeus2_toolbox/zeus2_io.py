@@ -351,8 +351,8 @@ class DataObj(BaseObj):
                     operator(other, self.data_)
                 return self.replace(arr_in=arr_new)
         if not isinstance(other, type(self)):  # not object
-            if isinstance(other, (numpy.ndarray, list, tuple)):
-                other = DataObj(np.array(other))  # array to object
+            if isinstance(other, (numpy.ndarray, list, tuple, DataObj)):
+                other = DataObj(other)  # array to object
             else:
                 raise TypeError("Invalid type, can only be operated on " +
                                 "%s, list, tuple, array or value."
@@ -1370,8 +1370,8 @@ class ArrayMap(DataObj):
                 llim, ulim = np.nanmin(var_ran), np.nanmax(var_ran)
                 flag_list.append([(llim <= i <= ulim) for i in array_use])
             if (var_list is not None) and (len(var_list) > 0):
-                if not isinstance(var_ran, (list, tuple, np.ndarray)):
-                    raise TypeError("Input _ran should be size 2 list or array")
+                if not isinstance(var_list, (list, tuple, np.ndarray)):
+                    raise TypeError("Input _list should be 1-d list or array")
                 var_arr = np.array(var_list, dtype=self.dtype_)
                 flag_list.append([i in var_arr for i in array_use])
         if spat_spec is not None:
@@ -3294,7 +3294,8 @@ class Obs(DataObj):
                 if not self.obs_id_arr_.empty_flag_ else self.obs_id_arr_
             obs_id_list_new = np.unique(obs_id_arr_new.data_).tolist()
             obs_id_new = obs_id_list_new[0] if len(obs_id_list_new) > 0 else "0"
-            if "obs_id" in self.obs_info_.colnames_:
+            if not self.obs_info_.empty_flag_ and \
+                    "obs_id" in self.obs_info_.colnames_:
                 tb_flag = np.any([self.obs_info_.table_["obs_id"] == obs_id
                                   for obs_id in obs_id_list_new], axis=0)
                 obs_info_new = ObsInfo(tb_in=self.obs_info_.table_[tb_flag])
