@@ -1,16 +1,15 @@
 # @Date    : 2021-01-29 16:26:51
 # @Credit  : Bo Peng(bp392@cornell.edu), Cody Lamarche, Christopher Rooney
-# @Name    : zeus2_io.py
+# @Name    : io.py
 # @Version : 2.0
 """
-A package that can help read in MCE data as well as ancillary data such as array
+A module that can help read in MCE data as well as ancillary data such as array
 map, .chop file, .hk file, .ts file, obs_array log, etc. All the data will be
 stored as objects that contain methods for data selection and simple reduction.
 """
 
 import configparser
 import copy
-import gc
 import inspect
 import os.path
 from collections import Counter
@@ -22,6 +21,7 @@ from astropy.time import Time
 
 from .mce_data import *
 from .tools import *
+from .convert import *
 
 
 class BaseObj(object):
@@ -2468,126 +2468,82 @@ class ObsInfo(TableObj):
     obj_type_ = "ObsInfo"  # type: str
 
     @classmethod
-    def read(cls, filename, try_hk=True, try_run=True):
+    def read(cls, filename, try_hk=True, try_run=True, try_mce=True):
         """
         Return an ObsInfo object initialized by the housekeeping information
-        in .hk and execution information in .run file. Only a selected part of
-        runfile information will be added.
+        in .hk, execution information in .run, and header information of the
+        MCE data file.
 
         :param str filename: str, path to .hk or .run file or the data file header
         :param bool try_hk: bool, flag whether to try to read .hk file
         :param bool try_run: bool, flag whether to try to read .run file
+        :param bool try_mce: bool, flag whether to try to read header information
+            of the MCE data file
         :return obs_info: ObsInfo, new object
         :rtype: ObsInfo
         """
 
         # sections and items to read in .run file
-        runfile_keys = {"HEADER": ["RB rc1 data_mode", "RB rc1 servo_mode",
-                                   "RB rc2 data_mode", "RB rc2 servo_mode",
-                                   "RB rc3 data_mode", "RB rc3 servo_mode",
-                                   "RB tes bias"],
-                        "FRAMEACQ": True}
+        obs_info = cls()
 
-        tb_in = Tb(masked=True)
-        hk_flag, run_flag = not try_hk, not try_run
         if filename is not None:
             if filename[-3:] == ".hk":
                 filename = filename[:-3]
             elif filename[-4:] == ".run":
                 filename = filename[:-4]
 
-            if try_run:
-                if os.path.isfile(filename + ".hk"):
-                    with open(filename + ".hk", "rb") as file:
-                        arr_in = np.genfromtxt(file, delimiter=":", comments="#",
-                                               dtype=str)
-                    for i, (name, val) in enumerate(arr_in):
-                        type_flag, name, val = False, name.strip(), val.strip()
-                        try:  # try to convert to int
-                            val = int(val)
-                            type_flag = True
-                        except ValueError:
-                            pass
-                        if not type_flag:  # try to convert to float
-                            try:
-                                val = float(val)
-                                type_flag = True
-                            except ValueError:
-                                pass
-                        if not type_flag:  # try to convert to bool
-                            if val.lower() == "true":
-                                val = True
-                                type_flag = True
-                            elif val.lower() == "false":
-                                val = False
-                                type_flag = True
-                        if (not type_flag) and (val.lower().strip() == "none"):
-                            continue  # do not add if val is "None"
-                        else:
-                            tb_in.add_column(
-                                    col=Tb.Column(data=[val], name=name))
-                    hk_flag = True
-                else:
-                    warnings.warn("%s.hk does not exist." % filename)
+            if try_mce:
+                try:
+                    obs_info.read_mce(filename=filename)
+                except Exception as err:
+                    warnings.warn(
+                            "Failed to read MCE header for %s due to %s: %s" %
+                            (filename, type(err), err))
+
+            if try_hk:
+                try:
+                    obs_info.read_hk(filename=filename)
+                except Exception as err:
+                    warnings.warn("Failed to read .hk for %s due to %s: %s" %
+                                  (filename, type(err), err))
 
             if try_run:
-                if os.path.isfile(filename + ".run"):
-                    runfile = MCERunfile(filename=filename + ".run").data
-                    for key in runfile_keys:
-                        if key in runfile:
-                            if runfile_keys[key] is True:  # read all items
-                                for item in runfile[key]:
-                                    tb_in.add_column(
-                                            col=Tb.Column(
-                                                    data=[runfile[key][item]],
-                                                    name=item.replace(" ", "_")))
-                            else:  # read selected items in section
-                                for item in runfile_keys[key]:
-                                    if item in runfile[key]:
-                                        tb_in.add_column(
-                                                col=Tb.Column(
-                                                        data=[runfile[key][item]],
-                                                        name=item.replace(" ", "_")))
-                    run_flag = True
-                else:
-                    warnings.warn("%s.run does not exist." % filename)
-
-            if (not hk_flag) and (not run_flag):
-                raise FileNotFoundError("Failed to read info files for %s" %
-                                        filename)
-
-        obs_info = cls(tb_in=tb_in)  # initialize object
+                try:
+                    obs_info.read_run(filename=filename)
+                except Exception as err:
+                    warnings.warn("Failed to read .run for %s due to %s: %s" %
+                                  (filename, type(err), err))
 
         return obs_info
 
-    @classmethod
-    def read_hk(cls, filename):
+    def read_hk(self, filename):
         """
-        Return an ObsInfo object initialized by the housekeeping information
-        in .hk file. Recommended to use ObsInfo.read().
+        read in the housekeeping information in .hk file into new columns
 
         :param str filename: str, path to .hk file, will try to read filename.hk if
             the first attempt of read in fails
-        :return obs_info: ObsInfo, new object
-        :rtype: ObsInfo
+        :raises FileNotFoundError: file not existing, or failed to read
         """
 
-        tb_in = Tb(masked=True)
-        if filename is not None:
+        if os.path.isfile(filename + ".hk"):
+            with open(filename + ".hk", "rb") as file:
+                arr_in = np.genfromtxt(file, delimiter=":", comments="#",
+                                       dtype=str)
+        elif os.path.isfile(filename):
             try:
                 with open(filename, "rb") as file:
                     arr_in = np.genfromtxt(file, delimiter=":", comments="#",
                                            dtype=str)
-            except FileNotFoundError:
-                try:
-                    with open(filename + ".hk", "rb") as file:
-                        arr_in = np.genfromtxt(file, delimiter=":", comments="#",
-                                               dtype=str)
-                except FileNotFoundError:
-                    raise FileNotFoundError("%s or %s.hk does not exist." %
-                                            (filename, filename))
-            for i, (name, val) in enumerate(arr_in):
-                type_flag, name, val = False, name.strip(), val.strip()
+            except Exception as err:
+                raise FileNotFoundError("%s or %s.hk are not hk files." %
+                                        (filename, filename)) from err
+        else:
+            raise FileNotFoundError("%s or %s.hk does not exist." %
+                                    (filename, filename))
+
+        for i, (name, val) in enumerate(arr_in):
+            type_flag, name, val = False, name.strip(), val.strip()
+            if name not in self.colnames_:
                 try:  # try to convert to int
                     val = int(val)
                     type_flag = True
@@ -2609,11 +2565,103 @@ class ObsInfo(TableObj):
                 if (not type_flag) and (val.lower().strip() == "none"):
                     continue  # do not add if val is "None"
                 else:
-                    tb_in.add_column(col=Tb.Column(data=[val], name=name))
-        # assign values
-        obs_info = cls(tb_in=tb_in)
+                    self.table_.add_column(
+                            col=Tb.Column(data=[val], name=name))
 
-        return obs_info
+        self.__fill_values__(self.table_)
+
+    def read_run(self, filename):
+        """
+        read in the MCE runfile information in .run file into new columns. Only a
+        selected part of runfile information will be added.
+
+        :param str filename: str, path to .run file, will try to read filename.run
+            if the first attempt of read in fails
+        :raises FileNotFoundError: file not existing, or failed to read
+        """
+
+        if os.path.isfile(filename + ".run"):
+            runfile = MCERunfile(filename=filename + ".run").data
+        elif os.path.isfile(filename):
+            try:
+                runfile = MCERunfile(filename=filename).data
+            except Exception as err:
+                raise FileNotFoundError("%s or %s.run are not runfiles." %
+                                        (filename, filename)) from err
+        else:
+            raise FileNotFoundError("%s or %s.run does not exist." %
+                                    (filename, filename))
+
+        # sections and items to read in .run file
+        runfile_keys = {"HEADER": ["RB cc num_rows", "RB cc num_rows_reported",
+                                   "RB cc num_cols", "RB cc num_cols_reported",
+                                   "RB cc data_rate",
+                                   "RB cc ramp_step_period",
+                                   "RB cc ramp_step_size",
+                                   "RB cc ramp_min_val", "RB cc ramp_max_val",
+                                   "RB cc ramp_step_phase",
+                                   "RB rc1 data_mode", "RB rc1 servo_mode",
+                                   "RB rc2 data_mode", "RB rc2 servo_mode",
+                                   "RB rc3 data_mode", "RB rc3 servo_mode",
+                                   "RB tes bias",
+                                   ],
+                        "FRAMEACQ": True}
+
+        for key in runfile_keys:
+            if key in runfile:
+                if runfile_keys[key] is True:  # read all items
+                    for item in runfile[key]:
+                        name = item.replace(" ", "_")
+                        if name not in self.colnames_:
+                            val = runfile[key][item]
+                            try:  # try to convert to int
+                                val = int(val)
+                            except ValueError:
+                                pass
+                            self.table_.add_column(
+                                    col=Tb.Column(data=[val], name=name))
+                else:  # read selected items in section
+                    for item in runfile_keys[key]:
+                        if item in runfile[key]:
+                            name = item.replace(" ", "_")
+                            if name not in self.colnames_:
+                                val = runfile[key][item]
+                                try:  # try to convert to int
+                                    val = int(val)
+                                except ValueError:
+                                    pass
+                                self.table_.add_column(
+                                        col=Tb.Column(data=[val], name=name))
+
+        self.__fill_values__(self.table_)
+
+    def read_mce(self, filename):
+        """
+        read in the MCE header information in MCE data file into new columns
+
+        :param str filename: str, path to MCE file
+        :raises FileNotFoundError: file not existing
+        """
+
+        if os.path.isfile(filename + ".run"):
+            file = SmallMCEFile(filename)
+        else:
+            raise FileNotFoundError("%s does not exist." % filename)
+
+        header = file.header
+        for key in header:
+            if key not in self.colnames_:
+                self.table_.add_column(
+                        col=Tb.Column(data=[header[key]], name=key))
+
+        attr_keys = ("frame_bytes", "freq", "n_cols", "n_rows", "n_frames",
+                     "n_rc", "n_ro", "rc_step", "size_ro")
+        for key in attr_keys:
+            if hasattr(file, key) and (key not in self.colnames_):
+                self.table_.add_column(
+                        col=Tb.Column(data=[getattr(file, key)], name=key))
+
+        self.__fill_values__(self.table_)
 
 
 class ObsLog(TableObj):
@@ -2883,19 +2931,19 @@ class Obs(DataObj):
 
     @classmethod
     def read_header(cls, filename, try_data=True, try_chop=True, try_ts=True,
-                    try_hk=True, try_info=True):
+                    try_info=True, try_hk=True):
         """
-        Try to read in time stream, chop (.chop), time stamp (.ts) and
-            housekeeping (.hk) files using the file header to initialize
+        Try to read in time stream, chop (.chop), time stamp (.ts),
+            housekeeping (.hk), runfile (.run) files using the file header to
+            initialize
 
         :param str filename: str, path to the MCE time stream data
         :param bool try_data: bool, flag whether to try to read MCE data file
         :param bool try_chop: bool, flag whether to try to read .chop file
         :param bool try_ts: bool, flag whether to try to read .ts file
-        :param bool try_hk: bool, flag whether to try to .hk file, will be
-            overridden if try_info==True, kept only for compatibility
         :param bool try_info: bool, flag whether to try to read information in
-            .hk and .run file
+            .hk and .run file, and MCE data header
+        :param bool try_hk: bool, deprecated
         :return obs_new: Obs, new object
         :rtype: Obs
         """
@@ -2922,16 +2970,10 @@ class Obs(DataObj):
                 obs_new.update_ts(ts=ts)
             except FileNotFoundError:
                 warnings.warn("%s not found." % (filename + ".ts"))
-        if try_hk and (not try_info):
-            try:
-                obs_info = ObsInfo.read_hk(filename=filename + ".hk")
-                obs_new.update_obs_info(obs_info=obs_info)
-            except FileNotFoundError:
-                warnings.warn("%s not found." % (filename + ".hk"))
         if try_info:
             try:
-                obs_info = ObsInfo.read(filename=filename, try_hk=True,
-                                        try_run=True)
+                obs_info = ObsInfo.read(filename=filename, try_hk=try_hk,
+                                        try_run=True, try_mce=True)
                 obs_new.update_obs_info(obs_info=obs_info)
             except FileNotFoundError:
                 warnings.warn("%s .hk and .run not found." % filename)
@@ -4276,246 +4318,3 @@ def check_array_type(array_type):
         return False
     else:
         raise ValueError("Invalid input array_type: %s." % array_type)
-
-
-def fft_obs(obs):
-    """
-    Do FFT on Obs or ObsArray object, return an object of the same type as the
-    input with fft data in the last axis, and ts_ recording the frequency. The
-    new object will inherit all attributes except for chop_ and obs_id_arr_
-
-    :param obs: Obs or ObsArray object to do fft
-    :type obs: Obs or ObsArray
-    :return obs_fft: Obs or ObsArray object with the fft data in last axis of
-        data_, and frequency in ts_
-    :rtype: Obs or ObsArray
-    :raises TypeError: invalid input type
-    :raises ValueError: empty ts_
-    """
-
-    if not isinstance(obs, Obs):
-        raise TypeError("Invalid input type, expect Obs or ObsArray.")
-    if obs.ts_.empty_flag_ or (obs.len_ == 0):
-        raise ValueError("Empty ts_.")
-
-    ts = obs.ts_
-    if np.all(abs(np.diff(np.diff(obs.ts_.data_))) < obs.ts_.interv_ * 1E-3):
-        interv, ts_new = ts.interv_, ts
-    else:
-        interv = ts.interv_ / 2
-        ts_new = TimeStamps(arr_in=np.arange(ts.t_start_ - 2 * interv,
-                                             ts.t_end_ + 2 * interv, interv))
-    obs_interp = obs.resample_by_ts(ts_new=ts_new, method="interpolation",
-                                    fill_value=0)
-
-    data_fft = np.fft.fft(obs_interp.data_, axis=-1)
-    freq_arr = np.fft.fftfreq(n=obs_interp.len_, d=interv)
-    obs_fft = obs.replace(
-            arr_in=data_fft, ts=freq_arr, chop=None, obs_id_arr=None)
-
-    return obs_fft
-
-
-def ifft_obs(obs_fft, t_start=None):
-    """
-    Do ifft on Obs or ObsArray object. The input object should have fft data in
-    the last axis in data_ with frequency recorded in ts_. Again the chop_ and
-    obs_id_arr_ of the returned object will remain uninitialized. By default,
-    use obs.t_start_time_ as the starting time to build the new ts_, unless
-    t_start is given. The returned data only contains the real part of
-    numpy.fft.ifft result.
-
-    :param obs_fft: Obs or ObsArray object to ifft
-    :type obs_fft: Obs or ObsArray
-    :param t_start: float or str or datetime.datetime or astropy.time.Time, the
-        initial time for the time stamps in the result Obs object. If left None,
-        will use t_start_time_ in obs. Allowed input type are float as unix time
-        stamps(the same format used by zeus2), string in iso or isot format and
-        object
-    :type t_start: float or str or datetime.datetime or astropy.time.Time
-    :return: Obs or ObsArray object
-    :rtype: Obs or ObsArray
-    :raises TypeError: invalid input type
-    :raises ValueError: empty ts
-    """
-
-    if not isinstance(obs_fft, Obs):
-        raise TypeError("Invalid input type, expect Obs or ObsArray.")
-    if obs_fft.ts_.empty_flag_ or (obs_fft.len_ == 0):
-        raise ValueError("Empty ts_.")
-
-    ts, n = obs_fft.ts_, obs_fft.len_
-    freq_interv = ts.interv_
-    data_ifft = np.fft.ifft(obs_fft.data_, axis=-1).real
-    ts_ifft_arr = np.arange(n, dtype=np.double) / n / freq_interv
-    if t_start is None:
-        t_start = obs_fft.t_start_time_
-    if isinstance(t_start, (int, float, np.integer, np.double)):
-        t_start = Time(t_start, format="unix")
-    elif isinstance(t_start, str):
-        try:
-            t_start = Time(t_start, format="iso")
-        except ValueError:
-            try:
-                t_start = Time(t_start, format="isot")
-            except ValueError:
-                raise ValueError("String format should be ISO or ISOT.")
-    t_start = Time(t_start)
-    ts0 = t_start.to_value(format="unix")
-    ts_ifft_arr += ts0
-
-    return type(obs_fft)(
-            arr_in=data_ifft, ts=ts_ifft_arr, chop=None, obs_id_arr=None)
-
-
-def nfft_obs(obs, nfft=5., noverlap=4.):
-    """
-    Do fft for overlapping blocks of data in time axis, to get the dynamical
-    spectrum. The return object will have data stored in the last 2 dimensions,
-    the last dimension is the average time for each bin of data, and the second
-    last dimension is the fft result of each block.
-
-    :param obs: Obs or ObsArray object to do fft
-    :type obs: Obs or ObsArray
-    :param nfft: number of data points in each block to do fft for int input, or
-        seconds of data for each block for float input
-    :type nfft: int or float
-    :param noverlap: number of data points that overlap between blocks, or
-        seconds of overlapping data points between blacks. If the value of
-        noverlap >= nfft, then nfft number of data point - 1 will be used
-    :type noverlap: int or float
-    :return: tuple of (Obs/ObsArray object, TimeStamp object), the first
-        contains the result of fft, and the TimeStamp object stores the
-        frequency information along the second last axis
-    :rtype: tuple
-    :raises TypeError: invalid input type of obs, nfft, noverlap
-    :raises ValueError: empty ts_
-    """
-
-    if not isinstance(obs, Obs):
-        raise TypeError("Invalid input type, expect Obs or ObsArray.")
-    if obs.ts_.empty_flag_ or (obs.len_ == 0):
-        raise ValueError("Empty ts_.")
-
-    ts = obs.ts_
-    if np.all(abs(np.diff(np.diff(obs.ts_.data_))) < obs.ts_.interv_ * 1E-3):
-        interv, ts_new, obs_interp = ts.interv_, ts, obs
-    else:
-        interv = ts.interv_ / 2
-        ts_new = TimeStamps(arr_in=np.arange(ts.t_start_ - 2 * interv,
-                                             ts.t_end_ + 2 * interv, interv))
-        obs_interp = obs.resample_by_ts(ts_new=ts_new, method="interpolation",
-                                        fill_value=0)
-
-    if isinstance(nfft, (float, np.double)):
-        nfft = int(nfft / interv)
-    if isinstance(nfft, (int, np.integer)):
-        if nfft > obs_interp.len_:
-            nfft = obs_interp.len_
-    else:
-        raise TypeError("Invalid input type for nfft.")
-
-    if isinstance(noverlap, (float, np.double)):
-        noverlap = int(noverlap / interv)
-    if isinstance(noverlap, (int, np.integer)):
-        if noverlap >= nfft:
-            noverlap = nfft - 1
-    else:
-        raise TypeError("Invalid input type for noverlap.")
-
-    nblock = 1 + int((obs_interp.len_ - nfft) / (nfft - noverlap))
-    freq_arr = np.fft.fftfreq(n=nfft, d=interv)
-    ts_arr = np.empty(nblock, dtype=np.double)
-    nfft_arr = np.full(obs_interp.shape_[:-1] + (nfft, nblock),
-                       dtype="complex128", fill_value=np.nan)
-    gc.collect()
-    for i in range(nblock):
-        idx_i = i * (nfft - noverlap)
-        idx_e = idx_i + nfft
-        ts_arr[i] = ts_new.data_[idx_i:idx_e].mean()
-        nfft_arr[..., i] = np.fft.fft(obs_interp.data_[..., idx_i:idx_e],
-                                      axis=-1)
-
-    gc.collect()
-    obs_nfft = obs.replace(
-            arr_in=nfft_arr, ts=ts_arr, chop=None, obs_id_arr=None)
-    freq_ts = TimeStamps(arr_in=freq_arr)
-
-    return obs_nfft, freq_ts
-
-
-def real_units(bias, fb, mce_col=-1, mce_bias_r=467, dewar_bias_r=120,
-               shunt_r=180E-6, alt_shunt_r=140E-6, alt_col_list=(0, 3, 4),
-               dewar_fb_r=5280, butterworth_constant=1218,
-               rel_fb_inductance=9, max_bias_voltage=5, max_fb_voltage=0.958,
-               bias_dac_bits=16, fb_dac_bits=14):
-    """
-    Given an array of biases and corresponding array of feedbacks (all in DAC
-    units), calculate the actual current and voltage going through the TES.
-    Returns: (TES voltage array, TES current array) in Volts and Amps respectively.
-    The default values are taken from Carl's script
-
-    Modified from `zeustools/iv_tools.real_units
-    <https://github.com/NanoExplorer/zeustools/blob/master/zeustools/iv_tools.py>`_
-    and keeps updated
-
-    :param bias: scalar or array, tes bias value(s) in adc unit
-    :type bias: int or float or numpy.ndarray
-    :param fb: scalar or array, sq1 feedback value(s) in adc unit, must have the
-        shape such that bias * fb * mce_col yields valid result
-    :type fb: int or float or numpy.ndarray
-    :param int or numpy.ndarray mce_col: int scalar or array, the MCE column
-        number of the input data, because the resistor differs on a column base
-        according to  zeustools.iv_tools.real_units() description; must have the
-        shape such that bias * fb * mce_col yields valid result; default -1 is
-        not a physical column number, but it makes sure that the default
-        shunt_r is used
-    :param int or float mce_bias_r: scalar, MCE bias resistance in ohm, default
-        467 ohm
-    :param int or float dewar_bias_r: scalar, dewar bias resistance in ohm,
-        default 120 ohm to match with the bias resistance 587 in Carl's thesis
-    :param int or float shunt_r: scalar, the default shunt resistance in ohm used
-        for data of MCE column not in the alt_col_list, default 180 uOhm
-        corresponding to actpol_R in zeustools.iv_tools.real_units()
-    :param int or float alt_shunt_r: scalar, the alternative shunt resistance in
-        ohm used for data of MCE column in the alt_col_list, default
-        140 uOhm corresponding to cmb_R in zeustools.iv_tools.real_units()
-    :param tuple or list alt_col_list: list of MCE columns using the alternative
-        shunt resistor, corresponding to cmb_shunts in zeustool.real_units()
-    :param int or float dewar_fb_r: scalar, dewar feedback resistance in ohm,
-        default 5280 ohm
-    :param int or float butterworth_constant: scalar, when running in data mode 2
-        and the low pass filter is in the loop, all signals are multiplied by
-        this factor
-    :param int or float rel_fb_inductance: scalar, feedback inductance ratio,
-        default 9 which means for a change of 1 uA in the TES, the squid will
-        have to change 9 uA to keep up
-    :param int or float max_bias_voltage: scalar, maximum bias voltage in V,
-        default 5
-    :param int or float max_fb_voltage: scalar, maximum feedback voltage in V,
-        default 0.958
-    :param int bias_dac_bits: int, bias DAC bit number, default 16
-    :param int fb_dac_bits: int, feedback DAC bit number, default 14
-    :return: tuple(tes_voltage, tes_current)
-    :rtype: tuple
-    """
-
-    col = np.reshape(mce_col, newshape=(-1, 1))
-    alt_col = np.reshape(alt_col_list, newshape=(1, -1))
-    shunt_r_use = np.choose(np.any(col == alt_col, axis=1),
-                            (shunt_r, alt_shunt_r))  # pick the shunt_r to use
-
-    bias_raw_voltage = bias / 2 ** bias_dac_bits * max_bias_voltage * 2
-    # last factor of 2 is because voltage is bipolar
-    bias_current = bias_raw_voltage / (dewar_bias_r + mce_bias_r)
-    fb_real_dac = fb / butterworth_constant
-    fb_raw_voltage = fb_real_dac / 2 ** fb_dac_bits * max_fb_voltage * 2
-    # again, last factor of 2 is because voltage is bipolar
-    fb_current = fb_raw_voltage / dewar_fb_r
-    tes_current = fb_current / rel_fb_inductance
-
-    shunt_current = bias_current - tes_current
-
-    tes_voltage = shunt_current * shunt_r_use
-
-    return tes_voltage, tes_current

@@ -15,15 +15,18 @@ The package includes four submodules:
 tools
     basic but useful helper functions to process data independence of data
     structure
-zeus2_io
+io
     io and data structure to deal with actual data
 view
     figure classes to visualize zeus2 data
+iv
+    converting dac unit to physical units, and dealing with bias ramp data
 pipeline
     wrapped and read-for-use functions to process zeus2 data
 """
 
 from . import tools
-from . import zeus2_io
+from . import io
+from . import convert
 from . import view
 from . import pipeline

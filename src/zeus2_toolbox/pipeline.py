@@ -1,26 +1,17 @@
+# @Date    : 2021-01-29 16:26:51
+# @Credit  : Bo Peng(bp392@cornell.edu), Cody Lamarche, Christopher Rooney
+# @Name    : pipeline.py
+# @Version : 2.0
 """
 Functions for the pipeline reduction.
 
 requirements:
     beautifulsoup4, numpy >= 1.13, scipy
 """
+import warnings
 
-import multiprocessing
-import pkgutil
-
-from scipy.optimize import curve_fit
-from scipy.signal import convolve
-
+from .analyze import *
 from .view import *
-
-try:
-    import sklearnex
-
-    sklearnex.patch_sklearn()
-except ImportError:
-    pass
-
-from sklearn.decomposition import FastICA
 
 # define many default values used for the pipeline reduction
 MATCH_SAME_PHASE = False  # default phase matching flag for stacking beam pairs,
@@ -54,7 +45,6 @@ CHUNK_WEIGHT = True  # default flag for using weighted average of chunk when
 
 ORIENTATION = "horizontal"  # default orientation for making figure
 
-MAX_THREAD_NUM = multiprocessing.cpu_count()
 
 NOD_PHASE = -1  # -1 means source is in on chop when beam is right, otherwise 1
 NOD_COLNAME = "beam_is_R"  # column name in obs_info recording nodding phase
@@ -62,1116 +52,6 @@ NOD_COLNAME = "beam_is_R"  # column name in obs_info recording nodding phase
 ZPOLD_SHAPE = (3, 3)  # default zpold shape, (az_len, elev_len) or (x_len, y_len)
 ZPOLDBIG_SHAPE = (5, 5)  # default zpoldbig raster shape, (az_len, elev_len)
 RASTER_THRE = 2  # default SNR requirement for not flagging a pixel
-
-try:  # load sky transmission_raw data
-    TRANS_TB = Tb.read(pkgutil.get_data(__name__, "resources/trans_data.csv").
-                       decode("utf-8"), format="ascii.csv")
-except Exception as err:
-    warnings.warn("Failed to load transmission_raw data resource " +
-                  "due to %s: %s" % (type(err), err), UserWarning)
-    TRANS_TB = None
-try:  # load bias line - MCE column map table
-    COL_BIAS_TB = Tb.read(pkgutil.get_data(
-            __name__, "resources/column_line_map.csv").decode("utf-8"),
-                          format="ascii.csv")
-    COL_BIAS_MAP = {col_idx: bias_idx for (col_idx, bias_idx) in
-                    zip(COL_BIAS_TB["mce_col"], COL_BIAS_TB["bias_idx"])}
-except Exception as err:
-    warnings.warn("Failed to load MCE column - bias line map resource " +
-                  "due to %s: %s" % (type(err), err), UserWarning)
-    COL_BIAS_MAP = None
-
-warnings.filterwarnings("ignore", message="invalid value encountered in greater")
-warnings.filterwarnings("ignore", message="invalid value encountered in less")
-warnings.filterwarnings("ignore", message="invalid value encountered in multiply")
-warnings.filterwarnings("ignore", message="divide by zero encountered in log10")
-warnings.filterwarnings(
-        "ignore", message="Warning: converting a masked element to nan.")
-warnings.filterwarnings(
-        "ignore", message="From version 1.3 whiten='unit-variance' will " +
-                          "be used by default.", category=FutureWarning)
-
-if hasattr(np, "__mkl_version__"):
-    warnings.warn("""
-    Intel dist Python has a problem with Numpy such that operations on very
-    large arrays may create a lock, which makes any future multiprocessing 
-    threads wait forever, breaking the parallelization function. If you notice 
-    that the program seems to frozen with parallel=True, try running it again 
-    with parallel=False.""", UserWarning)
-
-
-def check_parallel():
-    """
-    check whether parallelization is supported on the machine, requiring starmap
-    method for multiprocessing.Pool class, and MAX_THREAD_NUM > 1.
-
-    :return: bool flag indicating if parallelization is supported
-    :rtype: bool
-    """
-
-    flag = False
-    if not hasattr(multiprocessing.pool.Pool, "starmap"):
-        warnings.warn("Parallelization is not supported on this machine: " +
-                      "multiprocessing.Pool.starmap() is not found, " +
-                      "need Python >= 3.3.", UserWarning)
-    elif MAX_THREAD_NUM <= 2:
-        warnings.warn("Parallelization is not supported on this machine: " +
-                      "MAX_THREAD_NUM <= 2.", UserWarning)
-    else:
-        flag = True
-
-    return flag
-
-
-def parallel_run(func, args_list):
-    """
-    a helper function to run in parallel
-
-    :param func: function to run in parallel
-    :param list args_list: list of args as input for the input func
-    """
-
-    gc.collect()
-    num_thread = np.clip(len(args_list), a_min=2,
-                         a_max=int(MAX_THREAD_NUM * 1 / 2))
-    with multiprocessing.get_context("fork").Pool(
-            min(MAX_THREAD_NUM, len(args_list))) as pool:
-        print("running in parallel on %i threads." % num_thread)
-        results = pool.starmap(func, args_list)
-
-    return results
-
-
-def transmission_raw_range(freq_ran, pwv, elev=60):
-    """
-    Compute transmission (curve) using the kappa and eta_0 data recorded in
-    TRANS_TB, in the range of frequency specified in freq_ran. For the
-    computation, please refer to test_transmission.ipynb notebook.
-
-    :param freq_ran: list or tuple or array, the range of frequency in unit
-        GHz to compute transmission, should be within the range [400, 1610); the
-        largest and the smallest values will be interpreted as the range
-    :type freq_ran: list or tuple or numpy.ndarray
-    :param float pwv: float, the pwv in unit mm to compute transmission
-    :param float elev: float, the elevation in unit degree to compute
-        transmission
-    :return: (freq, trans), arrays recording the frequency and raw transmission
-        computed in the given frequency range, at the input pwv and elevation
-    :rtype: list
-    :raises RuntimeError: transmission data not loaded
-    """
-
-    if TRANS_TB is None:  # check whether TRANS_TB is loaded
-        raise RuntimeError("The resource of transmission_raw data is not loaded.")
-
-    freq_min, freq_max = np.min(freq_ran), np.max(freq_ran)
-    if np.any(freq_min < TRANS_TB["freq"].min()) or \
-            np.any(freq_max > TRANS_TB["freq"].max()):  # check range
-        warnings.warn("Input frequency out of the range.")
-
-    flag_use = (freq_min - 0.10 < TRANS_TB["freq"]) & \
-               (TRANS_TB["freq"] < freq_max + 0.10)
-    freq_use = TRANS_TB["freq"][flag_use]
-    trans_use = (TRANS_TB["eta0"] * np.exp(- pwv / np.sin(elev / 180 * np.pi) *
-                                           TRANS_TB["kappa"]))[flag_use]
-
-    trans_use[~np.isfinite(trans_use)] = 0
-
-    return freq_use.data, trans_use.data
-
-
-def transmission_raw(freq, pwv, elev=60):
-    """
-    Compute transmission (curve) at given pwv and elevation by calling
-    transmission_raw_range, resampled at the input freq.
-
-    :param freq: int or float or array, the frequency in unit GHz to compute
-        transmission, should be within the range [400, 1610)
-    :type freq: int or float or numpy.ndarray
-    :param float pwv: float, the pwv in unit mm to compute transmission
-    :param float elev: float, the elevation in unit degree to compute
-        transmission
-    :return: variable or array recording the raw transmission computed at the
-        given frequency, pwv and elevation, in the same shape as input freq
-    :rtype: int or float or numpy.ndarray
-    """
-
-    freq_use, trans_use = transmission_raw_range(
-            freq_ran=freq, pwv=pwv, elev=elev)
-    trans = np.interp(freq, freq_use, trans_use)
-
-    return trans
-
-
-def transmission_smoothed_range(freq_ran, pwv, elev=60, r=1000):
-    """
-    Compute transmission (curve) smoothed according to the given spectral
-    resolution using the kappa and eta_0 data recorded in TRANS_TB, in the range
-    of frequency specified in freq_ran. The function convolves the
-    transmission curve from transmission_raw_range() with a gaussian peak of
-    fwhm=freq_rep/R.
-
-    :param freq_ran: list or tuple or array, the range of frequency in unit
-        GHz to compute transmission, must be within the range [400, 1610); the
-        largest and the smallest values will be interpreted as the range
-    :type freq_ran: list or tuple or numpy.ndarray
-    :param float pwv: float, the pwv in unit mm to compute transmission
-    :param float elev: float, the elevation in unit degree to compute
-        transmission
-    :param float r: float, the spectral resolution, defining the gaussian kernel
-        by fwhm=1/R*freq.mean()
-    :return: (freq, trans_smoothed), arrays recording the frequency and the
-        smoothed transmission computed in the given frequency range, at specified
-        pwv and elevation, spectral resolution
-    :rtype: list
-    :raises RuntimeError: transmission data not loaded
-    :raises ValueError: freq out of the range
-    """
-
-    freq_min, freq_max = np.min(freq_ran), np.max(freq_ran)
-    if (freq_min < TRANS_TB["freq"].min()) or \
-            (TRANS_TB["freq"].max() < freq_max):
-        raise ValueError("Input frequency out of the range.")
-
-    freq_rep = (freq_min + freq_max) / 2  # representative frequency
-    freq_res = freq_rep / r  # FWHM of the resolution element
-    flag_use = (freq_min - freq_res * 5 < TRANS_TB["freq"]) & \
-               (TRANS_TB["freq"] < freq_max + freq_res * 5)
-    freq_use, trans_use = transmission_raw_range(
-            freq_ran=TRANS_TB["freq"][flag_use], pwv=pwv, elev=elev)
-
-    gauss_kernel = gaussian(freq_use, x0=freq_use.mean(),
-                            sigma=freq_res / 2 / np.sqrt(2 * np.log(2)),
-                            amp=1 * np.diff(freq_use).mean(), norm=True)
-    trans_smoothed_use = convolve(trans_use, gauss_kernel, mode="same")
-
-    flag_use = (freq_min - 0.10 < freq_use) & \
-               (freq_use < freq_max + 0.10)
-    freq_use, trans_smoothed_use = freq_use[flag_use], \
-                                   trans_smoothed_use[flag_use]
-
-    return freq_use, trans_smoothed_use
-
-
-def transmission_smoothed(freq, pwv, elev=60, r=1000):
-    """
-    Compute smoothed transmission (curve) by calling
-    transmission_smoothed_range(), and resample at input freq.
-
-    :param freq: int or float or array, the frequency in unit GHz to compute
-        transmission, must be within the range [400, 1610); the middle value of
-        input freq will be used as the representative frequency to calculate
-        resolution
-    :type freq: int or float or numpy.ndarray
-    :param float pwv: float, the pwv in unit mm to compute transmission
-    :param float elev: float, the elevation in unit degree to compute
-        transmission
-    :param float r: float, the spectral resolution, defining the gaussian kernel
-        by fwhm=1/r*freq.mean()
-    :return: variable or array recording the transmission computed at the given
-        frequency, pwv and elevation, and smoothed to the given spectral
-        resolution, in the same shape as input freq
-    :rtype: int or float or numpy.ndarray
-    :raises RuntimeError: transmission data not loaded
-    :raises ValueError: freq out of the range
-    """
-
-    freq_use, trans_smoothed_use = transmission_smoothed_range(
-            freq_ran=freq, pwv=pwv, elev=elev, r=r)
-    trans_smoothed = np.interp(freq, freq_use, trans_smoothed_use)
-
-    return trans_smoothed
-
-
-def transmission_pixel(freq, pwv, elev=60, r=1000, d_freq=0.8):
-    """
-    Because each pixel samples the energy in a certain range of frequency in the
-    dispersed light, so the actual transmission is the smoothed curve
-    (simulating the effect of grating) further convolved with a square wave
-    (window) function (simulating the effect of pixel), at the central frequency.
-    This function convolves the smoothed transmission curve from
-    transmission_smoothed_range() with a square function characterized by the
-    width d_freq.
-
-    :param freq: int or float or array, the frequency in unit GHz to compute
-        transmission, must be within the range [400, 1610); the middle value
-        of input freq will be used as the representative frequency to calculate
-        resolution
-    :type freq: int or float or numpy.ndarray
-    :param float pwv: float, the pwv in unit mm to compute transmission
-    :param float elev: float, the elevation in unit degree to compute
-        transmission
-    :param float r: float, the spectral resolution, defining the gaussian kernel
-        by fwhm=1/r*freq.mean()
-    :param float d_freq: float, the width of window function in unit GHz
-    :return: variable or array recording the transmission computed at the given
-        frequency, pwv and elevation, and smoothed to the given spectral
-        resolution, in the same shape as input freq
-    :rtype: int or float or numpy.ndarray
-    :raises RuntimeError: transmission data not loaded
-    :raises ValueError: freq out of the range
-    """
-
-    freq_min, freq_max = np.min(freq), np.max(freq)
-    freq_use, trans_smoothed_use = transmission_smoothed_range(
-            freq_ran=(freq_min - d_freq, freq_max + d_freq), pwv=pwv,
-            elev=elev, r=r)
-
-    sq_kernel = (abs(freq_use - freq_use.mean()) < d_freq / 2).astype(np.float)
-    sq_kernel /= sq_kernel.sum()
-    trans_win_use = convolve(trans_smoothed_use, sq_kernel, mode="same")
-
-    trans_win = np.interp(freq, freq_use, trans_win_use)
-
-    return trans_win
-
-
-def get_transmission_raw_obs_array(array_map, pwv, elev=60):
-    """
-    CAUTION: currently not working
-    get an ObsArray object corresponding to the raw sky transmission of the
-    array, the array_map_ of the output obe_array object will correspond to the
-    frequency of transmission_raw_range() output instead of input array_map.
-    This function is primarily written for plotting raw transmission curve
-
-    :param ArrayMap array_map: ArrayMap object, must have wavelength initialized
-    :param float pwv: float, the pwv in unit mm to compute transmission
-    :param float elev: float, the elevation in unit degree to compute
-        transmission
-    :return: ObsArray object of transmission
-    :rtype: ObsArray
-    :raises RuntimeError: array_map wavelength not initialized
-    :raises ValueError: grat_idx not found in array_map.conf_kwargs
-    """
-
-    # TODO: modify to be compatible with the new ArrayMap.init_wl()
-
-    if not array_map.wl_flag_:
-        raise RuntimeError("array_map is not initialized with wavelength.")
-    if "grat_idx" not in array_map.conf_kwargs_:
-        raise ValueError("grat_idx not found in array_map.conf_kwargs.")
-
-    wl_edge = np.concatenate((array_map.array_wl_ - array_map.array_d_wl_ / 2,
-                              array_map.array_wl_ + array_map.array_d_wl_ / 2))
-    freq_arr, trans_arr = transmission_raw_range(
-            wl_to_freq(wl_edge), pwv=pwv, elev=elev)
-    wl_arr = freq_to_wl(freq_arr)
-    spat_arr = np.arange(array_map.array_spat_llim_,
-                         array_map.array_spat_ulim_ + 1)
-    wl = np.repeat(wl_arr, len(spat_arr))
-    trans = np.repeat(trans_arr, len(spat_arr))
-    spat = np.repeat(spat_arr[None, :], len(wl_arr), axis=0).flatten()
-    spec = wl_to_spec(wl=wl, spat=spat, **array_map.conf_kwargs_)
-
-    array_map_new = ArrayMap(np.array([spat, spec, spat, spec]).transpose())
-    obs_array_new = ObsArray(arr_in=trans[:, None], array_map=array_map_new)
-    if array_map.band_flag_:
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                    "ignore",
-                    message="The array map is incompatible with input band.")
-            array_map_new.set_band(array_map.band_)
-        obs_array_new = obs_array_new.take_by_array_map(array_map_new)
-
-    return obs_array_new
-
-
-def gaussian_filter_obs(obs, freq_sigma=0.3, freq_center=0,
-                        edge_chunks_ncut=None, chunk_edges_ncut=None,
-                        truncate=4.0):
-    """
-    Call scipy.ndimage.gaussian_filter1d() to do apply gaussian filtering on the
-    time axis of input Obs or ObsArray object. Will first resample obs_fft to
-    even and finer intervals, do smoothing, then sample back to the original
-    time stamps by interpolation. Return an object the same as the original one
-    except for the data_. edge_chunks_ncut is passed to
-    Chop.get_flag_edge_chunks() to determine the number of edge chunks to be
-    replaced by np.nan. If edge_chunks_ncut is left as None, will null the data
-    with time stamp within 0.5s/(freq_sigma + freq_center) to the edge. If you
-    would like not to null any edge chunks, set edge_chunks_ncut=0.
-
-    :param obs: Obs or ObsArray object to ifft
-    :type obs: Obs or ObsArray
-    :param float freq_sigma: float, the standard deviation for Gaussian kernel
-        to convolved with data in terms of frequency.
-    :param float freq_sigma: float, the central frequency of the Gaussian kernel
-    :param freq_center: center frequency of the gaussian filter
-    :param edge_chunks_ncut: int or float, passed to Chop.get_flag_edge_chunks()
-        as ncut to find edge chunks to null. If left None, will flag data within
-        1s/freq_sigma to the edge of observation.
-    :type edge_chunks_ncut: int or float
-    :param chunk_edges_ncut: int or float, passed to Chop.get_flag_chunk_edges()
-        as ncut to find edge chunks to null. If left None, will flag data within
-        1s/freq_sigma to the edge of observation.
-    :type chunk_edges_ncut: int or float
-    :param float truncate: float, fft will be truncated at the frequency
-        freq_sigma*truncate away from the freq_center
-    :return: new object with only data_ smoothed and other attributes the same
-        as input
-    :rtype: Obs or ObsArray
-    :raises TypeError: invalid input type
-    :raises ValueError: empty ts
-    """
-
-    if not isinstance(obs, Obs):
-        raise TypeError("Invalid input type, expect Obs or ObsArray.")
-    if obs.ts_.empty_flag_ or (obs.len_ == 0):
-        raise ValueError("Empty ts_.")
-
-    ts = obs.ts_
-    obs_fft = fft_obs(obs=obs)
-    freq_center, freq_sigma = abs(freq_center), abs(freq_sigma)
-    gaussian_kern = gaussian(x=abs(obs_fft.ts_.data_), x0=freq_center,
-                             sigma=freq_sigma, amp=1, norm=False)
-    gaussian_kern[
-        (abs(obs_fft.ts_.data_) > freq_sigma * truncate + freq_center) |
-        (abs(obs_fft.ts_.data_) < - freq_center - freq_sigma * truncate)] = 0
-    obs_fft.update_data(obs_fft.data_ * gaussian_kern)
-    obs_ifft = ifft_obs(obs_fft)
-    obs_smoothed = obs_ifft.resample_by_ts(
-            ts_new=ts, method="interpolation", fill_value=0.)
-
-    chop_freq = obs.get_chop_freq()
-    if edge_chunks_ncut is None:
-        edge_chunks_ncut = int(round(chop_freq / freq_sigma))
-    elif not isinstance(edge_chunks_ncut, (int, float, np.integer, np.float)):
-        raise TypeError("Invalid input type for edge_chunks_ncut.")
-    if chunk_edges_ncut is None:
-        if (edge_chunks_ncut > 0) or (freq_sigma <= 3 * chop_freq):
-            chunk_edges_ncut = 0
-        else:
-            chunk_edges_ncut = int(round(0.5 / freq_sigma / obs.ts_.interv_))
-    elif not isinstance(chunk_edges_ncut, (int, float, np.integer, np.float)):
-        raise TypeError("Invalid input type for edge_chunks_ncut.")
-    flag_arr = obs.chop_.get_flag_edge_chunks(ncut=edge_chunks_ncut)
-    flag_arr = flag_arr | obs.chop_.get_flag_chunk_edges(chunk_edges_ncut)
-    if flag_arr.sum() > obs.len_ / 2:
-        warnings.warn("More than half of the data is flagged in smoothing.",
-                      UserWarning)
-    obs_smoothed.fill_by_flag_along_axis(flag_arr=flag_arr, axis=-1,
-                                         fill_value=np.nan)
-
-    return obs.replace(arr_in=obs_smoothed.data_)
-
-
-def fit_obs(obs, features):
-    """
-    Least mean square fit of features to obs in the last axis. Features must be
-    an Obs object with the same length as obs_fft.ts_. Return an object of the
-    same type as the input, the same shape for all but the last axis. The
-    amplitude of the fit is recorded in the last axis of the data_ in the
-    returned object, and the best fit model can then be derived by calling
-    dot_prod_obs(amp, features)
-
-    :param obs: Obs or ObsArray object
-    :type obs: Obs or ObsArray
-    :param Obs features: Obs object, containing features, can only be 2-d with
-        features in the first axis, and samples of features in the second
-        axis
-    :return: Obs or ObsArray object with amplitude of the fit as well as only
-        obs_id related attributes. The amplitudes are in the last axis, in the
-        same order of input feature.
-    :raises TypeError: invalid input type
-    :raises ValueError: invalid length
-    """
-
-    if not isinstance(obs, Obs):
-        raise TypeError("Invalid type for input obs_fft, " +
-                        "expect Obs or ObsArray.")
-    if not isinstance(features, Obs):
-        raise TypeError("Invalid type for input features, expect Obs.")
-    features = Obs(arr_in=features)
-    if obs.len_ != features.len_:
-        raise ValueError("Inconsistent length.")
-    feature_vectors = features.data_.transpose()
-
-    fit_features = lambda arr: nanlstsq(feature_vectors, arr, rcond=-1,
-                                        fill_value=np.nan)[0]
-    amp_arr = np.apply_along_axis(fit_features, axis=-1, arr=obs.data_)
-    kwargs = {"array_map": obs.array_map_} if isinstance(obs, ObsArray) else {}
-    amp = type(obs)(arr_in=amp_arr, obs_info=obs.obs_info_,
-                    obs_id=obs.obs_id_, obs_id_list=obs.obs_id_list_,
-                    t_start_time=obs.t_start_time_,
-                    t_end_time=obs.t_end_time_, **kwargs)
-
-    return amp
-
-
-def dot_prod_obs(obs1, obs2):
-    """
-    Perform dot product of two Obs/ObsArray objects. The returned object will be
-    of the same type as obs1, and all the observation related attributes like
-    obs_id and array_map will be inherited from obs1. If obs2.ndim_ == 1, then
-    a sum product will be performed, the returned object shape_ will be as
-    obs1.shape_[:-1], and the ts_, chop_, obs_id_arr_ will not be initialized.
-    If obs2.ndim_ > 1, the result will be like numpy.dot(), and ts_, chop_,
-    obs_id_arr_ will be passed from obs2 to the returned object. obs1, obs2 do
-    not have to be of the same type.
-
-    :param obs1: Obs or ObsArray object
-    :type obs1: Obs or ObsArray
-    :param obs2: Obs or ObsArray object
-    :type obs2: Obs or ObsArray
-    :return: type the same as obs1 containing dot product result
-    :rtype: Obs or ObsArray
-    :raises TypeError: invalid input type
-    :raises ValueError: empty object
-    """
-
-    if (not isinstance(obs1, Obs)) or (not isinstance(obs2, Obs)):
-        raise TypeError("Invalid input type, expect Obs or ObsArray.")
-    if obs1.empty_flag_ or obs2.empty_flag_:
-        raise ValueError("Empty object is input.")
-
-    dot_result = np.dot(obs1.data_, obs2.data_)
-    kwargs = {"array_map": obs1.array_map_} \
-        if isinstance(obs1, ObsArray) else {}
-    if obs2.ndim_ == 1:
-        return type(obs1)(
-                arr_in=dot_result, obs_info=obs1.obs_info_, obs_id=obs1.obs_id_,
-                obs_id_list=obs1.obs_id_list_,
-                t_start_time=obs1.t_start_time_,
-                t_end_time=obs1.t_end_time_, **kwargs)
-    else:
-        return type(obs1)(
-                arr_in=dot_result, obs_info=obs1.obs_info_, obs_id=obs1.obs_id_,
-                obs_id_list=obs1.obs_id_list_,
-                chop=obs2.chop_, ts=obs2.ts_, obs_id_arr=obs2.obs_id_arr_,
-                t_start_time=obs1.t_start_time_,
-                t_end_time=obs1.t_end_time_, **kwargs)
-
-
-def stack_best_pixels(obs, ref_pixel=None, corr_thre=0.6, min_pix_num=10,
-                      use_ref_pix_only=False):
-    """
-    Build a time stream model by finding the pixels well correlated with the
-    reference pixel and stack their time streams. The pixels will be selected
-    such that only the pixels with correlation with the ref_pixel higher
-    than corr_thre, or the min_pix_num number of pixels with the highest
-    correlation (which ever gives more pixels) will be stacked together with
-    ref_pixel to produce the model. But if use_ref_pix_only is set to True,
-    then it will only use the time stream of ref_pix. If ref_pix is left None,
-    will automatically pick the pixel with the highest correlation with all
-    other pixels as the reference pixel. But this process may take a long time
-    because a correlation matrix of all the pixels in the input data will be
-    calculated. After the well correlated pixels are found, they are stacked by
-    first dividing by their nanstd in time axis, then take the average of all
-    pixels at each time stamp.
-
-    :param obs: Obs or ObsArray Object
-    :type obs: Obs or ObsArray
-    :param ref_pixel: tuple or list, the best pixel as reference, should be
-        (spat, spec) for ObsArray input, or (row, column) for Obs input. If left
-        None, will pick the pixel with the highest correlation with all other
-        pixels as the best pixel.
-    :type ref_pixel: tuple or list
-    :param float corr_thre: float, threshold of correlation to select pixels to
-        stack, if there are more than min_pix_num number of pixels with
-        correlation higher than corr_thre.
-    :param int min_pix_num: int, minimum number of the pixels to select
-    :param bool use_ref_pix_only: bool, whether to use only the time stream
-        of best_pix to build snake model
-    :return: Obs object of shape (1, obs.len_)
-    :rtype: Obs
-    :raises TypeError: invalid input type
-    """
-
-    if not isinstance(obs, Obs):
-        raise TypeError("Invalid input type, expect Obs or ObsArray.")
-    obs_flattened = obs.flatten().copy()
-    obs_flattened = obs_flattened.take_by_flag_along_axis(
-            obs_flattened.proc_along_time("num_is_finite").data_ > 0, axis=0)
-    obs_flattened = obs_flattened.take_by_flag_along_axis(
-            ~obs_flattened.proc_along_time("num_not_is_finite").
-            get_nanmad_flag(5, axis=0), axis=0)
-    flattened_data = obs_flattened.data_
-    masked_data = np.ma.masked_invalid(flattened_data)
-    if ref_pixel is None:  # find the best pixel
-        corr_mat = np.ma.corrcoef(masked_data)
-        arg_best_pix = corr_mat.sum(axis=0).argmax()
-        ref_pix_data = flattened_data[arg_best_pix]
-    elif isinstance(obs, ObsArray):
-        ref_pix_data = obs.take_where(spat_spec=ref_pixel).data_
-    else:
-        ref_pix_data = obs.data_[ref_pixel]
-
-    if use_ref_pix_only:
-        best_pix_data = ref_pix_data[None, ...]
-    else:
-        ref_pix_data = np.ma.masked_invalid(ref_pix_data)
-        corr_best_pix = lambda arr: np.ma.corrcoef(arr, ref_pix_data)[0, 1]
-        corr_arr = abs(np.ma.apply_along_axis(
-                corr_best_pix, axis=-1, arr=masked_data))
-        pixel_idx_list = np.flatnonzero(corr_arr > corr_thre)
-        if len(pixel_idx_list) < min_pix_num + 1:
-            corr_arr.fill_value = 0
-            pixel_idx_list = corr_arr.filled().argsort()[-min_pix_num - 1:]
-        best_pix_data = flattened_data[np.array(pixel_idx_list)]
-
-    best_pix_obs = Obs(arr_in=best_pix_data,
-                       chop=obs.chop_, ts=obs.ts_, obs_info=obs.obs_info_,
-                       obs_id=obs.obs_id_, obs_id_list=obs.obs_id_list_,
-                       obs_id_arr=obs.obs_id_arr_,
-                       t_start_time=obs.t_start_time_,
-                       t_end_time=obs.t_end_time_)
-    chunk_var = best_pix_obs.chunk_proc("nanstd") ** 2
-    chunk_var.fill_by_mask(chunk_var.data_ == 0, fill_value=np.nan)
-    weight = (1 / chunk_var).proc_along_time("nansum")
-    stacked_obs = (best_pix_obs * weight).proc_along_axis(method="mean", axis=0)
-
-    return stacked_obs
-
-
-def prep_sklearn_obs(obs):
-    """
-    Return an Obs/ObsArray object that is ready for sklearn functions. The
-    input object will be first shrunk by taking only the time stamps with finite
-    data for all pixels, then time stream of each pixel will be centered at 0
-    and rescaled by std.
-
-    :param obs: input Obs/ObsArray object
-    :type obs: Obs or ObsArray
-    :return: object that is ready for sklearn functions, of the same type
-        as the input object
-    :rtype: Obs or ObsArray
-    """
-
-    if not isinstance(obs, Obs):
-        raise TypeError("Invalid input type, expect Obs or ObsArray.")
-    flattened_obs = obs.flatten()
-
-    finite_flag = np.all(np.isfinite(flattened_obs.data_), axis=0)
-    sample_obs = flattened_obs.take_by_flag_along_time(flag_arr=finite_flag)
-    sample_obs -= sample_obs.proc_along_time(method="mean")
-    sample_obs /= sample_obs.proc_along_time(method="std")
-
-    return sample_obs
-
-
-def sklearn_obs(obs, sklearn_solver):
-    """
-    Use input sklearn_solver to decompose the time stream in obs, and return an
-    Obs object containing the components found by sklearn_solver
-
-    :param obs: input Obs/ObsArray object
-    :type obs: Obs or ObsArray
-    :param sklearn.base.BaseEstimator sklearn_solver:
-    :return: Obs object containing the sources found by sklearn_solver
-    :rtype: Obs
-    """
-
-    sample_obs = prep_sklearn_obs(obs)
-    sources = sklearn_solver.fit_transform(sample_obs.data_.transpose())
-    source_obs = Obs(arr_in=sources.transpose(), ts=sample_obs.ts_)
-    source_obs = source_obs.resample_by_ts(ts_new=obs.ts_, method="exact")
-
-    return source_obs
-
-
-def adaptive_sklearn_obs(obs, sklearn_solver, verbose=False, llim=1, ulim=.5):
-    """
-    Use input sklearn_solver to decompose the time stream in obs, and adapt
-    n_components of sklearn_solver such that if sklearn_solver.n_iter ==
-    max_iter of sklearn_solver, it indicates sklearn_solver may not converge so
-    sklearn_solver is re-run with n_components -= 1; if sklearn_solver.n_iter <
-    max_iter of sklearn_solver, sklearn_solver is re-run with n_components += 1,
-    until the optimal n_components is found that is at the edge of convergence.
-
-    :param obs: input Obs/ObsArray object
-    :type obs: Obs or ObsArray
-    :param sklearn.base.BaseEstimator sklearn_solver: must have n_iter_
-        attribute
-    :param bool verbose: bool flag, whether to print additional information on
-        adaptive n_components setup
-    :param llim: int or float, lower limit of the number of n_components, if
-        float then round(number_of_input_features * llim) will be used. Must be
-        within the range (1, number_of_input_features) for int input and
-        (0., 1.) for float input
-    :param ulim: int or float, upper limit of the number of n_components, if
-        float then round(number_of_input_features * llim) will be used. Must be
-        within the range (1, number_of_input_features) for int input and
-        (0., 1.) for float input
-    :return: Obs object containing the sources found by sklearn_solver
-    :rtype: Obs
-    :raises ValueError: ulim < llim, does not contain n_iter_, initial
-        n_components out of range
-    """
-
-    sample_obs = prep_sklearn_obs(obs)
-    n_feature = sample_obs.shape_[0]
-    if isinstance(llim, (float, np.float)):
-        llim = int(llim * n_feature)
-    if llim <= 1:
-        llim = 1
-    elif llim > n_feature:
-        llim = n_feature
-    if isinstance(ulim, (float, np.float)):
-        ulim = int(ulim * n_feature)
-    if ulim <= 1:
-        ulim = 1
-    elif ulim > n_feature:
-        ulim = n_feature
-    if ulim < llim:
-        raise ValueError("ulim < llim.")
-
-    params = sklearn_solver.get_params()
-    tmp_solver = type(sklearn_solver)(**params)
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-                "ignore", message="FastICA did not converge. " +
-                                  "Consider increasing tolerance or " +
-                                  "the maximum number of iterations.")
-        tmp_solver.fit(sample_obs.data_.transpose())
-    if "n_iter_" not in tmp_solver.__dict__:
-        raise ValueError("The solver doesn't have n_iter_, does not support " +
-                         "adaptive solving.")
-    if not llim <= params["n_components"] <= ulim:
-        raise ValueError("Initial value of n_components out of range.")
-    if tmp_solver.n_iter_ == params["max_iter"]:
-        while (tmp_solver.n_iter_ == params["max_iter"]) and \
-                (llim < params["n_components"]):
-            if verbose:
-                print("n_iter=%i == %i for n_components=%i in range [%i, %i]." %
-                      (tmp_solver.n_iter_, params["max_iter"],
-                       params["n_components"], llim, ulim))
-            params["n_components"] -= 1
-            tmp_solver = type(sklearn_solver)(**params)
-            with warnings.catch_warnings():
-                warnings.filterwarnings(
-                        "ignore", message="FastICA did not converge. " +
-                                          "Consider increasing tolerance or " +
-                                          "the maximum number of iterations.")
-                tmp_solver.fit(sample_obs.data_.transpose())
-        if verbose:
-            print("n_iter=%i for n_components=%i, converges." %
-                  (tmp_solver.n_iter_, params["n_components"]))
-    else:
-        while (tmp_solver.n_iter_ < params["max_iter"]) and \
-                (tmp_solver.n_components < ulim):
-            if verbose:
-                print("n_iter=%i < %i for n_components=%i." %
-                      (tmp_solver.n_iter_, params["max_iter"],
-                       params["n_components"]))
-            params["n_components"] += 1
-            tmp_solver = type(sklearn_solver)(**params)
-            with warnings.catch_warnings():
-                warnings.filterwarnings(
-                        "ignore", message="FastICA did not converge. " +
-                                          "Consider increasing tolerance or " +
-                                          "the maximum number of iterations.")
-                tmp_solver.fit(sample_obs.data_.transpose())
-        if verbose:
-            print("n_iter=%i for n_components=%i in range [%i, %i]." %
-                  (tmp_solver.n_iter_, params["n_components"], llim, ulim))
-        params["n_components"] -= (tmp_solver.n_iter_ == params["max_iter"])
-    if verbose:
-        print("Reset n_components of the solver to %i" % params["n_components"])
-    sklearn_solver.set_params(n_components=params["n_components"])
-    sources = sklearn_solver.fit_transform(sample_obs.data_.transpose())
-
-    source_obs = Obs(arr_in=sources.transpose(), ts=sample_obs.ts_)
-    source_obs = source_obs.resample_by_ts(ts_new=obs.ts_, method="exact")
-
-    return source_obs
-
-
-def get_match_phase_flags(chop1, chop2, match_same_phase=False):
-    """
-    get the flag arrays taking the part of the 2 input chop objects that matches
-    in chop phase, either the same or opposite phase
-
-    :param chop1: Chop, the first chop
-    :type chop1: Chop or Obs or ObsArray
-    :param chop2: Chop, the second chop
-    :type chop2: Chop or Obs or ObsArray
-    :param bool match_same_phase: bool, flag of whether to match the same phase,
-        if False will match the opposite phase
-    :return: tuple of (flag_arr1, flag_arr2) containing the bool flag of the
-        chop objects that match in the chop phase
-    :rtype: tuple
-    """
-
-    if isinstance(chop1, Obs):
-        chop1 = chop1.chop_
-    if isinstance(chop2, Obs):
-        chop2 = chop2.chop_
-    chop1, chop2 = Chop(chop1), Chop(chop2)
-
-    chunk_num1, chunk_num2 = chop1.chunk_num_, chop2.chunk_num_
-    chunk_edge_idxs1 = chop1.chunk_edge_idxs_
-    chunk_edge_idxs2 = chop2.chunk_edge_idxs_
-    chunk_len1 = np.diff(chunk_edge_idxs1)
-    chunk_len2 = np.diff(chunk_edge_idxs2)
-    chunk_chop1 = chop1.chunk_proc(chunk_edge_idxs1, method="mean").data_
-    chunk_chop2 = chop2.chunk_proc(chunk_edge_idxs2, method="mean").data_
-    flag_arr1 = np.full(chop1.len_, fill_value=False, dtype=bool)
-    flag_arr2 = np.full(chop2.len_, fill_value=False, dtype=bool)
-
-    # search through all chunks of the one with more chunks, match phase
-    idx1, idx2 = 0, 0
-    while (idx1 < chunk_num1) and (idx2 < chunk_num2):
-        if np.choose(match_same_phase,
-                     [(chunk_chop1[idx1] != chunk_chop2[idx2]),
-                      (chunk_chop1[idx1] == chunk_chop2[idx2])]):
-            len1, len2 = chunk_len1[idx1], chunk_len2[idx2]
-            chunk_len = min(len1, len2)
-            flag_arr1[chunk_edge_idxs1[idx1]:
-                      chunk_edge_idxs1[idx1] + chunk_len] = True
-            flag_arr2[chunk_edge_idxs2[idx2]:
-                      chunk_edge_idxs2[idx2] + chunk_len] = True
-            idx1 += 1
-            idx2 += 1
-        else:
-            if (chunk_num1 - idx1) >= (chunk_num2 - idx2):
-                idx1 += 1
-            else:
-                idx2 += 1
-
-    return flag_arr1, flag_arr2
-
-
-def get_match_phase_obs(obs1, obs2, match_same_phase=False):
-    """
-    use get_match_phase_flags() to take the part of the 2 input Obs/ObsArray
-    objects that matches in chop phase, either the same or opposite phase
-
-    :param obs1: the first object
-    :type obs1: Obs or ObsArray
-    :param obs2: the second object
-    :type obs2: Obs or ObsArray
-    :param bool match_same_phase: bool, flag of whether to match the same phase,
-        if False will match the opposite phase
-    :return: tuple of (matched_obs1, matched_obs2) containing the part that
-        match in the chop phase
-    :rtype: tuple
-    """
-
-    flag1, flag2 = get_match_phase_flags(chop1=obs1, chop2=obs2,
-                                         match_same_phase=match_same_phase)
-    matched_obs1 = obs1.take_by_flag_along_time(flag_arr=flag1)
-    matched_obs2 = obs2.take_by_flag_along_time(flag_arr=flag2)
-
-    return matched_obs1, matched_obs2
-
-
-def get_match_phase_pair(obs):
-    """
-    use get_match_phase_obs() to separate the input Obs/ObsArray objects into
-    the on and off chop parts that can be paired
-
-    :param obs: the input object
-    :type obs: Obs or ObsArray
-    :return: tuple of (obs_on, obs_off) containing the part that are on and off
-        chop phase that can be paired
-    :rtype: tuple
-    """
-
-    obs_on, obs_off = obs.take_by_flag_along_time(chop=True), \
-                      obs.take_by_flag_along_time(chop=False)
-    obs_on, obs_off = get_match_phase_obs(
-            obs_on, obs_off, match_same_phase=False)
-
-    return obs_on, obs_off
-
-
-def weighted_proc_along_axis(obs, method="nanmean", weight=None, axis=-1):
-    """
-    Calculate the weighted mean or median for input Obs/ObsArray data along the
-    given axis, return the mean or median, error and the summed weight
-
-    :param obs: Obs or ObsArray object containing data
-    :type obs: Obs or ObsArray
-    :param str method: method of mean calculation, supported values are 'mean',
-        'median', 'nanmean', 'nanmedian'
-    :param weight: Obs or ObsArray object containing weight, should be the same
-        type as obs. If left None, will treat all data point as the same weight.
-    :type weight: Obs or ObsArray
-    :param int axis: the axis along which the mean of obs.data_ will be
-        calculated
-    :return: tuple of (mean, error, summed_weight) object, the type is the same
-        as the input type
-    :rtype: tuple
-    :raises TypeError: invalid input type
-    :raises ValueError: invalid method value, inconsistent shape
-    """
-
-    if not isinstance(obs, Obs):
-        raise TypeError("Invalid input type for obs, expect Obs/ObsArray.")
-    mean_obs = obs.proc_along_axis(method=method, axis=axis)
-    if obs.empty_flag_:
-        return mean_obs, mean_obs.copy(), mean_obs.copy()
-    if method.strip().lower()[0] == "n":
-        nan_policy = "omit"
-        if method.strip().lower()[:6] == "nanmea":
-            func = weighted_mean
-        elif method.strip().lower()[:6] == "nanmed":
-            func = weighted_median
-        else:
-            raise ValueError("Invalid value for method")
-    elif method.strip().lower()[0] == "m":
-        nan_policy = "propagate"
-        if method.strip().lower()[:3] == "mea":
-            func = weighted_mean
-        elif method.strip().lower()[:3] == "med":
-            func = weighted_median
-        else:
-            raise ValueError("Invalid value for method")
-    else:
-        raise ValueError("Invalid value for method")
-    axis = obs.__check_axis__(axis=axis)
-
-    data_arr = obs.data_
-    if weight is None:
-        wt_arr = np.ones(data_arr.shape)
-    else:
-        if weight.shape_ != obs.shape_:
-            raise ValueError("Inconsistent shape.")
-        wt_arr = weight.data_
-    ni, nk = obs.shape_[:axis], obs.shape_[axis + 1:]
-    mean_arr = np.empty(ni + (1,) + nk, dtype=np.double)
-    err_arr = np.empty(ni + (1,) + nk, dtype=np.double)
-    summed_wt_arr = np.empty(ni + (1,) + nk, dtype=wt_arr.dtype)
-    for ii in np.ndindex(ni):
-        for kk in np.ndindex(nk):
-            mean_arr[ii + (0,) + kk], err_arr[ii + (0,) + kk], \
-            summed_wt_arr[ii + (0,) + kk] = func(
-                    arr=data_arr[ii + np.s_[:, ] + kk],
-                    wt=wt_arr[ii + np.s_[:, ] + kk], nan_policy=nan_policy)
-    wt_mean_obs = mean_obs.replace(arr_in=mean_arr)
-    err_obs = mean_obs.replace(arr_in=err_arr)
-    summed_wt_obs = mean_obs.replace(arr_in=summed_wt_arr)
-
-    return wt_mean_obs, err_obs, summed_wt_obs
-
-
-def get_chop_flux(obs, chunk_method="nanmedian", method="nanmean",
-                  err_type="internal", weight=None, on_off=True):
-    """
-    Calculate the flux in chopped data. The data will first be processed in each
-    chop chunk by chunk_method, unless the chunk_method is set to None or
-    'none' and the data will be left as it is. Then the data will be separated
-    into on-chop and off-chop part, by which the difference is the flux. The
-    function supports two ways to calculate error: if err_type is 'internal',
-    the difference between mean of all on and off chop data is the flux, and
-    the combined error of the two parts of the data is the final error; if
-    err_type is 'external', then the difference of each on-off pair will be
-    taken in the first step, and then the mean and error of these differences
-    is used. The method of calculating mean in this step is denoted by the
-    variable method, which supports 'mean', 'nanmean', 'median', 'nanmedian'.
-
-    :param obs: Obs or ObsArray object containing data and chop_
-    :type obs: Obs or ObsArray
-    :param str chunk_method: str, method parameter passed to chunk_proc() to
-        chunk the data as the first step. If set to None or 'none', the data
-        will skip the chunk step and the flux will be extracted from the raw
-        data
-    :param str method: str, the method parameter passed to
-        weighted_proc_along_axis() to calculate the flux and error, suggested
-        values are "nanmean" or "nanmedian"
-    :param str err_type: str, allowed values are 'internal' and 'external'
-    :param weight: Obs or ObsArray object containing weight, should be the same
-        type as obs. If left None, will treat all data point as the same weight.
-    :type weight: Obs or ObsArray
-    :param bool on_off: bool flag of flux calculation using on chop - off chop,
-        if False, flux is off chop - on chop
-    :return: tuple of (flux, error, weight) objects of the same type as input
-        obs
-    :rtype: tuple
-    :raises TypeError: invalid input type
-    :raises ValueError: invalid method value
-    """
-
-    if not isinstance(obs, Obs):
-        raise TypeError("Invalid input type for obs, expect Obs/ObsArray.")
-    obs = obs.copy()
-    mean_obs = obs.proc_along_time(method="nanmean")
-    if obs.empty_flag_ or obs.chop_.empty_flag_:
-        raise ValueError("obs data_ or chop_ is empty.")
-    if weight is None:
-        weight = obs.replace(arr_in=np.ones(obs.shape_))
-    weight = weight.copy()
-    weight.fill_by_mask(mask=np.isnan(obs.data_), fill_value=np.nan)
-
-    if (chunk_method is None) or chunk_method.strip().lower() == "none":
-        obs_chunk_on = obs.take_by_flag_along_time(chop=True)
-        obs_chunk_off = obs.take_by_flag_along_time(chop=False)
-        wt_chunk_on = weight.take_by_flag_along_time(flag_arr=obs.chop_.data_)
-        wt_chunk_off = weight.take_by_flag_along_time(flag_arr=~obs.chop_.data_)
-    else:
-        obs_chunk = obs.chunk_proc(method=chunk_method)
-        obs_chunk_on = obs_chunk.take_by_flag_along_time(chop=True)
-        obs_chunk_off = obs_chunk.take_by_flag_along_time(chop=False)
-        wt_chunk_method = "nansum" if chunk_method.strip().lower()[:3] == "nan" \
-            else "sum"
-        wt_chunk = weight.chunk_proc(chunk_edge_idxs=obs.chop_.chunk_edge_idxs_,
-                                     method=wt_chunk_method)
-        wt_chunk_on = wt_chunk.take_by_flag_along_time(
-                flag_arr=obs_chunk.chop_.data_)
-        wt_chunk_off = wt_chunk.take_by_flag_along_time(
-                flag_arr=~obs_chunk.chop_.data_)
-
-    if err_type.strip().lower()[0] == "i":
-        obs_chunk_on_mean, obs_chunk_on_err, obs_chunk_on_wt = \
-            weighted_proc_along_axis(obs=obs_chunk_on, method=method,
-                                     weight=wt_chunk_on, axis=-1)
-        obs_chunk_off_mean, obs_chunk_off_err, obs_chunk_off_wt = \
-            weighted_proc_along_axis(obs=obs_chunk_off, method=method,
-                                     weight=wt_chunk_off, axis=-1)
-        obs_flux = obs_chunk_on_mean - obs_chunk_off_mean
-        obs_err = np.sqrt(obs_chunk_on_err ** 2 + obs_chunk_off_err ** 2)
-        obs_wt = obs_chunk_on_wt + obs_chunk_off_wt
-    elif err_type.strip().lower()[0] == "e":
-        flag_arr1, flag_arr2 = get_match_phase_flags(
-                chop1=obs_chunk_on.chop_, chop2=obs_chunk_off.chop_,
-                match_same_phase=False)
-        if (len(flag_arr1) != 0) and (len(flag_arr2) != 0):
-            obs_chunk_on_match = obs_chunk_on.take_by_flag_along_time(
-                    flag_arr=flag_arr1)
-            obs_chunk_off_match = obs_chunk_off.take_by_flag_along_time(
-                    flag_arr=flag_arr2)
-            wt_chunk_on_match = wt_chunk_on.take_by_flag_along_time(
-                    flag_arr=flag_arr1)
-            wt_chunk_off_match = wt_chunk_off.take_by_flag_along_time(
-                    flag_arr=flag_arr2)
-            obs_chunk_diff = obs_chunk_on_match - obs_chunk_off_match
-            wt_chunk_diff = 1 / (1 / wt_chunk_on_match + 1 / wt_chunk_off_match)
-            wt_chunk_diff.fill_by_mask(mask=~np.isfinite(wt_chunk_diff.data_),
-                                       fill_value=np.nan)
-            obs_flux, obs_err, obs_wt = weighted_proc_along_axis(
-                    obs=obs_chunk_diff, method=method, weight=wt_chunk_diff,
-                    axis=-1)
-        else:
-            obs_flux, obs_err, obs_wt = (
-                mean_obs.replace(
-                        arr_in=np.full(mean_obs.shape_, fill_value=np.nan)),
-                mean_obs.replace(
-                        arr_in=np.full(mean_obs.shape_, fill_value=np.nan)),
-                mean_obs.replace(
-                        arr_in=np.full(mean_obs.shape_, fill_value=0)))
-    else:
-        raise ValueError("Invalid value for err_type.")
-    if not on_off:
-        obs_flux *= -1
-    obs_flux = mean_obs.replace(arr_in=obs_flux.data_)
-    obs_err = mean_obs.replace(arr_in=obs_err.data_)
-    obs_wt = mean_obs.replace(arr_in=obs_wt.data_)
-
-    return obs_flux, obs_err, obs_wt
-
-
-def auto_flag_ts(obs, is_flat=False):
-    """
-    flag time series in obs in a standard way: first remove known glitch feature
-    like weird data point at 0 and -0.0625; then flag by MAD threshold, the
-    on-chop and off-chop data will be flagged separately if chop_ exists, to
-    avoid flagging actual signal, in the case chop_ doesn't exist and is_flat=True
-    the data will be flagged by STD, as MAD is prone to bimodal data; the default
-    MAD or STD threshold are defined in the package variable MAD_THRE_BEAM and
-    STD_THRE_FLAT
-
-    :param obs: Obs or ObsArray object containing the time series
-    :type obs: Obs or ObsArray
-    :param bool is_flat: bool, flag indicating this beam is flat field, which will
-        use much larger mad flag threshold in the variable MAD_THRE_FLAT
-    """
-
-    obs_new = obs.copy()
-    glitch_mask = (obs_new.data_ == -0.0625) | \
-                  (obs_new.data_ == -112723640.0625) | \
-                  (obs_new.data_ == 109850542.375) | \
-                  (obs_new.data_ == 109848204.125)  # known outlier values
-    blank_mask = (obs_new.data_ == 0.)  # find 0 data points
-    blank_mask *= (blank_mask.sum(axis=-1, keepdims=True) <
-                   0.1 * blank_mask.shape[-1])  # ignore dead pixels
-    obs_new.fill_by_mask(glitch_mask | blank_mask, fill_value=np.nan)
-
-    if obs_new.chop_.empty_flag_:  # no chop data
-        if is_flat:
-            outlier_mask = \
-                abs(obs_new - obs_new.proc_along_time(method="nanmean")).data_ > \
-                STD_THRE_FLAT * obs_new.proc_along_time(method="nanstd").data_
-        else:  # flag by MAD
-            outlier_mask = obs_new.get_double_nanmad_flag(
-                    thre=MAD_THRE_BEAM, axis=-1)
-    else:  # flat on and off chop separately by MAD
-        outlier_mask = np.full(obs_new.shape_, fill_value=False, dtype=bool)
-        outlier_mask[..., obs_new.chop_.data_] = \
-            obs_new.take_by_flag_along_time(chop=True).get_double_nanmad_flag(
-                    thre=MAD_THRE_BEAM, axis=-1)
-        outlier_mask[..., ~obs_new.chop_.data_] = \
-            obs_new.take_by_flag_along_time(chop=False).get_double_nanmad_flag(
-                    thre=MAD_THRE_BEAM, axis=-1)
-    obs_new.fill_by_mask(mask=outlier_mask, fill_value=np.nan)
-
-    return obs_new
-
-
-def auto_flag_pix_by_ts(obs, thre_flag=THRE_FLAG):
-    """
-    automatically flag pixel by time series if there is any datapoint above the
-    given threshold, return a list of [spat, spec] or [row, col] of pixels to
-    flag, depending on the input type of obs
-
-    :param obs: Obs or ObsArray object containing the time series
-    :param float thre_flag: float, absolute value threshold of the time series to
-        flag a pixel, by default use THRE_FLAG
-    :return: list, [[spat, spec], ...] if obs is ObsArray type,
-        [[row, col], ...] if obs is Obs
-    :rtype: list
-    """
-
-    obs_array = ObsArray(obs)
-    array_map = obs_array.array_map_
-
-    return array_map.take_by_flag(np.any(abs(
-            obs_array.data_) > thre_flag, axis=-1)).array_idxs_.tolist()
-
-
-def auto_flag_pix_by_flux(obs_flux, obs_err, pix_flag_list=None, is_flat=False,
-                          snr_thre=SNR_THRE):
-    """
-    automatically flag pixel by the flux and error of the beam, return a list of
-    [spat, spec] or [row, col] of pixels to flag, depending on the input type
-
-    :param obs_flux: Obs or ObsArray, object containing the flux
-    :type obs_flux: Obs or ObsArray
-    :param obs_err: Obs or ObsArray, object containing the error
-    :type obs_err: Obs or ObsArray
-    :param list or None pix_flag_list: list, [[spat, spec], ...] of the pixel not
-        to consider in the auto flagging procedure, which increases the
-        sensitivity to bad pixels
-    :param bool is_flat: bool, flag whether the input is a flat field, which follows
-        some flagging criteria
-    :param int snr_thre: int, SNR threshold of flat for a pixel not to be flagged,
-        only matters if is_flat=True
-    :return: list of pixels to flag
-    :rtype: list
-    """
-
-    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
-    obs_flux_array, obs_err_array = ObsArray(obs_flux), ObsArray(obs_err)
-    array_map = obs_flux_array.array_map_
-    if is_flat:
-        pix_flag = ~np.isfinite(obs_flux_array.data_) | \
-                   ~np.isfinite(obs_err_array.data_) | \
-                   (abs(obs_flux_array.data_) < 10) | \
-                   (abs(obs_flux_array.data_) < snr_thre * obs_err_array.data_)
-    else:
-        pix_flag = obs_err_array.get_nanmad_flag(thre=MAD_THRE_BEAM_ERR, axis=None)
-    if pix_flag.ndim > 1:
-        pix_flag = np.any(
-                pix_flag, axis=tuple(np.arange(pix_flag.ndim, dtype=int)[1:]))
-    pix_flag_list = pix_flag_list.copy() + array_map.take_by_flag(
-            pix_flag).array_idxs_.tolist()
-
-    if not is_flat:  # iterative flagging
-        obs_err_excl = obs_err_array.exclude_where(spat_spec_list=pix_flag_list)
-        pix_flag_excl = obs_err_excl.get_nanmad_flag(
-                thre=MAD_THRE_BEAM_ERR, axis=None)
-        pix_flag_list += obs_err_excl.array_map_.take_by_flag(
-                flag_arr=pix_flag_excl).array_idxs_.tolist()
-
-    return np.unique(pix_flag_list, axis=0).tolist()
 
 
 # ================= intermediate level reduction functions =====================
@@ -1671,7 +551,7 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=None, flat_f
     """
 
     pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
-    pix_flag_list += auto_flag_pix_by_ts(beam)  # auto flag
+    pix_flag_list += auto_flag_pix_by_ts(beam, thre_flag=THRE_FLAG)  # auto flag
     if (write_header is None) and plot:
         write_header = os.path.join(os.getcwd(), beam.obs_id_)
     beam_use, noise_beam = beam, type(beam)()
@@ -1683,7 +563,9 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=None, flat_f
                 corr_thre=CORR_THRE, min_pix_num=MIN_PIX_NUM,
                 freq_sigma=FREQ_SIGMA, edge_chunks_ncut=EDGE_CHUNKS_NCUT,
                 chunk_edges_ncut=CHUNK_EDGES_NCUT)
-        beam_use = auto_flag_ts(desnaked_beam, is_flat=is_flat)
+        beam_use = auto_flag_ts(desnaked_beam, is_flat=is_flat,
+                                mad_thre=MAD_THRE_BEAM,
+                                std_thre_flat=STD_THRE_FLAT)
         noise_beam += snake_beam
         plot_dict["snake"] = (noise_beam, {"c": "k"})
     if do_smooth:
@@ -1691,7 +573,9 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=None, flat_f
                 beam_use, freq_sigma=FREQ_SIGMA,
                 edge_chunks_ncut=EDGE_CHUNKS_NCUT,
                 chunk_edges_ncut=CHUNK_EDGES_NCUT).replace(chop=None)
-        beam_use = auto_flag_ts(beam_use - smooth_beam, is_flat=is_flat)
+        beam_use = auto_flag_ts(beam_use - smooth_beam, is_flat=is_flat,
+                                mad_thre=MAD_THRE_BEAM,
+                                std_thre_flat=STD_THRE_FLAT)
         noise_beam += smooth_beam
         plot_dict["smooth"] = (noise_beam, {"c": "y"})
     if do_clean:
@@ -1708,7 +592,9 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=None, flat_f
                            gaussian_filter_obs(
                                    beam_use, freq_sigma=freq_sigma, freq_center=-freq_center,
                                    edge_chunks_ncut=0, chunk_edges_ncut=0, truncate=3.0)) / 2
-        beam_use = auto_flag_ts(beam_use - clean_beam, is_flat=is_flat)
+        beam_use = auto_flag_ts(beam_use - clean_beam, is_flat=is_flat,
+                                mad_thre=MAD_THRE_BEAM,
+                                std_thre_flat=STD_THRE_FLAT)
         noise_beam += clean_beam
         plot_dict["clean"] = (noise_beam, {"c": "c"}) if \
             ("snake" in plot_dict) or ("smooth" in plot_dict) else \
@@ -1721,7 +607,9 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=None, flat_f
                            n_components_init=N_COMPONENTS_INIT,
                            n_components_max=N_COMPONENTS_MAX, max_iter=MAX_ITER,
                            random_state=RANDOM_STATE)
-        beam_use = auto_flag_ts(ica_treated_beam, is_flat=is_flat)
+        beam_use = auto_flag_ts(ica_treated_beam, is_flat=is_flat,
+                                mad_thre=MAD_THRE_BEAM,
+                                std_thre_flat=STD_THRE_FLAT)
         noise_beam += ica_noise_beam
         plot_dict["ica"] = (noise_beam, {"c": "gray"})
 
@@ -1755,7 +643,7 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=None, flat_f
             err_type="external")
     pix_flag_list = auto_flag_pix_by_flux(  # auto flag
             beam_flux, beam_err, pix_flag_list=pix_flag_list, is_flat=is_flat,
-            snr_thre=SNR_THRE)
+            snr_thre=SNR_THRE, mad_thre_err=MAD_THRE_BEAM_ERR)
     beam_flux, beam_err = beam_flux / flat_flux, abs(beam_flux / flat_flux) * \
                           ((beam_err / beam_flux) ** 2 +
                            (flat_err / flat_flux) ** 2).sqrt()
@@ -2063,7 +951,8 @@ def read_beam(file_header, array_map=None, obs_log=None, flag_ts=True,
         else:
             beam = beam.to_obs_array(array_map=array_map)
     if flag_ts and (not beam.empty_flag_):
-        beam = auto_flag_ts(beam, is_flat=is_flat)
+        beam = auto_flag_ts(beam, is_flat=is_flat, mad_thre=MAD_THRE_BEAM,
+                            std_thre_flat=STD_THRE_FLAT)
     if (obs_log is not None) and (len(obs_log) > 0) and (not beam.empty_flag_):
         with warnings.catch_warnings():
             if is_flat:
@@ -2113,9 +1002,154 @@ def read_beam_pair(file_header1, file_header2, array_map=None, obs_log=None,
             beam1, beam2, match_same_phase=match_same_phase)
     stacked_beam_pair = (matched_beam1 + stack_factor * matched_beam2) / 2
     if flag_ts:
-        stacked_beam_pair = auto_flag_ts(stacked_beam_pair, is_flat=is_flat)
+        stacked_beam_pair = auto_flag_ts(stacked_beam_pair, is_flat=is_flat,
+                                         mad_thre=MAD_THRE_BEAM,
+                                         std_thre_flat=STD_THRE_FLAT)
 
     return stacked_beam_pair
+
+
+def read_tp(file_header, array_map=None, obs_log=None, flag_ts=True,
+            is_flat=False, t0=None, freq=None):
+    """
+    function to read total power data which does not come with .ts file, so the
+    time series is reconstructed with the best guess using T0=CTIME+19.5s and
+    data sampling frequency in MCE data header
+
+    :param str file_header: str, full path to the data file
+    :param ArrayMap array_map: ArrayMap, optional, if not None, will transform
+        flat data into ObsArray and then process
+    :param ObsLog obs_log: ObsLog, optional, if not None, will try to find the
+        entry in the provided obs_log and add to the obs_info of the output obj
+    :param bool flag_ts: bool, flag whether to flag outliers in time series by
+        auto_flag_ts(), default True
+    :param bool is_flat: bool, flag whether the beam is flat/skychop, passed to
+        auto_flag_ts(), default False
+    :param float t0: float, starting time of the time series, if left as None,
+        will try to use ObsInfo.table_["CTIME"]+19.5, and fallback to 0.0 if the
+        "CTIME" column doesn't exist
+    :param float freq: float, data sampling rate of the time series, if left as
+        None, will try to use ObsInfo.table_["freq"], and fallback to
+        398.72408293460927 if the "freq" column doesn't exist
+    :return: Obs or ObsArray object containing the data
+    :rtype: Obs or ObsArray
+    """
+
+    warnings.filterwarnings(
+            "ignore", message="%s not found." % (file_header + ".ts"))
+    beam = read_beam(file_header=file_header, array_map=array_map, obs_log=None,
+                     flag_ts=flag_ts, is_flat=is_flat)
+
+    if beam.ts_.empty_flag_:
+        if t0 is None:
+            t0 = 0.0
+            if not beam.obs_info_.empty_flag_:
+                if "CTIME" in beam.obs_info_.colnames_:
+                    t0 = beam.obs_info_.table_["CTIME"][0] + 19.5
+                else:
+                    warnings.warn("can not find CTIME, using default value.",
+                                  UserWarning)
+        if freq is None:
+            freq = 398.72408293460927
+            if "freq" in beam.obs_info_.colnames_:
+                dt = beam.obs_info_.table_["freq"][0]
+            else:
+                warnings.warn("can not find freq, using default value.",
+                              UserWarning)
+        warnings.filterwarnings("ignore", "Time = 0 exists in TimeStamp.")
+        ts = np.arange(beam.len_, dtype=np.double) / freq + t0
+        beam.update_ts(ts)
+
+    if (obs_log is not None) and (len(obs_log) > 0) and (not beam.empty_flag_):
+        with warnings.catch_warnings():
+            if is_flat:
+                warnings.filterwarnings(
+                        "ignore", message="No entry is found in obs log.")
+            beam.match_obs_log(obs_log)  # find entry in obs_log
+
+    return beam
+
+
+def read_iv_curve(file_header, array_map=None):
+    """
+    function to read IV curve file, using .bias as the tie series
+
+    :param str file_header: str, full path to the data file
+    :param ArrayMap array_map: ArrayMap, optional, if not None, will transform
+        flat data into ObsArray and then process
+    """
+
+    warnings.filterwarnings("ignore", "%s.chop not found." % file_header)
+    warnings.filterwarnings("ignore", "%s.ts not found." % file_header)
+    warnings.filterwarnings(
+            "ignore", ("Failed to read .hk for %s due to " % file_header) +
+                      ("<class 'FileNotFoundError'>: %s or %s.hk " %
+                       (file_header, file_header)) + "are not hk files.")
+    beam = read_beam(file_header=file_header, array_map=array_map, obs_log=None,
+                     flag_ts=False, is_flat=False)
+    bias = Tb.read(file_header + ".bias", format="ascii.csv")["<tes_bias>"]
+    warnings.filterwarnings("ignore", "Time = 0 exists in TimeStamp.")
+    beam.update_ts(bias)
+
+    return beam
+
+
+def read_bias_step(file_header, array_map=None, flag_ts=True, is_flat=False,
+                   t0=None, freq=None, data_rate=None, ramp_step_period=None):
+    """
+    function to read total power data which does not come with .ts file, so the
+    time series is reconstructed with the best guess using T0=CTIME+19.5s and
+    data sampling frequency in MCE data header
+
+    :param str file_header: str, full path to the data file
+    :param ArrayMap array_map: ArrayMap, optional, if not None, will transform
+        flat data into ObsArray and then process
+    :param bool flag_ts: bool, flag whether to flag outliers in time series by
+        auto_flag_ts(), default True
+    :param bool is_flat: bool, flag whether the beam is flat/skychop, passed to
+        auto_flag_ts(), default False
+    :param float t0: float, starting time of the time series, if left as None,
+        will try to use ObsInfo.table_["CTIME"]+19.5, and fallback to 0.0 if the
+        "CTIME" column doesn't exist
+    :param float freq: float, data sampling rate of the time series, if left as
+        None, will try to use ObsInfo.table_["freq"], and fallback to
+        398.72408293460927 if the "freq" column doesn't exist
+    :param int or float data_rate: int or float, data sampling rate in the MCE
+        clock unit, ramp_step_period/data_rate is the bias step rate, if left
+        None will try to use ObsInfo.table_["data_rate"], then try
+        ObsInfo.table_["RB_cc_data_rate"], and fallback to 38 if neither exist
+    :param int or float ramp_step_period: int or float, bias ramping period in MCE
+        clock unit, if left None will try to use
+        ObsInfo.table_["RB_cc_ramp_step_period"], and fallback to 3800 if
+        the column RB_cc_ramp_step_period is not found
+    :return: Obs or ObsArray object containing the data
+    :rtype: Obs or ObsArray
+    """
+
+    warnings.filterwarnings("ignore", "%s not found." % (file_header + ".chop"))
+    beam = read_tp(file_header=file_header, array_map=array_map, obs_log=None,
+                   flag_ts=flag_ts, is_flat=is_flat, t0=t0, freq=freq)
+
+    if data_rate is None:
+        data_rate = 38
+        if "data_rate" in beam.obs_info_.colnames_:
+            data_rate = beam.obs_info_.table_["data_rate"][0]
+        elif "RB_cc_data_rate" in beam.obs_info_.colnames_:
+            data_rate = beam.obs_info_.table_["RB_cc_data_rate"][0]
+        else:
+            warnings.warn("can not find data_rate, using default value.",
+                          UserWarning)
+    if ramp_step_period is None:
+        ramp_step_period = 3800
+        if "RB_cc_ramp_step_period" in beam.obs_info_.colnames_:
+            ramp_step_period = beam.obs_info_.table_["RB_cc_ramp_step_period"][0]
+        else:
+            warnings.warn("can not find ramp_step_period, using default value.",
+                          UserWarning)
+    ramp_chop = (np.arange(beam.len_) * data_rate // ramp_step_period) % 2
+    beam.update_chop(ramp_chop.astype(bool))
+
+    return beam
 
 
 def reduce_beam(file_header, write_dir=None, write_suffix="", array_map=None,
@@ -2705,7 +1739,8 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                              [zobs_err_ex.data_, zobs_err_in.data_]))
     pix_flag_list = auto_flag_pix_by_flux(zobs_flux, zobs_err,
                                           pix_flag_list=pix_flag_list,
-                                          snr_thre=SNR_THRE)
+                                          snr_thre=SNR_THRE,
+                                          mad_thre_err=MAD_THRE_BEAM_ERR)
 
     data_file_header = build_header(data_header) + write_suffix
     if table_save:
@@ -2823,7 +1858,7 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                     write_dir, "%s_rms.csv" % data_file_header), overwrite=True)
         flat_use = flat_flux.proc_along_time("nanmean") if \
             isinstance(flat_flux, type(beams_rms)) else flat_flux
-        beams_sensitivity = 8 / np.sqrt(3) * beams_rms / abs(flat_use) / \
+        beams_sensitivity = 2 * np.sqrt(3) * beams_rms / abs(flat_use) / \
                             np.sqrt(zobs_ts.len_ * (stack + 1))
         if plot:
             zobs_flux_array = ObsArray(zobs_flux)  # plot spectrum

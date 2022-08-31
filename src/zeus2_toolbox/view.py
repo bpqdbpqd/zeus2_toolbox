@@ -15,7 +15,7 @@ from matplotlib.figure import Figure
 from PIL import Image
 from io import BytesIO
 
-from .zeus2_io import *
+from .io import *
 
 
 class FigFlux(Figure):

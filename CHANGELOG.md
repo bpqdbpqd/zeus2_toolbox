@@ -3,13 +3,16 @@
 2.0 will be a major update adding the ability to map array to wavelength, plotting and correcting for transmission, and
 converting data to physical unit.
 
-- Update error prediction to 8/sqrt(3) * rms/sqrt(N) based on the data bandwidth 100 Hz
+- Add **convert** submodule
+- Add **analyze** submodule
+- Add function read_tp(), read_iv_curve() and read_bias_step() to read in different types of data
+- Update error prediction to 2 * sqrt(3) * rms/sqrt(N) based on simulated data
 - Add method to ArrayMap class to read in grating configuration and converting array map to wavelength
 - Add function freq_to_wl() and wl_to_freq()
 - Add function transmission_raw(), transmission_raw_range(), transmission_smoothed(), transmission_smoothed_range(), and
   transmission_window() to pipeline
 - Add set_xscale() and set_yscale() method to FigArray class
-- Add class method ObsInfo.read() to read .hk and .run at the same time
+- Add class method ObsInfo.read() to read .hk, .run and the original MCE file header at the same time
 - Add xscale parameter to FigArray.psd(), enabling to plot log-log power spectral diagram, and change the behaviour of
   scale parameter
 - Add method FigFlux.savefig() which can compress the file size by a factor of three
