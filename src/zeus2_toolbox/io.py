@@ -1757,48 +1757,24 @@ class ArrayMap(DataObj):
         and wavelength interval of each pixel, recorded in self.array_wl_ and
         self.array_d_wl_ variables, and changing self.wl_flag_ to True. The
         kwargs passed to tools.spec_to_wl() will combine the parameters in the
-        input kwargs and self.conf_kwargs by calling self.get_conf(), following
-        the priority input keyword argument > self.conf_kwargs.
+        input kwargs and self.conf_kwargs_ by calling self.get_conf(), following
+        the priority input keyword argument > self.conf_kwargs_.
 
         :param dict kwargs: keyword arguments passed to tools.spec_to_wl()
             except spec and spat, for a list of accepted parameters, please
             refer to the function tools.spec_to_wl(); remember to supply
-            grat_idx parameter if it is not set in self.conf_kwargs
+            grat_idx parameter if it is not set in self.conf_kwargs_
         """
 
-        conf_kwargs_list = self.get_conf(**kwargs)
-        if len(conf_kwargs_list[0]) == 0:
-            warnings.warn("empty configuration, will use the default values " +
-                          "spec_to_wl() function.", UserWarning)
-        wl, d_wl = np.full(self.len_, dtype=float, fill_value=np.nan), \
-                   np.full(self.len_, dtype=float, fill_value=np.nan)
-        func_vars = inspect.getfullargspec(spec_to_wl)[0]
-
-        for conf_kwargs in conf_kwargs_list:
-            kwargs_use = conf_kwargs.copy()
-            for key in conf_kwargs:
-                if (key in ("spec", "spat")) or (key not in func_vars):
-                    kwargs_use.pop(key)
-            wl_use = spec_to_wl(spec=self.array_spec_, spat=self.array_spat_,
-                                **kwargs_use)
-            d_wl_use = \
-                spec_to_wl(spec=self.array_spec_ + 0.5, spat=self.array_spat_,
-                           **kwargs_use) - \
-                spec_to_wl(spec=self.array_spec_ - 0.5, spat=self.array_spat_,
-                           **kwargs_use)
-
-            extent = []
-            for key in ("spec_llim", "spec_ulim", "spat_ulim", "spat_llim"):
-                if key in conf_kwargs:
-                    extent.append(conf_kwargs[key])
-                else:
-                    extent.append(getattr(self, "array_%s_" % key))
-            wl_mask = (self.array_spec_ > extent[0] - 0.5) & \
-                      (self.array_spec_ < extent[1] + 0.5) & \
-                      (self.array_spat_ < extent[2] + 0.5) & \
-                      (self.array_spat_ > extent[3] - 0.5)
-            np.putmask(wl, wl_mask, wl_use)
-            np.putmask(d_wl, wl_mask, d_wl_use)
+        wl = self.wl_calculator(spec=self.array_spec_, spat=self.array_spat_,
+                                **kwargs)
+        warnings.filterwarnings(
+                "ignore", "empty configuration, will use the default values " +
+                          "spec_to_wl() function.")
+        d_wl = self.wl_calculator(spec=self.array_spec_ + 0.5,
+                                  spat=self.array_spat_, **kwargs) - \
+               self.wl_calculator(spec=self.array_spec_ - 0.5,
+                                  spat=self.array_spat_, **kwargs)
 
         self.wl_flag_ = True
         self.array_wl_ = wl
@@ -1836,6 +1812,161 @@ class ArrayMap(DataObj):
                         conf_kwargs[section][key] = value
 
             self.conf_kwargs_ = conf_kwargs
+
+    def wl_calculator(self, spec, spat, **kwargs):
+        """
+        compute the pixel wavelength at any spat and spec using spec_to_wl().
+        The kwargs passed to tools.spec_to_wl() will combine the parameters in
+        the input kwargs and self.conf_kwargs_ by calling self.get_conf(),
+        following the priority input keyword argument > self.conf_kwargs_. Please
+        make sure either grat_idx is in self.get_conf() output or in the input
+        kwargs. If spat or spec is outside the range allowed by the array
+        configuration, nan will be output.
+
+        :param int or float or numpy.ndarray spec: int or float or array, the
+            spectral index of the pixel(s) to compute, must have the shape that
+            spat * spec is valid
+        :param int or float or numpy.ndarray spat: int or float or array, the
+            spatial position of the pixel(s) to compute
+        :return: float or array of the wavelength(es) for the input spat and spec
+        :rtype: float or numpy.ndarray
+        """
+
+        conf_kwargs_list = self.get_conf(**kwargs)
+        if len(conf_kwargs_list[0]) == 0:
+            warnings.warn("empty configuration, will use the default values " +
+                          "spec_to_wl() function.", UserWarning)
+
+        spec_arr, spat_arr = np.broadcast_arrays(spec, spat)
+        wl = np.full_like(spat_arr, dtype=float, fill_value=np.nan)
+        func_vars = inspect.getfullargspec(spec_to_wl)[0]
+
+        for conf_kwargs in conf_kwargs_list:
+            kwargs_use = conf_kwargs.copy()
+            for key in conf_kwargs:
+                if (key in ("spec", "spat")) or (key not in func_vars):
+                    kwargs_use.pop(key)
+            wl_use = spec_to_wl(spec=spec_arr, spat=spat_arr, **kwargs_use)
+
+            extent = []
+            for key in ("spec_llim", "spec_ulim", "spat_ulim", "spat_llim"):
+                if key in conf_kwargs:
+                    extent.append(conf_kwargs[key])
+                else:
+                    extent.append(getattr(self, "array_%s_" % key))
+            wl_mask = (spec_arr >= extent[0] - 0.5) & \
+                      (spec_arr <= extent[1] + 0.5) & \
+                      (spat_arr <= extent[2] + 0.5) & \
+                      (spat_arr >= extent[3] - 0.5)
+            np.putmask(wl, wl_mask, wl_use)
+
+        return wl
+
+    def spec_calculator(self, wl, spat, **kwargs):
+        """
+        compute the pixel spectral index for given spat and wl using
+        wl_to_spec(). The kwargs passed to tools.wl_to_spec() will combine the
+        parameters in the input kwargs and self.conf_kwargs_ by calling
+        self.get_conf(), following the priority input keyword argument >
+        self.conf_kwargs_. Please make sure either grat_idx is in self.get_conf()
+        output or in the input kwargs. If spat or spec is outside the range
+        allowed by the array configuration, nan will be output. In the case of
+        ambiguity, e.g. both 350um and 450um array are in the configuration and
+        both provide valid result without spec_ulim present, the last in the
+        configuration will be used
+
+        :param int or float or numpy.ndarray wl: int or float or array, the
+            wavelength(s) in um to compute, must have the shape that
+            spat * wl is valid
+        :param int or float or numpy.ndarray spat: int or float or array, the
+            spatial position of the pixel(s) to compute
+        :return: float or array of the spec for the input wl and spat
+        :rtype: float or numpy.ndarray
+        """
+
+        conf_kwargs_list = self.get_conf(**kwargs)
+        if len(conf_kwargs_list[0]) == 0:
+            warnings.warn("empty configuration, will use the default values " +
+                          "wl_to_spec() function.", UserWarning)
+
+        wl_arr, spat_arr = np.broadcast_arrays(wl, spat)
+        spec = np.full_like(spat_arr, dtype=float, fill_value=np.nan)
+        func_vars = inspect.getfullargspec(wl_to_spec)[0]
+
+        for conf_kwargs in conf_kwargs_list:
+            kwargs_use = conf_kwargs.copy()
+            for key in conf_kwargs:
+                if (key in ("wl", "spat")) or (key not in func_vars):
+                    kwargs_use.pop(key)
+            spec_use = wl_to_spec(wl=wl_arr, spat=spat_arr, **kwargs_use)
+
+            extent = []
+            for key in ("spec_llim", "spec_ulim", "spat_ulim", "spat_llim"):
+                if key in conf_kwargs:
+                    extent.append(conf_kwargs[key])
+                else:
+                    extent.append(getattr(self, "array_%s_" % key))
+            spec_mask = (spec_use >= extent[0] - 0.5) & \
+                        (spec_use <= extent[1] + 0.5) & \
+                        (spat_arr <= extent[2] + 0.5) & \
+                        (spat_arr >= extent[3] - 0.5)
+            np.putmask(spec, spec_mask, spec_use)
+
+        return spec
+
+    def grat_idx_calculator(self, wl, spat, spec, **kwargs):
+        """
+        compute the grating index for given combination of spat, spec and wl
+        using wl_to_grat_idx(). The kwargs passed to tools.wl_to_grat_idx() will
+        combine the parameters in the input kwargs and self.conf_kwargs_ by
+        calling self.get_conf(), following the priority input keyword argument >
+        self.conf_kwargs_. If spat or spec is outside the range allowed by the
+        array configuration, nan will be output. In the case of ambiguity, e.g.
+        both 350um and 450um array are in the configuration and both provide
+        valid result without spec_ulim present, the last in the configuration
+        will be used
+
+        :param int or float or numpy.ndarray wl: int or float or array, the
+            wavelength(s) in um to compute, must have the shape that
+            spat * spec * wl is valid
+        :param int or float or numpy.ndarray spat: int or float or array, the
+            spatial position of the pixel(s) to compute
+        :param int or float or numpy.ndarray spec: int or float or array, the
+            spectral index of the pixel(s) to compute
+        :return: float or array of the spec for the input wl and spat
+        :rtype: float or numpy.ndarray
+        """
+
+        conf_kwargs_list = self.get_conf(**kwargs)
+        if len(conf_kwargs_list[0]) == 0:
+            warnings.warn("empty configuration, will use the default values " +
+                          "wl_to_spec() function.", UserWarning)
+
+        wl_arr, spat_arr, spec_arr = np.broadcast_arrays(wl, spat, spec)
+        grat_idx = np.full_like(spat_arr, dtype=float, fill_value=np.nan)
+        func_vars = inspect.getfullargspec(wl_to_grat_idx)[0]
+
+        for conf_kwargs in conf_kwargs_list:
+            kwargs_use = conf_kwargs.copy()
+            for key in conf_kwargs:
+                if (key in ("wl", "spat", "spec")) or (key not in func_vars):
+                    kwargs_use.pop(key)
+            grat_idx_use = wl_to_grat_idx(
+                    wl=wl_arr, spat=spat_arr, spec=spec_arr, **kwargs_use)
+
+            extent = []
+            for key in ("spec_llim", "spec_ulim", "spat_ulim", "spat_llim"):
+                if key in conf_kwargs:
+                    extent.append(conf_kwargs[key])
+                else:
+                    extent.append(getattr(self, "array_%s_" % key))
+            grat_idx_mask = (spec_arr >= extent[0] - 0.5) & \
+                            (spec_arr <= extent[1] + 0.5) & \
+                            (spat_arr <= extent[2] + 0.5) & \
+                            (spat_arr >= extent[3] - 0.5)
+            np.putmask(grat_idx, grat_idx_mask, grat_idx_use)
+
+        return grat_idx
 
 
 class Chop(DataObj):

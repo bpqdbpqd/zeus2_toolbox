@@ -7,7 +7,8 @@ converting data to physical unit.
 - Add **analyze** submodule
 - Add function read_tp(), read_iv_curve() and read_bias_step() to read in different types of data
 - Update error prediction to 2 * sqrt(3) * rms/sqrt(N) based on simulated data
-- Add method to ArrayMap class to read in grating configuration and converting array map to wavelength
+- Add method to ArrayMap class to read in grating configuration, convert array map to wavelength, and calculating
+  wavelength, spec and grat_idx with given configuration and condition
 - Add function freq_to_wl() and wl_to_freq()
 - Add function transmission_raw(), transmission_raw_range(), transmission_smoothed(), transmission_smoothed_range(), and
   transmission_window() to pipeline
