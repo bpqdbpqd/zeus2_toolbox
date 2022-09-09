@@ -55,9 +55,12 @@ SPAT_EXCL = [0, 2]  # list of the range of the spatial positions to be excluded
 
 PARALLEL = True  # flag whether to run the reduction in parallel mode
 TABLE_SAVE = True  # flag whether to save the reduction result as csv table
+SAVE_WL = True
+SAVE_ATM = True
 PLOT = True  # flag whether to plot the reduction result
 PLOT_TS = True  # flag whether to plot the time series of each beam use in the
 # reduction
+PLOT_ATM = True
 REG_INTEREST = {"spat_ran": (0, 2), "spec_ran": (9, 13)}
 # the region of interest of the array to plot in the format of dictionary, e.g.
 # REG_INTEREST={'spat_spec':[1, 11]} if you only want to
@@ -105,7 +108,8 @@ zobs_result = z2pipl.reduce_zobs(
         flat_flux=flat_flux, flat_err=flat_err, parallel=PARALLEL, stack=DO_ICA,
         do_desnake=DO_DESNAKE, ref_pix=REF_PIX, do_smooth=DO_SMOOTH,
         do_ica=DO_ICA, spat_excl=SPAT_EXCL, return_pix_flag_list=True,
-        table_save=TABLE_SAVE, plot=PLOT, plot_ts=PLOT_TS,
+        table_save=TABLE_SAVE, save_wl=SAVE_WL, save_atm=SAVE_ATM,
+        plot=PLOT, plot_ts=PLOT_TS, plot_atm=PLOT_ATM,
         reg_interest=REG_INTEREST, plot_flux=PLOT_FLUX,
         plot_show=PLOT_SHOW, plot_save=PLOT_SAVE, analyze=ANALYZE)
 zobs_flux, zobs_err, zobs_pix_flag_list = zobs_result[:2] + zobs_result[-1:]

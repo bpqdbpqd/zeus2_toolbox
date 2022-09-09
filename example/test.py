@@ -1,10 +1,11 @@
 from zeus2_toolbox.pipeline import *
 from zeus2_toolbox.view import *
 
-
 DATA_PATH = "../example_data/"
 WRITE_PATH = ""
 OBS_LOG_FD = "../example_data/obslog/"
+
+CONF_PATH = "../example_data/grating_calibration_2021_apex.ini"
 
 PLOT = True
 PLOT_TS = True
@@ -31,6 +32,9 @@ SPAT_EXCL = (0, 3)
 
 array_map = ArrayMap.read(filename=ARRAY_MAP_PATH)  # read in array map
 array_map.set_band(band=BAND)
+
+if CONF_PATH is not None:
+    array_map.read_conf(CONF_PATH)
 
 obs_log = ObsLog.read_folder(folder=OBS_LOG_FD)  # read in obs_fft log
 PARALLEL = True

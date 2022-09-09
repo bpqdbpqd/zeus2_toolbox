@@ -10,14 +10,16 @@ converting data to physical unit.
 - Add method to ArrayMap class to read in grating configuration, convert array map to wavelength, and calculating
   wavelength, spec and grat_idx with given configuration and condition
 - Add function freq_to_wl() and wl_to_freq()
-- Add function transmission_raw(), transmission_raw_range(), transmission_smoothed(), transmission_smoothed_range(), and
-  transmission_window() to pipeline
+- Add function transmission_raw(), transmission_raw_range(), transmission_smoothed(), transmission_smoothed_range(),
+  transmission_window(), get_transmission_raw_obs_array(), get_transmission_obs_array() to pipeline
 - Add set_xscale() and set_yscale() method to FigArray class
 - Add class method ObsInfo.read() to read .hk, .run and the original MCE file header at the same time
 - Add xscale parameter to FigArray.psd(), enabling to plot log-log power spectral diagram, and change the behaviour of
   scale parameter
+- Add method fold_along_time() to Obs class
 - Add method FigFlux.savefig() which can compress the file size by a factor of three
 - Add the ability to append ObsInfo with the same column of different data type
+- Add the ability for pipeline.reduce_zobs() to plot atm transmission
 - Add more logical operators to DataObj class
 - Add an example script array_sky.py to save array wavelength, transmission and sky power to table
 - Fix a bug in zeus2_io.proc_along_axis()

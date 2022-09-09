@@ -958,8 +958,7 @@ class ArrayMap(DataObj):
     array_wl_ = np.empty(0, dtype=float)  # type: numpy.ndarray # wavelength of
     # each pixel
     array_d_wl_ = np.empty(0, dtype=float)  # type: numpy.ndarray # wavelength
-
-    # interval covered by each pixel
+    # interval covered by each pixel, optional
 
     @classmethod
     def read(cls, filename):
@@ -1707,7 +1706,7 @@ class ArrayMap(DataObj):
         the band_ of the object; the input keyword arguments will override any
         value saved in conf_kwargs_
 
-        :return: [conf_kwargs1, [conf_kwargs2], ...] list of dict of keyword
+        :return: [[conf_kwargs1], [conf_kwargs2], ...] list of dict of keyword
             arguments; if the array map band corresponds none or only one
             section in conf_kwargs_, the return list will only contain one item,
             otherwise more than one kwargs items will be in the returned list
@@ -1768,13 +1767,14 @@ class ArrayMap(DataObj):
 
         wl = self.wl_calculator(spec=self.array_spec_, spat=self.array_spat_,
                                 **kwargs)
-        warnings.filterwarnings(
-                "ignore", "empty configuration, will use the default values " +
-                          "spec_to_wl() function.")
-        d_wl = self.wl_calculator(spec=self.array_spec_ + 0.5,
-                                  spat=self.array_spat_, **kwargs) - \
-               self.wl_calculator(spec=self.array_spec_ - 0.5,
-                                  spat=self.array_spat_, **kwargs)
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                    "ignore", "empty configuration, will use the default values " +
+                              "spec_to_wl() function.")
+            d_wl = self.wl_calculator(spec=self.array_spec_ + 0.5,
+                                      spat=self.array_spat_, **kwargs) - \
+                   self.wl_calculator(spec=self.array_spec_ - 0.5,
+                                      spat=self.array_spat_, **kwargs)
 
         self.wl_flag_ = True
         self.array_wl_ = wl
@@ -2782,8 +2782,10 @@ class ObsInfo(TableObj):
         header = file.header
         for key in header:
             if key not in self.colnames_:
-                self.table_.add_column(
-                        col=Tb.Column(data=[header[key]], name=key))
+                item = header[key]
+                if isinstance(item, (np.ndarray, list, tuple)):
+                    item = str(item)
+                self.table_.add_column(col=Tb.Column(data=[item], name=key))
 
         attr_keys = ("frame_bytes", "freq", "n_cols", "n_rows", "n_frames",
                      "n_rc", "n_ro", "rc_step", "size_ro")
@@ -3668,11 +3670,80 @@ class Obs(DataObj):
 
         return obs_chunked
 
+    def fold_along_time(self, period, t0=None):
+        """
+        fold the data, ts and chop along the last axis by the given period, with
+        the phase controlled by t0. The output data will be sorted by the new
+        time stamp
+
+        :param int or float period: int or float, the period used to fold the data,
+            int input will be interpreted as the index along time axis, float
+            input as time in the unit of second, which requires ts
+        :param int or float t0: int or float, the initial index (if int) or time
+            (if float, requiring ts) as the starting point of folding; only this
+            point stays invariant in time; will use the beginning
+            of the data if left as None; if period is index, t0 can not be float
+        :return: a new object with the data, ts and chop folded and sorted
+        :rtype: Obs or subtype
+        :raises ValueError: needs ts for float input period or t0
+        :raises TypeError: invalid type for period or t0, not accepting float t0
+            if period is int
+        """
+
+        if isinstance(period, (float, np.double)):
+            if self.ts_.empty_flag_:
+                raise ValueError("obs must have ts initialized for float period.")
+            else:
+                index = self.ts_.data_
+                index_type = "time"
+        elif isinstance(period, (int, np.integer)):
+            index = np.arange(self.len_, dtype=float)
+            index_type = "index"
+        else:
+            raise TypeError("invalid input type for period.")
+
+        if t0 is None:
+            t0 = index[0]
+        elif isinstance(t0, (float, np.double)):
+            if self.ts_.empty_flag_:
+                raise ValueError("obs must have ts initialized for float t0.")
+            else:
+                if index_type == "index":
+                    raise TypeError("float t0 is not accepted if period is int")
+        elif isinstance(t0, (int, np.integer)):
+            if index_type == "time":
+                t0 = self.ts_.data_[t0]
+        else:
+            raise TypeError("invalid input type for t0.")
+
+        phase, cycle = (index - t0) % period, (index - t0) // period
+        arg_new = np.argsort(phase)
+        arr_new = self.data_[..., arg_new]
+        if not self.ts_.empty_flag_:
+            if index_type != "time":
+                period *= (self.ts_.t_end_ - self.ts_.t_start_) / \
+                          self.ts_.len_
+            ts_new = self.ts_.data_ - cycle * period
+            ts_new = ts_new[arg_new]
+        else:
+            ts_new = None
+        if not self.chop_.empty_flag_:
+            chop_new = self.chop_.data_[arg_new]
+        else:
+            chop_new = None
+        obs_id_arr_new = self.obs_id_arr_.data_[arg_new]
+
+        return self.replace(arr_in=arr_new, ts=ts_new, chop=chop_new,
+                            obs_id_arr=obs_id_arr_new, t_start_time=None,
+                            t_end_time=None)
+
     def flatten(self):
         """
         Return a new object with all the axis except the time axis removed. If
         ts_ or chop_ or obs_id_arr_ is initialized, the result will be 2-d with
         shape (-1, len_), otherwise 1-d.
+
+        :rtype: Obs
         """
 
         if (not self.ts_.empty_flag_) or (not self.chop_.empty_flag_) or \

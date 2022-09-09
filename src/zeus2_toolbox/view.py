@@ -16,6 +16,7 @@ from PIL import Image
 from io import BytesIO
 
 from .io import *
+from .analyze import *
 
 
 class FigFlux(Figure):
@@ -1059,7 +1060,13 @@ class FigArray(FigFlux):
             kwargs["fontsize"] = self.axs_fontsize_
         if "loc" not in kwargs:
             kwargs["loc"] = "lower right" if twin_axes else "upper left"
-        ax.legend(*args, **kwargs)
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                    "ignore", message=
+                    "No artists with labels found to put in legend.  Note that " +
+                    "artists whose label start with an underscore are ignored " +
+                    "when legend() is called with no argument.")
+            ax.legend(*args, **kwargs)
 
     def scatter(self, obs_array, s=0.2, c=None, marker=".", twin_axes=False,
                 **kwargs):
@@ -1857,7 +1864,13 @@ class FigSpec(FigFlux):
             kwargs["fontsize"] = self.axs_fontsize_
         if "loc" not in kwargs:
             kwargs["loc"] = "lower right" if twin_axes else "upper left"
-        ax.legend(*args, **kwargs)
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                    "ignore", message=
+                    "No artists with labels found to put in legend.  Note that " +
+                    "artists whose label start with an underscore are ignored " +
+                    "when legend() is called with no argument.")
+            ax.legend(*args, **kwargs)
 
     def plot(self, obs_array, *args, mask=None, pix_flag_list=None,
              twin_axes=False, **kwargs):

@@ -35,16 +35,6 @@ except Exception as err:
                   "due to %s: %s" % (type(err), err), UserWarning)
     COL_BIAS_MAP = None
 
-warnings.filterwarnings("ignore", message="invalid value encountered in greater")
-warnings.filterwarnings("ignore", message="invalid value encountered in less")
-warnings.filterwarnings("ignore", message="invalid value encountered in multiply")
-warnings.filterwarnings("ignore", message="divide by zero encountered in log10")
-warnings.filterwarnings(
-        "ignore", message="Warning: converting a masked element to nan.")
-warnings.filterwarnings(
-        "ignore", message="From version 1.3 whiten='unit-variance' will " +
-                          "be used by default.", category=FutureWarning)
-
 if hasattr(np, "__mkl_version__"):
     warnings.warn("""
     Intel dist Python has a problem with Numpy such that operations on very
@@ -990,6 +980,74 @@ def get_chop_flux(obs, chunk_method="nanmedian", method="nanmean",
     return obs_flux, obs_err, obs_wt
 
 
+def configure_helper(obs, keyword, var=None, supersede=True):
+    """
+    a helper function to pick the best possible configuration parameter for any
+    keyword variable, by first looking through obs.obs_info_, then
+    obs.array_map_.get_conf() (if obs is ObsArray), and valid input var will
+    either have the highest priority if supersede=True, or be the fallback value
+    if no non-zero valid value is found in obs_info or array_map with
+    supersede=False. The returned value will be the value found with the highest
+    priority, or None if non-zero valid value is found in any of the places.
+
+    :param Obs or ObsArray obs: Obs or ObsArray object, on which to search for
+        obs.obs_info_ and obs.array_map_.get_conf()
+    :param str or list or tuple keyword: str or list or tuple of str, the
+        keyword name(s) to look for in obs.obs_info_ and
+        obs.array_map_.get_conf(), with the priority ordered in the order of the
+        keywords in the list
+    :param var: the value of the highest priority (if supersede=True) or
+        lowest priority (as a fallback value if supersede=False) in the search
+    :param bool supersede: bool, flag whether a non-zero valid input value of var
+        supersedes the search attempt, or is used a fallback value
+    :return: the highest priority value found that is not 0 or None or "", and
+        finite if it is scalar; if no such value is found, None will be returned
+    :raises KeyError: keyword must be str or list(str)
+    """
+
+    if isinstance(keyword, str):
+        keyword = [keyword]
+    elif hasattr(keyword, "__iter__"):
+        keyword = [str(kw) for kw in keyword]
+    else:
+        raise KeyError("Input keyword must be str or list(str).")
+
+    conf = None
+    # check whether to use var value
+    if is_meaningful(var=var) and supersede:
+        conf = var
+    # search in obs.obs_info_
+    if (not is_meaningful(conf)) and (not obs.obs_info_.empty_flag_):
+        for kw in keyword:
+            if (kw in obs.obs_info_.colnames_) and (not is_meaningful(conf)):
+                conf_list = []
+                for item in obs.obs_info_.table_[kw]:
+                    if is_meaningful(item):
+                        conf_list.append(item)
+                if len(set(conf_list)) > 1:
+                    warnings.warn("More than one values found in" +
+                                  "obs_info_.table[%s], will average." % kw)
+                    conf = np.mean(conf_list)
+                    break
+                elif len(set(conf_list)) == 1:
+                    conf = conf_list[0]
+                    break
+    # search in obs.array_map_.get_conf()
+    if (not is_meaningful(conf)) and isinstance(obs, ObsArray):
+        for conf_kwargs in obs.array_map_.get_conf():
+            for kw in keyword:
+                if (kw in conf_kwargs) and (not is_meaningful(conf)):
+                    item = conf_kwargs[kw]
+                    if is_meaningful(item):
+                        conf = item
+                        break
+    # check whether to use var value as a fallback
+    if (not is_meaningful(conf)) and is_meaningful(var=var) and (not supersede):
+        conf = var
+
+    return conf
+
+
 # TODO: fold obs
 
 
@@ -1077,13 +1135,65 @@ def stack_best_pixels(obs, ref_pixel=None, corr_thre=0.6, min_pix_num=10,
     return stacked_obs
 
 
-def get_transmission_raw_obs_array(array_map, pwv, elev=60):
+def get_transmission_raw_obs_array(array_map, pwv, elev=60, **kwargs):
     """
-    CAUTION: currently not working
     get an ObsArray object corresponding to the raw sky transmission of the
-    array, the array_map_ of the output obe_array object will correspond to the
-    frequency of transmission_raw_range() output instead of input array_map.
-    This function is primarily written for plotting raw transmission curve
+    array, the array_map_ of the output obs_array object will be populated by
+    the transmission_raw_range() output with a new array_map corresponding to
+    the frequency at the output data points. This function is primarily written
+    for plotting raw transmission curve
+
+    :param ArrayMap array_map: ArrayMap object, must have wavelength initialized
+    :param float pwv: float, the pwv in unit mm to compute transmission
+    :param float elev: float, the elevation in unit degree to compute
+        transmission
+    :param dict kwargs: keyword arguments passed to ArrayMap.spec_calculator(),
+        please make sure grat_idx in the original array_map.get_conf() result or
+        in the input kwargs
+    :return: ObsArray object of transmission
+    :rtype: ObsArray
+    :raises RuntimeError: array_map wavelength not initialized
+    """
+
+    if not array_map.wl_flag_:
+        raise RuntimeError("array_map is not initialized with wavelength.")
+
+    wl_edge = np.concatenate((array_map.array_wl_ - array_map.array_d_wl_ / 2,
+                              array_map.array_wl_ + array_map.array_d_wl_ / 2))
+    freq_arr, trans_arr = transmission_raw_range(
+            wl_to_freq(wl_edge), pwv=pwv, elev=elev)
+    wl_arr = freq_to_wl(freq_arr)
+    spat_arr = np.unique(array_map.array_spat_)
+    spat_arr, wl_arr, trans_arr = np.broadcast_arrays(
+            spat_arr, wl_arr[:, None], trans_arr[:, None])
+    spat, wl, trans = spat_arr.flatten(), wl_arr.flatten(), trans_arr.flatten()
+    spec = array_map.spec_calculator(wl=wl, spat=spat, **kwargs)
+    use_mask = np.isfinite(spec)  # using only valid spec
+    spat, spec, trans, wl = spat[use_mask], spec[use_mask], trans[use_mask], \
+                            wl[use_mask]
+
+    array_map_new = ArrayMap(np.array([spat, spec, spat, spec]).transpose())
+    array_map_new.conf_kwargs_ = array_map.conf_kwargs_
+    if array_map.band_flag_:
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message=
+            "The array map is incompatible with input band.")
+            warnings.filterwarnings("ignore", message=
+            "Setting band using array configuration.")
+            array_map_new.set_band(array_map.band_)
+    array_map_new.wl_flag_ = True
+    array_map_new.array_wl_ = wl
+    array_map_new.array_d_wl_ = 0.1 / wl_to_freq(wl) * wl
+
+    trans_obs_array = ObsArray(arr_in=trans[:, None], array_map=array_map_new)
+
+    return trans_obs_array
+
+
+def get_transmission_obs_array(array_map, pwv, elev=60):
+    """
+    get an ObsArray object corresponding to the sky transmission of each pixel
+    using transmission_pixel()
 
     :param ArrayMap array_map: ArrayMap object, must have wavelength initialized
     :param float pwv: float, the pwv in unit mm to compute transmission
@@ -1092,39 +1202,20 @@ def get_transmission_raw_obs_array(array_map, pwv, elev=60):
     :return: ObsArray object of transmission
     :rtype: ObsArray
     :raises RuntimeError: array_map wavelength not initialized
-    :raises ValueError: grat_idx not found in array_map.conf_kwargs
     """
-
-    # TODO: modify to be compatible with the new ArrayMap.init_wl()
 
     if not array_map.wl_flag_:
         raise RuntimeError("array_map is not initialized with wavelength.")
-    if "grat_idx" not in array_map.conf_kwargs_:
-        raise ValueError("grat_idx not found in array_map.conf_kwargs.")
 
-    wl_edge = np.concatenate((array_map.array_wl_ - array_map.array_d_wl_ / 2,
-                              array_map.array_wl_ + array_map.array_d_wl_ / 2))
-    freq_arr, trans_arr = transmission_raw_range(
-            wl_to_freq(wl_edge), pwv=pwv, elev=elev)
-    wl_arr = freq_to_wl(freq_arr)
-    spat_arr = np.arange(array_map.array_spat_llim_,
-                         array_map.array_spat_ulim_ + 1)
-    wl = np.repeat(wl_arr, len(spat_arr))
-    trans = np.repeat(trans_arr, len(spat_arr))
-    spat = np.repeat(spat_arr[None, :], len(wl_arr), axis=0).flatten()
-    spec = wl_to_spec(wl=wl, spat=spat, **array_map.conf_kwargs_)
+    wl, d_wl = array_map.array_wl_, array_map.array_d_wl_
+    freq = wl_to_freq(array_map.array_wl_)
+    r = np.nanmedian(wl / d_wl)
+    d_freq = np.nanmedian(d_wl / wl * freq)
+    trans = transmission_pixel(freq=freq, pwv=pwv, elev=elev, r=r, d_freq=d_freq)
 
-    array_map_new = ArrayMap(np.array([spat, spec, spat, spec]).transpose())
-    obs_array_new = ObsArray(arr_in=trans[:, None], array_map=array_map_new)
-    if array_map.band_flag_:
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                    "ignore",
-                    message="The array map is incompatible with input band.")
-            array_map_new.set_band(array_map.band_)
-        obs_array_new = obs_array_new.take_by_array_map(array_map_new)
+    trans_obs_array = ObsArray(arr_in=trans[:, None], array_map=array_map)
 
-    return obs_array_new
+    return trans_obs_array
 
 
 def auto_flag_ts(obs, is_flat=False, mad_thre=7, std_thre_flat=2):

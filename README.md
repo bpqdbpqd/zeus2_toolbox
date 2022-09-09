@@ -20,7 +20,7 @@ The package is composed of four submodules
   - FigFlux: the class that can plot the flux on a 2d map
   - FigArray: the class that can plot the data of each pixel in either detector or MCE layout
   - FigSpec: the class to plot the spectrum of the detector array
-- **analyze** containing many helper functions to
+- **analyze** containing many helper functions to manipulate Obs and ObsArray objects
 - **pipeline** containing the functions needed for various levels of data reduction
 
 Documentation

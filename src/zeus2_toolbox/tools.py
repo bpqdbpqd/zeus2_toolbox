@@ -437,7 +437,7 @@ def build_header(header_dict):
     :param dict header_dict: dict, in the format
         {'file_header1': [(start_beam1, end_beam_1), ...], 'file_header2':...}
     :return: str, 'file_header1_start_beam1-end_beamN' if there is only one
-        file_header, otherwise file_header1_start_beam1-file_headerN_end_beamM'
+        file_header, otherwise 'file_header1_start_beam1-file_headerN_end_beamM'
     :rtype: str
     """
 
@@ -454,3 +454,39 @@ def build_header(header_dict):
                       list(header_dict.items())[-1][1][-1][-1])
 
     return header_str
+
+
+def is_meaningful(var):
+    """
+    a helper function to judge whether the input var contains meaningful value,
+    sufficing all the following conditions:
+        - var is not None
+        - var != 0 for bool or scalar
+        - var is masked for bool or scalar
+        - var finite for bool or scalar
+        - len(var) > 0 for str or any iterable type
+
+    :param var: input of any type
+    :return: False if any of the condition is not met, otherwise True
+    :rtype: bool
+    """
+
+    if var is None:
+        flag = False
+    elif isinstance(var, (int, float, bool, np.integer, np.double)):
+        if (var != 0) and np.isfinite(var):
+            flag = True
+        else:
+            flag = False
+    elif isinstance(var, np.ma.core.MaskedConstant):
+        flag = False
+    elif hasattr(var, '__iter__') and hasattr(var, '__len__'):
+        if len(var) > 0:
+            flag = True
+        else:
+            flag = False
+    else:
+        flag = True
+        warnings.warn("Can not judge the input var.")
+
+    return flag

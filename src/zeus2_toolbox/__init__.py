@@ -28,5 +28,6 @@ pipeline
 from . import tools
 from . import io
 from . import convert
+from . import analyze
 from . import view
 from . import pipeline

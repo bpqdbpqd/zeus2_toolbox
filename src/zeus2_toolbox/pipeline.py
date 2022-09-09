@@ -45,13 +45,22 @@ CHUNK_WEIGHT = True  # default flag for using weighted average of chunk when
 
 ORIENTATION = "horizontal"  # default orientation for making figure
 
-
 NOD_PHASE = -1  # -1 means source is in on chop when beam is right, otherwise 1
 NOD_COLNAME = "beam_is_R"  # column name in obs_info recording nodding phase
 
 ZPOLD_SHAPE = (3, 3)  # default zpold shape, (az_len, elev_len) or (x_len, y_len)
 ZPOLDBIG_SHAPE = (5, 5)  # default zpoldbig raster shape, (az_len, elev_len)
 RASTER_THRE = 2  # default SNR requirement for not flagging a pixel
+
+warnings.filterwarnings("ignore", message="invalid value encountered in greater")
+warnings.filterwarnings("ignore", message="invalid value encountered in less")
+warnings.filterwarnings("ignore", message="invalid value encountered in multiply")
+warnings.filterwarnings("ignore", message="divide by zero encountered in log10")
+warnings.filterwarnings(
+        "ignore", message="Warning: converting a masked element to nan.")
+warnings.filterwarnings(
+        "ignore", message="From version 1.3 whiten='unit-variance' will " +
+                          "be used by default.", category=FutureWarning)
 
 
 # ================= intermediate level reduction functions =====================
@@ -1035,10 +1044,11 @@ def read_tp(file_header, array_map=None, obs_log=None, flag_ts=True,
     :rtype: Obs or ObsArray
     """
 
-    warnings.filterwarnings(
-            "ignore", message="%s not found." % (file_header + ".ts"))
-    beam = read_beam(file_header=file_header, array_map=array_map, obs_log=None,
-                     flag_ts=flag_ts, is_flat=is_flat)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+                "ignore", message="%s not found." % (file_header + ".ts"))
+        beam = read_beam(file_header=file_header, array_map=array_map,
+                         obs_log=None, flag_ts=flag_ts, is_flat=is_flat)
 
     if beam.ts_.empty_flag_:
         if t0 is None:
@@ -1056,9 +1066,10 @@ def read_tp(file_header, array_map=None, obs_log=None, flag_ts=True,
             else:
                 warnings.warn("can not find freq, using default value.",
                               UserWarning)
-        warnings.filterwarnings("ignore", "Time = 0 exists in TimeStamp.")
         ts = np.arange(beam.len_, dtype=np.double) / freq + t0
-        beam.update_ts(ts)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", "Time = 0 exists in TimeStamp.")
+            beam.update_ts(ts)
 
     if (obs_log is not None) and (len(obs_log) > 0) and (not beam.empty_flag_):
         with warnings.catch_warnings():
@@ -1079,17 +1090,19 @@ def read_iv_curve(file_header, array_map=None):
         flat data into ObsArray and then process
     """
 
-    warnings.filterwarnings("ignore", "%s.chop not found." % file_header)
-    warnings.filterwarnings("ignore", "%s.ts not found." % file_header)
-    warnings.filterwarnings(
-            "ignore", ("Failed to read .hk for %s due to " % file_header) +
-                      ("<class 'FileNotFoundError'>: %s or %s.hk " %
-                       (file_header, file_header)) + "are not hk files.")
-    beam = read_beam(file_header=file_header, array_map=array_map, obs_log=None,
-                     flag_ts=False, is_flat=False)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", "%s.chop not found." % file_header)
+        warnings.filterwarnings("ignore", "%s.ts not found." % file_header)
+        warnings.filterwarnings(
+                "ignore", ("Failed to read .hk for %s due to " % file_header) +
+                          ("<class 'FileNotFoundError'>: %s or %s.hk " %
+                           (file_header, file_header)) + "are not hk files.")
+        beam = read_beam(file_header=file_header, array_map=array_map,
+                         obs_log=None, flag_ts=False, is_flat=False)
     bias = Tb.read(file_header + ".bias", format="ascii.csv")["<tes_bias>"]
-    warnings.filterwarnings("ignore", "Time = 0 exists in TimeStamp.")
-    beam.update_ts(bias)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", "Time = 0 exists in TimeStamp.")
+        beam.update_ts(bias)
 
     return beam
 
@@ -1126,9 +1139,10 @@ def read_bias_step(file_header, array_map=None, flag_ts=True, is_flat=False,
     :rtype: Obs or ObsArray
     """
 
-    warnings.filterwarnings("ignore", "%s not found." % (file_header + ".chop"))
-    beam = read_tp(file_header=file_header, array_map=array_map, obs_log=None,
-                   flag_ts=flag_ts, is_flat=is_flat, t0=t0, freq=freq)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", "%s not found." % (file_header + ".chop"))
+        beam = read_tp(file_header=file_header, array_map=array_map, obs_log=None,
+                       flag_ts=flag_ts, is_flat=is_flat, t0=t0, freq=freq)
 
     if data_rate is None:
         data_rate = 38
@@ -1342,7 +1356,7 @@ def reduce_beams(data_header, data_dir=None, write_dir=None, write_suffix="",
                  spat_excl=None, do_clean=False, return_ts=False,
                  return_pix_flag_list=False,
                  plot=False, plot_ts=False, reg_interest=None, plot_flux=False,
-                 plot_show=False, plot_save=False):
+                 plot_show=False, plot_save=False, **kwargs):
     """
     reduce the data of beam in data_header, and return the flux of beams
     """
@@ -1423,7 +1437,7 @@ def reduce_beam_pairs(data_header, data_dir=None, write_dir=None,
                       do_clean=False,
                       return_ts=False, return_pix_flag_list=False, plot=False,
                       plot_ts=False, reg_interest=None, plot_flux=False,
-                      plot_show=False, plot_save=False, use_hk=True):
+                      plot_show=False, plot_save=False, use_hk=True, **kwargs):
     """
     reduce the data files in data_header by calling reduce_beam_pair() which
     stack each beam pair, and return the flux, error and weight of the beam pairs
@@ -1630,13 +1644,30 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                 flat_err=0, parallel=False, stack=False, do_desnake=False,
                 ref_pix=None, do_smooth=False, do_ica=False, spat_excl=None,
                 do_clean=False, return_ts=False, return_pix_flag_list=True,
-                table_save=True, plot=True, plot_ts=True, reg_interest=None,
+                table_save=True, save_wl=True, save_atm=True, plot=True,
+                plot_ts=True, plot_atm=True, reg_interest=None,
                 plot_flux=True, plot_show=False, plot_save=True, analyze=False,
-                use_hk=True):
+                use_hk=True, grat_idx=None, pwv=None, elev=None):
     """
     reduce the data from zobs command
 
     :param bool use_hk: bool, flag whether to use hk file as nodding phase
+    :param bool plot_atm: bool, whether to try to plot atmospheric transmission,
+        ignored if plot=False
+    :param bool save_wl: bool, whether to try to convert the array to wavelength
+        and save to table, ignored if table_save=False
+    :param bool save_atm: bool, whether to try to compute the atmospheric
+        transmission and save to table, ignored if table_save=False
+    :param int or float grat_idx: int or float, the grating index to convert the
+        array map into wavelength, with the priority grat_idx > obs_log >
+        array_map.conf, if any of them have non-zero valid values
+    :param int or float pwv: int or float, PWV in mm for computing the atmospheric
+        transmission, with the priority pwv > obs_log > array_map.conf, if
+        any of them have non-zero valid values
+    :param int or float elev: int or float, telescope elevation in degree for
+        computing the atmospheric transmission, with the priority elev >
+        obs_log > array_map.conf, if any of them have non-zero valid values
+
     :raises RunTimeError: not nodding
     """
 
@@ -1742,6 +1773,31 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                                           snr_thre=SNR_THRE,
                                           mad_thre_err=MAD_THRE_BEAM_ERR)
 
+    # convert array map to wavelength
+    if (array_map is not None) and \
+            ((table_save and save_wl) or
+             ((table_save or plot) and (plot_atm or save_atm))):
+        grat_idx = configure_helper(zobs_flux, keyword=("grat_idx", "gratingindex"),
+                                    var=grat_idx, supersede=True)
+        if is_meaningful(grat_idx):
+            array_map.init_wl(grat_idx=grat_idx)
+
+    trans_flag = False  # compute transmission
+    if (array_map is not None) and array_map.wl_flag_ and \
+            (table_save or plot) and (plot_atm or save_atm):
+        pwv = configure_helper(zobs_flux, keyword=("pwv", "mm PWV"),
+                               var=pwv, supersede=True)
+        elev = configure_helper(zobs_flux, keyword=("elev", "Elevation"),
+                                var=elev, supersede=True)
+        if is_meaningful(pwv) and is_meaningful(elev):
+            atm_trans_raw = get_transmission_raw_obs_array(
+                    array_map=array_map, pwv=pwv, elev=elev, grat_idx=grat_idx)
+            atm_trans = get_transmission_obs_array(
+                    array_map=array_map, pwv=pwv, elev=elev)
+            atm_trans.replace(ts=zobs_flux.ts_, obs_id=zobs_flux.obs_id_,
+                              obs_id_arr=zobs_flux.obs_id_arr_)
+            trans_flag = True
+
     data_file_header = build_header(data_header) + write_suffix
     if table_save:
         tb_list = [beam_pairs_flux, beam_pairs_err, zobs_flux, zobs_err]
@@ -1752,6 +1808,13 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
             beams_flux.obs_info_.table_.write(os.path.join(
                     write_dir, "%s_beams_info.csv" % data_file_header),
                     overwrite=True)
+        if save_wl and (array_map is not None) and array_map.wl_flag_:
+            tb_list += [zobs_flux.replace(arr_in=array_map.array_wl_[:, None]),
+                        zobs_flux.replace(arr_in=array_map.array_d_wl_[:, None])]
+            tb_names += ["wl", "d_wl"]
+        if save_atm and trans_flag:
+            tb_list += [atm_trans, ]
+            tb_names += ["atm_trans", ]
         for obs, name in zip(tb_list, tb_names):
             obs.to_table(orientation=ORIENTATION).write(os.path.join(
                     write_dir, "%s_%s.csv" % (data_file_header, name)),
@@ -1773,14 +1836,19 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                         write_dir, "%s_err" % data_file_header),
                 orientation=ORIENTATION))
 
-        zobs_flux_array = ObsArray(zobs_flux)  # plot spectrum
-        array_map = zobs_flux_array.array_map_
+        # plot spectrum
         fig = FigSpec.plot_spec(zobs_flux, yerr=zobs_err,
                                 pix_flag_list=pix_flag_list, color="k")
         fig.imshow_flag(pix_flag_list=pix_flag_list)
-        fig.plot_all_spat(
-                [array_map.array_spec_llim_, array_map.array_spec_ulim_],
-                [0, 0], "k:")
+        array_map_tmp = ObsArray(zobs_flux).array_map_
+        fig.plot_all_spat([array_map_tmp.array_spec_llim_,
+                           array_map_tmp.array_spec_ulim_], [0, 0], "k:")
+        if plot_atm and trans_flag:
+            fig.plot(atm_trans_raw, "c:", twin_axes=True,
+                     label="raw atm transmission pwv=%.2f, elev=%i" % (pwv, elev))
+            fig.step(atm_trans, "r", twin_axes=True,
+                     label="pixel atm transmission")
+            fig.legend(twin_axes=True, loc="lower right")
         fig.set_title("%s spectrum" % data_file_header)
         if plot_show:
             plt.show()
@@ -1861,17 +1929,23 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
         beams_sensitivity = 2 * np.sqrt(3) * beams_rms / abs(flat_use) / \
                             np.sqrt(zobs_ts.len_ * (stack + 1))
         if plot:
-            zobs_flux_array = ObsArray(zobs_flux)  # plot spectrum
-            array_map = zobs_flux_array.array_map_
             fig = FigSpec.plot_spec(
                     zobs_flux, yerr=zobs_err, pix_flag_list=pix_flag_list,
                     color="k", label="spectrum")
             fig.step(beams_sensitivity, lw=.5, c="b", pix_flag_list=pix_flag_list,
                      label="predicted error")
             fig.imshow_flag(pix_flag_list=pix_flag_list)
+            array_map = ObsArray(zobs_flux).array_map_
             fig.plot_all_spat(
                     [array_map.array_spec_llim_, array_map.array_spec_ulim_],
                     [0, 0], "k:")
+            if plot_atm and trans_flag:
+                fig.plot(atm_trans_raw, "c:", twin_axes=True,
+                         label="raw atm transmission pwv=%.2f, elev=%i" %
+                               (pwv, elev))
+                fig.step(atm_trans, "r", twin_axes=True,
+                         label="pixel atm transmission")
+                fig.legend(twin_axes=True, loc="lower right")
             fig.legend()
             fig.set_title("%s spectrum" % data_file_header)
             if plot_show:
