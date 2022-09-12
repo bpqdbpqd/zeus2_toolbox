@@ -15,6 +15,7 @@ import pkgutil
 import numpy as np
 from astropy import units, constants
 from astropy.table import Table as Tb
+from astropy.time import Time, TimeDelta
 from scipy.signal import convolve
 
 MCE_BIAS_R = 467  # ohm, MCE bias resistance, TODO: measure on the instrument
@@ -26,7 +27,7 @@ ACTPOL_R = 180e-6  # ohm, ACTPOL MCE shunt resistance (830 nH)
 CMB_R = 140e-6  # ohm, guessed value
 DEWAR_FB_R = 5280  # ohm, uncertain
 
-BUTTERWORTH_CONSTANT = 1218  # When running in data mode 2 and the low pass
+BUTTERWORTH_CONSTANT = 1217.9148  # When running in data mode 2 and the low pass
 # filter is in the loop, all signals are multiplied by this factor
 
 REL_FB_INDUCTANCE = 9  # This means that for a change of 1 uA in the
@@ -485,3 +486,42 @@ def transmission_raw(freq, pwv, elev=60):
     trans = np.interp(freq, freq_use, trans_use)
 
     return trans
+
+
+def gps_ts_to_time(ts):
+    """
+    Convert the time stamp recorded in .ts file to astropy.time.core.Time object,
+    because the time stamps are in a very wierd format, such that it is using
+    the same epoch as UTC, but timescale as GPS. This is probably because the
+    computer calibrates the clock by GPS time, which is then converted some
+    generic format like isot without considering the GPS-UTC offset, then this
+    time is read in as if in UTC frame which is then converted to unix format.
+
+    :param float or np.double ts: float or double, zeus2 time stamp
+    :return: astropy.time.core.Time object in UTC frame
+    :rtype: astropy.time.core.Time
+    """
+
+    ts_tai = Time(ts, format="unix", scale="tai") - \
+             TimeDelta(19, format="sec", scale="tai")  # diff between GPS and TAI
+    ts_utc = Time(ts_tai.unix, format="unix")
+
+    return ts_utc
+
+
+def time_to_gps_ts(time):
+    """
+    Convert the astropy.time.core.Time in UTC frame to zeus2 time stamp, which
+    uses unix epoch but in GPS frame
+
+    :param astropy.time.core.Time time: astropy.time.core.Time object in UTC
+        frame
+    :return: float or double, zeus2 like time stamp
+    :rtype: float or np.double
+    """
+
+    ts_tai = Time(ts0, format="gps") + \
+             TimeDelta(19, format="sec", scale="tai")  # diff between GPS and TAI
+    ts = ts_tai.unix
+
+    return ts

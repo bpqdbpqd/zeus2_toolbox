@@ -6,6 +6,7 @@ converting data to physical unit.
 - Add **convert** submodule
 - Add **analyze** submodule
 - Add function read_tp(), read_iv_curve() and read_bias_step() to read in different types of data
+- Add function gps_ts_to_time() and time_to_gps_ts(), and update the way time stamps are converted in the package
 - Update error prediction to 2 * sqrt(3) * rms/sqrt(N) based on simulated data
 - Add method to ArrayMap class to read in grating configuration, convert array map to wavelength, and calculating
   wavelength, spec and grat_idx with given configuration and condition

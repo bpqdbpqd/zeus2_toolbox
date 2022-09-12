@@ -17,7 +17,6 @@ from datetime import datetime, timezone
 
 import astropy
 from astropy.table import vstack, hstack, unique, Table as Tb, Row
-from astropy.time import Time
 
 from .mce_data import *
 from .tools import *
@@ -974,8 +973,12 @@ class ArrayMap(DataObj):
         """
 
         with open(filename, "rb") as file:  # Open the text file
-            arr_in = np.genfromtxt(file, delimiter=",", comments="#",
-                                   usecols=range(0, 7), dtype=int)
+            if filename[-4:] == ".csv":
+                arr_in = np.genfromtxt(file, delimiter=",", comments="#",
+                                       usecols=range(0, 7), dtype=int)
+            else:
+                arr_in = np.genfromtxt(file, delimiter="\t", comments="#",
+                                       usecols=range(0, 7), dtype=int)
         array_map = cls(arr_in=arr_in)
 
         return array_map
@@ -2372,9 +2375,9 @@ class TimeStamps(DataObj):
             self.t_start_ = np.nanmin(self.data_)
             self.t_end_ = np.nanmax(self.data_)
         self.t_mid_ = (self.t_start_ + self.t_end_) / 2
-        self.t_start_time_ = Time(self.t_start_, format="unix")
-        self.t_end_time_ = Time(self.t_end_, format="unix")
-        self.t_mid_time_ = Time(self.t_mid_, format="unix")
+        self.t_start_time_ = gps_ts_to_time(self.t_start_)
+        self.t_end_time_ = gps_ts_to_time(self.t_end_)
+        self.t_mid_time_ = gps_ts_to_time(self.t_mid_)
 
     def __repr__(self):
         return super(TimeStamps, self).__repr__() + \
@@ -2559,7 +2562,7 @@ class TimeStamps(DataObj):
         :rtype: astropy.time.core.Time
         """
 
-        return Time(self.data_, format="unix")
+        return gps_ts_to_time(self.data_)
 
     def get_datetime(self):
         """
@@ -2787,8 +2790,8 @@ class ObsInfo(TableObj):
                     item = str(item)
                 self.table_.add_column(col=Tb.Column(data=[item], name=key))
 
-        attr_keys = ("frame_bytes", "freq", "n_cols", "n_rows", "n_frames",
-                     "n_rc", "n_ro", "rc_step", "size_ro")
+        attr_keys = ("data_mode", "frame_bytes", "freq", "n_cols", "n_rows",
+                     "n_frames", "n_rc", "n_ro", "rc_step", "size_ro")
         for key in attr_keys:
             if hasattr(file, key) and (key not in self.colnames_):
                 self.table_.add_column(
@@ -2886,16 +2889,16 @@ class ObsLog(TableObj):
         the time in 'UTC' and 'UTC' + 'Scan duration' columns. An empty ObsLog
         will be returned if no entry is found
 
-        :param time: float or str or datetime.datetime or astropy.time.Time,
+        :param time: float or str or datetime.datetime or astropy.time.core.Time,
             float input should be value of time stamp, string input should be
             time in iso format or isot format
-        :type time: float or str or datetime.datetime or astropy.time.Time
+        :type time: float or str or datetime.datetime or astropy.time.core.Time
         :return obs_log_new: the entry of obs_array log selected by time
         :rtype: ObsLog
         """
 
         if isinstance(time, (int, float, np.integer, np.double)):
-            time = Time(time, format="unix")
+            time = gps_ts_to_time(time)
         elif isinstance(time, str):
             try:
                 time = Time(time, format="iso")
@@ -3721,8 +3724,11 @@ class Obs(DataObj):
         arr_new = self.data_[..., arg_new]
         if not self.ts_.empty_flag_:
             if index_type != "time":
-                period *= (self.ts_.t_end_ - self.ts_.t_start_) / \
-                          self.ts_.len_
+                if self.ts_.len_ > 1:
+                    period *= (self.ts_.t_end_ - self.ts_.t_start_) / \
+                              (self.ts_.len_ - 1)
+                else:
+                    period = 0
             ts_new = self.ts_.data_ - cycle * period
             ts_new = ts_new[arg_new]
         else:
@@ -3781,7 +3787,7 @@ class Obs(DataObj):
         else:
             return 0
 
-    def match_obs_log(self, obs_log, time_offset=30):
+    def match_obs_log(self, obs_log, time_offset=0):
         """
         find the entry in obs_log matching the time of the object, and add the
         entry in obs_info_, only update the object with no return

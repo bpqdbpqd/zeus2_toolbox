@@ -341,9 +341,10 @@ def ifft_obs(obs_fft, t_start=None):
     :type obs_fft: Obs or ObsArray
     :param t_start: float or str or datetime.datetime or astropy.time.Time, the
         initial time for the time stamps in the result Obs object. If left None,
-        will use t_start_time_ in obs. Allowed input type are float as unix time
-        stamps(the same format used by zeus2), string in iso or isot format and
-        object
+        will use t_start_time_ in obs. Allowed input type are float as zeu2 like
+        time stamps which is unix format in GPS frame (the same format used by
+        zeus2 and can be converted using gps_ts_to_time() and time_to_gps_ts()),
+        string in iso or isot format and object
     :type t_start: float or str or datetime.datetime or astropy.time.Time
     :return: Obs or ObsArray object
     :rtype: Obs or ObsArray
@@ -363,7 +364,7 @@ def ifft_obs(obs_fft, t_start=None):
     if t_start is None:
         t_start = obs_fft.t_start_time_
     if isinstance(t_start, (int, float, np.integer, np.double)):
-        t_start = Time(t_start, format="unix")
+        t_start = gps_ts_to_time(t_start)
     elif isinstance(t_start, str):
         try:
             t_start = Time(t_start, format="iso")
@@ -373,7 +374,7 @@ def ifft_obs(obs_fft, t_start=None):
             except ValueError:
                 raise ValueError("String format should be ISO or ISOT.")
     t_start = Time(t_start)
-    ts0 = t_start.to_value(format="unix")
+    ts0 = time_to_gps_ts(t_start)
     ts_ifft_arr += ts0
 
     return type(obs_fft)(
@@ -455,6 +456,12 @@ def nfft_obs(obs, nfft=5., noverlap=4.):
 
     return obs_nfft, freq_ts
 
+    # TODO: def func_obs(f, obs, *args, **kwargs):
+    """
+    Apply arbitrary function to the data in obs by calling input f(), iterating
+    over all but the last axis of obs.data_.
+    """
+
 
 def fit_obs(obs, features):
     """
@@ -497,6 +504,11 @@ def fit_obs(obs, features):
                     t_end_time=obs.t_end_time_, **kwargs)
 
     return amp
+
+    # TODO: def curve_fit_obs(f, obs, xdata=None, **kwargs):
+    """
+    Fitting arbitrary function to the data in obs by calling nancurve_fit().
+    """
 
 
 def dot_prod_obs(obs1, obs2):

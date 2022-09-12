@@ -407,9 +407,8 @@ def analyze_performance(beam, write_header=None, pix_flag_list=None, plot=False,
                 tb_use = beam.obs_info_.table_[
                     ~beam.obs_info_.table_.mask["UTC"]]
                 tb_use.sort("UTC")
-                t_arr = Time.strptime(tb_use["UTC"],
-                                      format_string="%Y-%m-%dU%H:%M:%S"). \
-                    to_value(format="unix")
+                t_arr = time_to_gps_ts(Time(
+                        np.char.replace(tb_use["UTC"], "U", "T"), format="isot"))
                 t_arr += tb_use["Scan duration"] / 2
                 pwv_arr = tb_use["mm PWV"]
                 beam_pwv = beam.replace(
@@ -1055,7 +1054,8 @@ def read_tp(file_header, array_map=None, obs_log=None, flag_ts=True,
             t0 = 0.0
             if not beam.obs_info_.empty_flag_:
                 if "CTIME" in beam.obs_info_.colnames_:
-                    t0 = beam.obs_info_.table_["CTIME"][0] + 19.5
+                    t0 = time_to_gps_ts(Time(
+                            beam.obs_info_.table_["CTIME"][0], format="unix"))
                 else:
                     warnings.warn("can not find CTIME, using default value.",
                                   UserWarning)
@@ -1112,7 +1112,8 @@ def read_bias_step(file_header, array_map=None, flag_ts=True, is_flat=False,
     """
     function to read total power data which does not come with .ts file, so the
     time series is reconstructed with the best guess using T0=CTIME+19.5s and
-    data sampling frequency in MCE data header
+    data sampling frequency in MCE data header. Caution: the first data point is
+    dumped
 
     :param str file_header: str, full path to the data file
     :param ArrayMap array_map: ArrayMap, optional, if not None, will transform
@@ -1143,6 +1144,7 @@ def read_bias_step(file_header, array_map=None, flag_ts=True, is_flat=False,
         warnings.filterwarnings("ignore", "%s not found." % (file_header + ".chop"))
         beam = read_tp(file_header=file_header, array_map=array_map, obs_log=None,
                        flag_ts=flag_ts, is_flat=is_flat, t0=t0, freq=freq)
+    beam = beam.replace(arr_in=beam.data_[..., 1:])
 
     if data_rate is None:
         data_rate = 38
@@ -1154,13 +1156,13 @@ def read_bias_step(file_header, array_map=None, flag_ts=True, is_flat=False,
             warnings.warn("can not find data_rate, using default value.",
                           UserWarning)
     if ramp_step_period is None:
-        ramp_step_period = 3800
+        ramp_step_period = 38 * 199
         if "RB_cc_ramp_step_period" in beam.obs_info_.colnames_:
             ramp_step_period = beam.obs_info_.table_["RB_cc_ramp_step_period"][0]
         else:
             warnings.warn("can not find ramp_step_period, using default value.",
                           UserWarning)
-    ramp_chop = (np.arange(beam.len_) * data_rate // ramp_step_period) % 2
+    ramp_chop = ((np.arange(beam.len_) * data_rate // ramp_step_period) % 2)
     beam.update_chop(ramp_chop.astype(bool))
 
     return beam
@@ -1862,9 +1864,8 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
             tb_use = zobs_flux.obs_info_.table_[
                 ~zobs_flux.obs_info_.table_.mask["UTC"]]
             tb_use.sort("UTC")
-            t_arr = Time.strptime(tb_use["UTC"],
-                                  format_string="%Y-%m-%dU%H:%M:%S"). \
-                to_value(format="unix")
+            t_arr = time_to_gps_ts(Time(
+                    np.char.replace(tb_use["UTC"], "U", "T"), format="isot"))
             t_arr += tb_use["Scan duration"] / 2
             pwv_arr = tb_use["mm PWV"]
             obs_pwv = beam_pairs_flux.replace(
@@ -2029,9 +2030,8 @@ def reduce_calibration(data_header, data_dir=None, write_dir=None,
             tb_use = beams_flux.obs_info_.table_[
                 ~beams_flux.obs_info_.table_.mask["UTC"]]
             tb_use.sort("UTC")
-            t_arr = Time.strptime(tb_use["UTC"],
-                                  format_string="%Y-%m-%dU%H:%M:%S"). \
-                to_value(format="unix")
+            t_arr = time_to_gps_ts(Time(
+                    np.char.replace(tb_use["UTC"], "U", "T"), format="isot"))
             t_arr += tb_use["Scan duration"] / 2
             pwv_arr = tb_use["mm PWV"]
             obs_pwv = beams_flux.replace(
@@ -2136,9 +2136,8 @@ def reduce_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
                 tb_use = beams_flux.obs_info_.table_[
                     ~beams_flux.obs_info_.table_.mask["UTC"]]
                 tb_use.sort("UTC")
-                t_arr = Time.strptime(tb_use["UTC"],
-                                      format_string="%Y-%m-%dU%H:%M:%S"). \
-                    to_value(format="unix")
+                t_arr = time_to_gps_ts(Time(
+                        np.char.replace(tb_use["UTC"], "U", "T"), format="isot"))
                 t_arr += tb_use["Scan duration"] / 2
                 pwv_arr = tb_use["mm PWV"]
                 obs_pwv = beams_flux.replace(

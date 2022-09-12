@@ -6,6 +6,7 @@ import warnings
 
 import numpy as np
 from numpy.linalg import lstsq
+from scipy.optimize import curve_fit
 
 
 def custom_formatwarning(message, category, *args, **kwargs):
@@ -389,24 +390,56 @@ def naninterp(x, xp, fp, fill_value=np.nan):
     return result
 
 
-def nanlstsq(a, b, rcond=None, fill_value=np.nan):
+def nanlstsq(a, b, fill_value=np.nan, **kwargs):
     """
     call numpy.linalg.lstsq() to do the least square fit, but mask non-finite data
-    first, and return all the results from
+    first in solving; if all the input data are masked, will do a psudo-fit fitting
+    an all zero array in the same shape as a to another all zero array in shape
+    like b, replacing the result to fill_value
 
     :param numpy.ndarray a: array, as in numpy.linalg.lstsq()
     :param numpy.ndarray b: array, 1-d, as in numpy.linalg.lstsq()
-    :param rcond: float or str, as in numpy.linalg.lstsq()
     :param fill_value: value to fill the result array in case all elements in
         xp are non-finite
+    :param bool full_result: bool flag, whether to return the full result output
+        by lstsq()
+    :param kwargs: keyword arguments passed to numpy.linalg.lstsq()
     """
 
     finite_flag_arr = np.all(np.isfinite(a), axis=-1) & np.isfinite(b)
     if np.count_nonzero(finite_flag_arr) == 0:
-        lstsq_0 = lstsq(np.zeros(a.shape), np.zeros(b.shape), rcond=rcond)
+        lstsq_0 = lstsq(np.zeros(a.shape), np.zeros(b.shape), **kwargs)
         result = (np.full(lstsq_0[0].shape, fill_value=fill_value),) + lstsq_0[1:]
     else:
-        result = lstsq(a[finite_flag_arr, :], b[finite_flag_arr], rcond=rcond)
+        result = lstsq(a[finite_flag_arr, :], b[finite_flag_arr], **kwargs)
+
+    return result
+
+
+def nancurve_fit(f, xdata, ydata, fill_value=np.nan, **kwargs):
+    """
+    call scipy.optimize.curve_fit() to do the least square fit, but mask non-finite
+    data first in solving; if all the input data are masked, will do a psudo-fit
+    fitting an all zero array in the same shape as a to another all zero array in
+    shape like b, replacing the result and cov to fill_value
+
+    :param callable f: the model function passed to scipy.optimize.curve_fit()
+    :param numpy.ndarray xdata: float array, passed to scipy.optimize.curve_fit()
+    :param numpy.ndarray ydata: float array, passed to scipy.optimize.curve_fit()
+    :param fill_value: value to fill the result array in case all elements in
+        ydata are non-finite
+    :param kwargs: keyword arguments passed to scipy.optimize.curve_fit()
+    """
+
+    finite_flag_arr = np.isfinite(xdata) & np.isfinite(ydata)
+    if np.count_nonzero(finite_flag_arr) == 0:
+        curve_fit_0 = curve_fit(f, np.zeros(a.shape), np.zeros(b.shape), **kwargs)
+        result = (np.full(curve_fit_0[0].shape, fill_value=fill_value),
+                  np.full(curve_fit_0[1].shape, fill_value=fill_value)) + \
+                 lstsq_0[2:]
+    else:
+        result = curve_fit(f, xdata[finite_flag_arr], ydata[finite_flag_arr],
+                           **kwargs)
 
     return result
 
