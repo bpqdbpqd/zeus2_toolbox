@@ -520,7 +520,7 @@ def time_to_gps_ts(time):
     :rtype: float or np.double
     """
 
-    ts_tai = Time(ts0, format="gps") + \
+    ts_tai = Time(time, format="gps") + \
              TimeDelta(19, format="sec", scale="tai")  # diff between GPS and TAI
     ts = ts_tai.unix
 
