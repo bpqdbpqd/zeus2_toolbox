@@ -1774,9 +1774,9 @@ class ArrayMap(DataObj):
             warnings.filterwarnings(
                     "ignore", "empty configuration, will use the default values " +
                               "spec_to_wl() function.")
-            d_wl = self.wl_calculator(spec=self.array_spec_ + 0.5,
+            d_wl = self.wl_calculator(spec=self.array_spec_ + 0.5 * 0.9999999,
                                       spat=self.array_spat_, **kwargs) - \
-                   self.wl_calculator(spec=self.array_spec_ - 0.5,
+                   self.wl_calculator(spec=self.array_spec_ - 0.5 * 0.9999999,
                                       spat=self.array_spat_, **kwargs)
 
         self.wl_flag_ = True

@@ -212,6 +212,82 @@ def transmission_pixel(freq, pwv, elev=60, r=1000, d_freq=0.8):
     return trans_win
 
 
+def bias_step_model(t, t0, period, tau, delta1, delta2, a0=0, a1=0, a2=0):
+    """
+    A simple model for the time series of bias step data, which combines a step
+    part with an exponential decay part, both of which changes sign periodically,
+    and a parabolic baseline a0 + a1*(t-t0) + a2*(t-t0)**2
+
+    :param np.ndarray t: array object, time stamp of the bias step, ideally it
+        should start from 0 or very small number
+    :param float or np.double t0: float or double, the starting time stamp of the
+        bias ramp
+    :param float or np.double period: float or double, bias ramp period in second
+    :param float tau: float, timescale of the exponential decay, or effective
+        time constant
+    :param float delta1: float, the size of the step change, the sign is defined as
+        first chunk - the second chunk after t0
+    :param float delta2: float, the scale of the exponential decay, the sign is
+        defined as the scale of decay for the first chunk after t0
+    :param float a0: float, zeroth order coefficient of the baseline
+    :param float a1: float, first order coefficient of the baseline
+    :param float a2: float, second order coefficient of the baseline
+    """
+
+    phase = (t - t0) % (period / 2)
+    sign = np.choose((((t - t0) // (period / 2)) % 2).astype(int), (1, -1))
+
+    steady = delta1 / 2 * sign
+    decay = delta2 * np.exp(-phase / tau) * sign
+    baseline = a0 + a1 * (t - t0) + a2 * (t - t0) ** 2
+
+    return steady + decay
+
+
+def bias_step_physics_model(t, t0, period, tau, RLR0, L, tau_bias=0, a0=0, a1=0,
+                            a2=0):
+    """
+    A more sophisticated model of bias step based on the physical parameters of
+    the TES, including the initial damped growth due to slow bias change
+
+    :param np.ndarray t: array object, time stamp of the bias step, ideally it
+        should start from 0 or very small number
+    :param float or np.double t0: float or double, the starting time stamp of the
+        bias ramp
+    :param float or np.double period: float or double, bias ramp period in second
+    :param float tau: float, the natural time constant, note that the definition is
+        different from that in step_physics_model, and the effective time
+        constant is tau * (1 + RLR0)/(1 + RLR0 + (1 - RLR0) * L)
+    :param float RLR0: float, RL/(RL+R0), the resistance contrast
+    :param float L: float, loop gain
+    :param float tau_bias: float, time scale of the bias change
+    :param float a0: float, zeroth order coefficient of the baseline
+    :param float a1: float, first order coefficient of the baseline
+    :param float a2: float, second order coefficient of the baseline
+    """
+
+    phase = (t - t0) % (period / 2)
+    sign = np.choose((((t - t0) // cycle) % 2).astype(int), (1, -1))
+
+    step_eff = (1 - L) / (1 + L)
+    tau_eff = tau * (1 + RLR0) / (1 + RLR0 + (1 - RLR0) * L)
+    tau_r = tau_bias / tau_eff
+    di_di = RLR0 * step_eff  # di_tes_di_bias
+    step0 = RLR0 * (step_eff * (1 - 1 / tau_r + 1 / tau_r * np.exp(-tau_r)) +
+                    1 / tau_r * (1 - np.exp(-tau_r)))
+
+    steady = di_di / 2 * sign
+    decay = (step0 - di_di) * np.exp(-(phase - tau_bias) / tau_eff) * sign * \
+            (phase > tau_bias)
+    increase = (RLR0 * (step_eff * (phase / tau_bias - 1 / tau_r +
+                                    1 / tau_r * np.exp(-phase / tau_eff)) +
+                        1 / tau_r * (1 - np.exp(-phase / tau_eff))) - di_di) * sign * \
+               (phase < tau_bias)
+    baseline = a0 + a1 * (t - t0) + a2 * (t - t0) ** 2
+
+    return steady + decay + increase + baseline
+
+
 def gaussian_filter_obs(obs, freq_sigma=0.3, freq_center=0,
                         edge_chunks_ncut=None, chunk_edges_ncut=None,
                         truncate=4.0):
