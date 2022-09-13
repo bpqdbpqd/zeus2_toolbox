@@ -532,7 +532,7 @@ def nfft_obs(obs, nfft=5., noverlap=4.):
 
     return obs_nfft, freq_ts
 
-    # TODO: def func_obs(f, obs, *args, **kwargs):
+# TODO: def func_obs(f, obs, *args, **kwargs):
     """
     Apply arbitrary function to the data in obs by calling input f(), iterating
     over all but the last axis of obs.data_.

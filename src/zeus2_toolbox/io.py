@@ -3800,9 +3800,17 @@ class Obs(DataObj):
         """
 
         obs_log = ObsLog(obs_log)
-        entries = obs_log.take_by_time(time=self.t_start_time_ + (
-                self.t_end_time_ - self.t_start_time_) / 2 -
-                                            time_offset * units.s)
+        if (not self.ts_.empty_flag_) or (self.t_start_time_ != Obs.t_start_time_):
+            time_mid = self.t_start_time_ + (
+                    self.t_end_time_ - self.t_start_time_) / 2
+        elif (not self.obs_info_.empty_flag_) and \
+                ("CTIME" in self.obs_info_.colnames_):
+            time_mid = Time(self.obs_info_.table_["CTIME"][0], format="unix")
+        else:
+            time_mid = self.t_start_time_ + (
+                    self.t_end_time_ - self.t_start_time_) / 2
+            warnings.warn("matching empty Obs object to obs log.")
+        entries = obs_log.take_by_time(time=time_mid - time_offset * units.s)
         self.obs_info_.expand(entries)
 
 

@@ -1046,6 +1046,10 @@ def read_tp(file_header, array_map=None, obs_log=None, flag_ts=True,
     with warnings.catch_warnings():
         warnings.filterwarnings(
                 "ignore", message="%s not found." % (file_header + ".ts"))
+        warnings.filterwarnings(
+                "ignore", message="Failed to read .hk for " +
+                                  ("%s due to <class 'FileNotFoundError'>: " % file_header) +
+                                  ("%s or %s.hk are not hk files." % (file_header, file_header)))
         beam = read_beam(file_header=file_header, array_map=array_map,
                          obs_log=None, flag_ts=flag_ts, is_flat=is_flat)
 
@@ -1144,7 +1148,7 @@ def read_bias_step(file_header, array_map=None, flag_ts=True, is_flat=False,
         warnings.filterwarnings("ignore", "%s not found." % (file_header + ".chop"))
         beam = read_tp(file_header=file_header, array_map=array_map, obs_log=None,
                        flag_ts=flag_ts, is_flat=is_flat, t0=t0, freq=freq)
-    beam = beam.replace(arr_in=beam.data_[..., 1:])
+    beam = beam.take_by_idx_along_time(idxs=range(1, beam.len_))
 
     if data_rate is None:
         data_rate = 38
