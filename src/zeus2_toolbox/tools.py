@@ -366,7 +366,7 @@ def double_nanmad_flag(arr, thre=20, axis=-1, frac_thre=0.1):
     return flag_arr
 
 
-def naninterp(x, xp, fp, fill_value=np.nan):
+def naninterp(x, xp, fp, fill_value=np.nan, **kwargs):
     """
     Call numpy.interp() to do a 1d interpolation, but mask the non-finite data
     first, and return an array with fill_value in case all input data are not
@@ -377,6 +377,7 @@ def naninterp(x, xp, fp, fill_value=np.nan):
     :param numpy.ndarray fp: array, numpy.interp()
     :param fill_value: value to fill the result array in case all elements in
         xp are non-finite
+    :param kwargs: keyword arguments passed to numpy.interp()
     :return: array of interpolated result
     :rtype: numpy.ndarray
     """
@@ -385,7 +386,7 @@ def naninterp(x, xp, fp, fill_value=np.nan):
     if np.count_nonzero(finite_mask) == 0:
         result = np.full(x.shape, fill_value=fill_value)
     else:
-        result = np.interp(x, xp[finite_mask], fp[finite_mask])
+        result = np.interp(x, xp[finite_mask], fp[finite_mask], **kwargs)
 
     return result
 

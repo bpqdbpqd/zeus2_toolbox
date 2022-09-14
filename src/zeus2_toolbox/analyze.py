@@ -581,7 +581,7 @@ def fit_obs(obs, features):
 
     return amp
 
-    # TODO: def curve_fit_obs(f, obs, xdata=None, **kwargs):
+# TODO: def curve_fit_obs(f, obs, xdata=None, **kwargs):
     """
     Fitting arbitrary function to the data in obs by calling nancurve_fit().
     """

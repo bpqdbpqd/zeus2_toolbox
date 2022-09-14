@@ -364,7 +364,13 @@ class DataObj(BaseObj):
 
         shape1, shape2 = self.shape_, other.shape_
         arr1, arr2 = self.data_, other.data_
-        shape_flag = (shape1 == shape2)
+        try:
+            shape_common = np.broadcast_shapes(shape1, shape2)
+        except ValueError:
+            shape_flag = False
+        else:
+            shape_flag = True
+
         if shape_flag:  # the shapes match
             pass
         elif self.ndim_ == other.ndim_:  # ndim match, will try to reshape
@@ -3169,6 +3175,27 @@ class Obs(DataObj):
         obs_info = ObsInfo(tb_in=obs_info)
         obs_info.add_id(obs_id=self.obs_id_)
         self.obs_info_ = obs_info
+
+        if (self.t_start_time_ == TimeStamps.t_start_time_) and \
+                (self.t_end_time_ == TimeStamps.t_end_time_) and \
+                ("CTIME" in obs_info.colnames_) and \
+                (len(obs_info.table_["CTIME"][~obs_info.table_.mask["CTIME"]]) > 0):
+            arg_start, arg_end = np.nanargmin(obs_info.table_["CTIME"]), \
+                                 np.nanargmax(obs_info.table_["CTIME"])
+            ctime_start, ctime_end = obs_info.table_["CTIME"][arg_start], \
+                                     obs_info.table_["CTIME"][arg_end]
+            if ("freq" in obs_info.colnames_):
+                freq = obs_info.table_["freq"].filled(398.72408293460927)[arg_end]
+                if "n_frames" in obs_info.colnames_:
+                    n_frames = obs_info.table_["freq"].filled(0)[arg_end]
+                else:
+                    n_frames = 0
+            else:
+                freq = 398.72408293460927
+            d_time_end = 1 / freq * n_frames
+            time_start, time_end = Time(ctime_start, format="unix"), \
+                                   Time(ctime_end + d_time_end, format="unix")
+            self.t_start_time_, self.t_end_time_ = time_start, time_end
 
     def __check(self):
         """

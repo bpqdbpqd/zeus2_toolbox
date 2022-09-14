@@ -5,14 +5,15 @@ converting data to physical unit.
 
 - Add **convert** submodule
 - Add **analyze** submodule
-- Add function read_tp(), read_iv_curve() and read_bias_step() to read in different types of data
+- Add check_log script
+- Add function read_total_power(), read_iv_curve() and read_bias_step() to read in different types of data
 - Add function gps_ts_to_time() and time_to_gps_ts(), and update the way time stamps are converted in the package
 - Update error prediction to 2 * sqrt(3) * rms/sqrt(N) based on simulated data
-- Add method to ArrayMap class to read in grating configuration, convert array map to wavelength, and calculating
-  wavelength, spec and grat_idx with given configuration and condition
 - Add function freq_to_wl() and wl_to_freq()
 - Add function transmission_raw(), transmission_raw_range(), transmission_smoothed(), transmission_smoothed_range(),
   transmission_window(), get_transmission_raw_obs_array(), get_transmission_obs_array() to pipeline
+- Add method to ArrayMap class to read in grating configuration, convert array map to wavelength, and calculating
+  wavelength, spec and grat_idx with given configuration and condition
 - Add set_xscale() and set_yscale() method to FigArray class
 - Add class method ObsInfo.read() to read .hk, .run and the original MCE file header at the same time
 - Add xscale parameter to FigArray.psd(), enabling to plot log-log power spectral diagram, and change the behaviour of

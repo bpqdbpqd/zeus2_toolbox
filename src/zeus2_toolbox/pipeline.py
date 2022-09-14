@@ -926,7 +926,8 @@ def stack_raster(raster, raster_wt=None, write_header=None, pix_flag_list=None,
 
 
 def read_beam(file_header, array_map=None, obs_log=None, flag_ts=True,
-              is_flat=False):
+              is_flat=False, is_total_power=False, is_bias_step=False,
+              is_iv_curve=False, **kwargs):
     """
     function to read MCE time series data, convert to array map layout, add
     auxiliary information from obs log, and flag outliers if opted
@@ -940,35 +941,53 @@ def read_beam(file_header, array_map=None, obs_log=None, flag_ts=True,
         auto_flag_ts(), default True
     :param bool is_flat: bool, flag whether the beam is flat/skychop, passed to
         auto_flag_ts(), default False
+    :param bool is_total_power: bool flag whether the data is total power, if
+        true will call read_total_power()
+    :param bool is_bias_step: bool flag whether the data is bias step, if true
+        will call read_bias_step()
+    :param bool is_iv_curve: bool flag whether the data is IV curve, if true will
+        call read_iv_curve()
+    :param kwargs: keyword arguments passed to read_total_power() or
+        read_bias_step() or read_iv_curve()
     :return: Obs or ObsArray object containing the data
     :rtype: Obs or ObsArray
     """
 
-    try:
-        beam = Obs.read_header(filename=file_header)  # read in data
-    except Exception as err:
-        warnings.warn("fail to read in %s due to %s: %s" %
-                      (file_header, type(err), err), UserWarning)
-        beam = Obs(obs_id=file_header.split("/")[-1])
-    if array_map is not None:  # transform into ObsArray
-        if beam.empty_flag_:
-            beam = ObsArray(
-                    np.empty((array_map.len_, 0), dtype=ObsArray.dtype_),
-                    array_map=array_map)
-            beam.empty_flag_ = True
-        else:
-            beam = beam.to_obs_array(array_map=array_map)
-    if flag_ts and (not beam.empty_flag_):
-        beam = auto_flag_ts(beam, is_flat=is_flat, mad_thre=MAD_THRE_BEAM,
-                            std_thre_flat=STD_THRE_FLAT)
-    if (obs_log is not None) and (len(obs_log) > 0) and (not beam.empty_flag_):
-        with warnings.catch_warnings():
-            if is_flat:
-                warnings.filterwarnings(
-                        "ignore", message="No entry is found in obs log.")
-            beam.match_obs_log(obs_log)  # find entry in obs_log
+    if is_iv_curve:
+        return read_iv_curve(file_header=file_header, array_map=array_map, **kwargs)
+    elif is_bias_step:
+        return read_bias_step(file_header=file_header, array_map=array_map,
+                              flag_ts=flag_ts, is_flat=is_flat, **kwargs)
+    elif is_total_power:
+        return read_total_power(file_header=file_header, array_map=array_map,
+                                obs_log=obs_log, flag_ts=flag_ts, is_flat=is_flat,
+                                **kwargs)
+    else:
+        try:
+            beam = Obs.read_header(filename=file_header)  # read in data
+        except Exception as err:
+            warnings.warn("fail to read in %s due to %s: %s" %
+                          (file_header, type(err), err), UserWarning)
+            beam = Obs(obs_id=file_header.split("/")[-1])
+        if array_map is not None:  # transform into ObsArray
+            if beam.empty_flag_:
+                beam = ObsArray(
+                        np.empty((array_map.len_, 0), dtype=ObsArray.dtype_),
+                        array_map=array_map)
+                beam.empty_flag_ = True
+            else:
+                beam = beam.to_obs_array(array_map=array_map)
+        if flag_ts and (not beam.empty_flag_):
+            beam = auto_flag_ts(beam, is_flat=is_flat, mad_thre=MAD_THRE_BEAM,
+                                std_thre_flat=STD_THRE_FLAT)
+        if (obs_log is not None) and (len(obs_log) > 0) and (not beam.empty_flag_):
+            with warnings.catch_warnings():
+                if is_flat:
+                    warnings.filterwarnings(
+                            "ignore", message="No entry is found in obs log.")
+                beam.match_obs_log(obs_log)  # find entry in obs_log
 
-    return beam
+        return beam
 
 
 def read_beam_pair(file_header1, file_header2, array_map=None, obs_log=None,
@@ -1017,8 +1036,8 @@ def read_beam_pair(file_header1, file_header2, array_map=None, obs_log=None,
     return stacked_beam_pair
 
 
-def read_tp(file_header, array_map=None, obs_log=None, flag_ts=True,
-            is_flat=False, t0=None, freq=None):
+def read_total_power(file_header, array_map=None, obs_log=None, flag_ts=True,
+                     is_flat=False, t0=None, freq=None):
     """
     function to read total power data which does not come with .ts file, so the
     time series is reconstructed with the best guess using T0=CTIME+19.5s and
@@ -1146,8 +1165,9 @@ def read_bias_step(file_header, array_map=None, flag_ts=True, is_flat=False,
 
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", "%s not found." % (file_header + ".chop"))
-        beam = read_tp(file_header=file_header, array_map=array_map, obs_log=None,
-                       flag_ts=flag_ts, is_flat=is_flat, t0=t0, freq=freq)
+        beam = read_total_power(
+                file_header=file_header, array_map=array_map, obs_log=None,
+                flag_ts=flag_ts, is_flat=is_flat, t0=t0, freq=freq)
     beam = beam.take_by_idx_along_time(idxs=range(1, beam.len_))
 
     if data_rate is None:
@@ -1283,7 +1303,8 @@ def reduce_beam_pair(file_header1, file_header2, write_dir=None, write_suffix=""
 
 
 def read_beams(file_header_list, array_map=None, obs_log=None, flag_ts=True,
-               is_flat=False, parallel=False):
+               is_flat=False, is_total_power=False, is_bias_step=False,
+               is_iv_curve=False, parallel=False, **kwargs):
     """
     Function to read multiple MCE data files, optionally in a parallelized mode.
     It takes ~ 5 min on spectrosaurus to read 700 beams in parallel. It is
@@ -1299,6 +1320,14 @@ def read_beams(file_header_list, array_map=None, obs_log=None, flag_ts=True,
         auto_flag_ts(), default True
     :param bool is_flat: bool, flag whether the beam is flat/skychop, passed to
         auto_flag_ts(), default False
+    :param bool is_total_power: bool flag whether the data is total power, if
+        true will call read_total_power()
+    :param bool is_bias_step: bool flag whether the data is bias step, if true
+        will call read_bias_step()
+    :param bool is_iv_curve: bool flag whether the data is IV curve, if true will
+        call read_iv_curve()
+    :param kwargs: keyword arguments passed to read_total_power() or
+        read_bias_step() or read_iv_curve()
     :param bool parallel: bool, flag whether to run it in parallelized mode,
         would accelerate the process by many factors on a multicore machine
     :return: Obs or ObsArray object containing all the data concatenated

@@ -159,9 +159,10 @@ def fb_to_v_tes(bias, fb, mce_col=-1, mce_bias_r=MCE_BIAS_R,
     :rtype: int or float or numpy.ndarray
     """
 
-    col = np.reshape(mce_col, newshape=(-1, 1))
-    alt_col = np.reshape(alt_col_list, newshape=(1, -1))
-    shunt_r_use = np.choose(np.any(col == alt_col, axis=1),
+    col = np.asarray(mce_col)
+    alt_col = np.expand_dims(alt_col_list,
+                             axis=np.arange(1, 1 + col.ndim, dtype=int).tolist())
+    shunt_r_use = np.choose(np.any(col == alt_col, axis=0),
                             (shunt_r, alt_shunt_r))  # pick the shunt_r to use
 
     i_bias = bias_to_i_bias(

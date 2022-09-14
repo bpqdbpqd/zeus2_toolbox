@@ -250,12 +250,30 @@ class FigFlux(Figure):
                 row_idxs, col_idxs = flag_pix_arr[:, 0], flag_pix_arr[:, 1]
                 for row, col in zip(row_idxs, col_idxs):
                     arr_mask[row, col] = True
-            ran = np.nanmax(abs(arr[~arr_mask]))
+            min, max = np.nanmin(arr[~arr_mask]), \
+                       np.nanmax(arr[~arr_mask])
+            if min * max >= 0:
+                ran_alt = (min, max)
+            else:
+                ran_alt = (-np.nanmax(abs(arr[~arr_mask])),
+                           np.nanmax(abs(arr[~arr_mask])))
+
+            ran = ()
+            if "vmin" in kwargs:
+                ran += (kwargs["vmin"],)
+            else:
+                ran += (np.nanmin(ran_alt),)
+            if "vmax" in kwargs:
+                ran += (kwargs["vmax"],)
+            else:
+                ran += (np.nanmax(ran_alt),)
+        elif isinstance(ran, (bool, int, float, np.integer, np.double)):
+            ran = (-abs(ran), abs(ran))
 
         # transform data to RGBA
         if "cmap" in kwargs:
             self.cmap_ = plt.get_cmap(kwargs["cmap"])
-        self.norm_ = colors.Normalize(vmin=-ran, vmax=ran)
+        self.norm_ = colors.Normalize(vmin=np.nanmin(ran), vmax=np.nanmax(ran))
         flag_nan = np.isnan(arr)
         np.putmask(arr, np.isnan(arr), 0)  # replace nan by 0
         arr_rgba = self.cmap_(self.norm_(arr))  # get rgba values
@@ -649,9 +667,11 @@ class FigFlux(Figure):
             Obs or (spat, spec) for ObsArray of the pixels to flag. Will be
             combined with mask is used if mask is used.
         :type pix_flag_list: list or tuple or numpy.ndarray
-        :param float ran: float, optional, positive, +ran and -ran will be
-            passed to imshow() as vmax and vmin, if left none, then the max of
-            abs non-flagged data value will be used
+        :param float or tuple or list ran: float or list or tuple, optional, if
+            is a single value, +abs(ran) and -abs(ran) will be passed to imshow()
+            as vmax and vmin; if is a tuple, the smaller and larger values will
+            be passed to vmin vmax; if left none without vmax and vmin, then the
+            max of abs non-flagged data value will be used
         :param str orientation: str, allowed values are 'horizontal' and
             'vertical', if the former, layout of image (y, x) will be (row, col)
             for Obs and (spat, spec) for ObsArray, otherwise (col, row) and
