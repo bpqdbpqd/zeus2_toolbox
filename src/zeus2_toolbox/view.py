@@ -8,7 +8,7 @@ Visualization of data
 requirements:
     matplotlib, pillow
 """
-
+import numpy as np
 from matplotlib import cm, colors, font_manager
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
@@ -250,8 +250,12 @@ class FigFlux(Figure):
                 row_idxs, col_idxs = flag_pix_arr[:, 0], flag_pix_arr[:, 1]
                 for row, col in zip(row_idxs, col_idxs):
                     arr_mask[row, col] = True
-            min, max = np.nanmin(arr[~arr_mask]), \
-                       np.nanmax(arr[~arr_mask])
+            if np.any(~arr_mask):
+                min, max = np.nanmin(arr[~arr_mask]), \
+                           np.nanmax(arr[~arr_mask])
+            else:
+                warnings.warn("All the data are masked.")
+                min = max = 0
             if min * max >= 0:
                 ran_alt = (min, max)
             else:
@@ -655,7 +659,7 @@ class FigFlux(Figure):
     def plot_flux(cls, obs_array, mask=None, pix_flag_list=None, ran=None,
                   orientation=None, extent=None, cmap="seismic",
                   flag_pix_color="grey", nan_pix_color="white",
-                  dpi=100, fontsize=None, x_size=None, y_size=None):
+                  dpi=100, fontsize=None, x_size=None, y_size=None, **kwargs):
         """
         Plot obs_array, will initialize FigFlux with figsize that fits with
         the input data shape, and then call imshow() to plot
@@ -695,6 +699,7 @@ class FigFlux(Figure):
             0.2
         :param float y_size: float, size of increment in y-axis in inch, default
             0.2
+        :param kwargs: keyword argument passed to imshow_pixel()
         :return fig: FigFlux, object containing the plot
         :rtype: FigFlux
         :raises TypeError: invalid obs_array type
@@ -716,7 +721,8 @@ class FigFlux(Figure):
         fig.nan_pix_color_ = colors.to_rgba(nan_pix_color)
 
         fig.imshow_pixel(obs=obs_array, mask=mask, pix_flag_list=pix_flag_list,
-                         ran=ran, orientation=orientation, extent=extent)
+                         ran=ran, orientation=orientation, extent=extent,
+                         **kwargs)
         fig.imshow_flag(mask=mask, pix_flag_list=pix_flag_list)
 
         return fig

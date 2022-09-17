@@ -89,7 +89,7 @@ for beam_header in beam_header_list:
 
 print("Finished reading headers.")
 
-setup_tb = z2pipl.Tb([["MCE_SETUP"] * len(mce_setup_list), mce_setup_list],
+setup_tb = z2pipl.Tb([["AUTOSETUP"] * len(mce_setup_list), mce_setup_list],
                      names=("obs_id", "CTIME"), masked=True)
 obs_info.append(z2pipl.ObsInfo(tb_in=setup_tb))
 

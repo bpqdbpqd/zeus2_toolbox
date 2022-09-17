@@ -8,10 +8,14 @@ Functions for the pipeline reduction.
 requirements:
     beautifulsoup4, numpy >= 1.13, scipy
 """
+import os
 import warnings
 
 from .analyze import *
 from .view import *
+
+DATA_RATE = 38  # default date rate
+RAMP_STEP_PERIOD = 120 * 38  # default bias step ramp step period
 
 # define many default values used for the pipeline reduction
 MATCH_SAME_PHASE = False  # default phase matching flag for stacking beam pairs,
@@ -21,14 +25,19 @@ STACK_FACTOR = 1  # default factor for the second beam in stacking beam pairs
 MAD_THRE_BEAM = 7  # default MAD threshold for flagging ordinary observation
 STD_THRE_FLAT = 2  # default MAD threshold for flagging skychop/flat
 THRE_FLAG = 5E7  # absolute value threshold of the time series to flag a pixel
-SNR_THRE = 50  # default SNR threshold to flag pixel for flat field
+SNR_THRE = 20  # default SNR threshold to flag pixel for flat field
 MAD_THRE_BEAM_ERR = 10  # default MAD threshold for flagging pixel based on error
+MAD_THRE_BS_ERR = 10  # default MAD threshold for flagging bias step data
 
 CORR_THRE = 0.6  # default correlation threshold used in building snake model
 MIN_PIX_NUM = 10  # default minimum number of pixels used to build snake model
 FREQ_SIGMA = 0.3  # default gaussian peak width used in building/smoothing snake
 EDGE_CHUNKS_NCUT = None  # default number of edge chunks to throw away
 CHUNK_EDGES_NCUT = None  # default number/fraction of chunk edge data to abandon
+
+FREQ_CENTER_LIST = (1.41, 1.985, 3.97, 5.955, 7.94)  # known common noise for
+# cleaning
+FREQ_SIGMA_LIST = (0.015, 0.015, 0.03, 0.045, 0.06)
 
 FINITE_THRE = 0.95  # default threshold of finite data fraction for a pixel to be
 # used in ICA
@@ -118,7 +127,7 @@ def desnake_beam(obs, ref_pix=None, pix_flag_list=None, corr_thre=CORR_THRE,
         warnings.warn("Data is too short for desnaking!", UserWarning)
 
     snake_model.expand(snake_model * 0 + 1)  # fit snake model to each pixel
-    amp_snake = fit_obs(obs, features=snake_model)
+    amp_snake = fit_obs(obs, features=snake_model, rcond=-1)
     obs_snake = dot_prod_obs(amp_snake, snake_model)
 
     return obs - obs_snake, obs_snake, amp_snake, snake_model
@@ -194,7 +203,7 @@ def ica_treat_beam(obs, spat_excl=None, pix_flag_list=None, verbose=VERBOSE,
     obs_to_fit = obs_sources.copy()
     obs_chop = obs_sources.replace(arr_in=obs.chop_.data_[None, ...])
     obs_to_fit.expand(obs_chop)
-    ica_amp = fit_obs(obs, obs_to_fit). \
+    ica_amp = fit_obs(obs, obs_to_fit, rcond=-1). \
         take_by_idx_along_axis(range(obs_to_fit.shape_[0] - 1), axis=-1)
     ics_noise_beam = dot_prod_obs(ica_amp, obs_sources)
 
@@ -496,7 +505,8 @@ def analyze_performance(beam, write_header=None, pix_flag_list=None, plot=False,
     return beam_rms
 
 
-def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=None, flat_flux=1,
+def proc_beam(beam, write_header=None, is_flat=False, is_bias_step=False,
+              pix_flag_list=None, flat_flux=1,
               flat_err=0, cross=False, do_desnake=False, ref_pix=None,
               do_smooth=False, do_ica=False, spat_excl=None, do_clean=False,
               return_ts=False, return_pix_flag_list=False, plot=False,
@@ -512,6 +522,8 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=None, flat_f
     :param bool is_flat: bool, flag indicating this beam is flat field, which will
         use much larger mad flag threshold, flag pixel by SNR, and will not use
         weighted mean in calculating flux
+    :param bool is_bias_step: bool, flag indicating this data is bias step, which
+        requires different flagging and handling
     :param list or None pix_flag_list: list, a list including pixels to be flagged,
         will be combined with auto flagged pixels in making figures and in the
         returned pix_flag_list, the pixels will be flagged in the figure and the
@@ -579,8 +591,9 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=None, flat_f
     if do_smooth:
         smooth_beam = gaussian_filter_obs(
                 beam_use, freq_sigma=FREQ_SIGMA,
-                edge_chunks_ncut=EDGE_CHUNKS_NCUT,
-                chunk_edges_ncut=CHUNK_EDGES_NCUT).replace(chop=None)
+                edge_chunks_ncut=EDGE_CHUNKS_NCUT if not is_bias_step else 1,
+                chunk_edges_ncut=CHUNK_EDGES_NCUT if not is_bias_step else 0). \
+            replace(chop=None)
         beam_use = auto_flag_ts(beam_use - smooth_beam, is_flat=is_flat,
                                 mad_thre=MAD_THRE_BEAM,
                                 std_thre_flat=STD_THRE_FLAT)
@@ -588,9 +601,9 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=None, flat_f
         plot_dict["smooth"] = (noise_beam, {"c": "y"})
     if do_clean:
         clean_beam = 0
-        freq_center_list = (1.41, 1.985, 3.97, 5.955, 7.94)
-        freq_sigma_list = (0.015, 0.015, 0.03, 0.045, 0.06)
-        if not is_flat:
+        freq_center_list = FREQ_CENTER_LIST
+        freq_sigma_list = FREQ_SIGMA_LIST
+        if not is_flat or is_bias_step:
             freq_center_list += (.9, 1.,)
             freq_sigma_list += (0.02, 0.02)
         for freq_center, freq_sigma in zip(freq_center_list, freq_sigma_list):
@@ -598,8 +611,10 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=None, flat_f
                     beam_use, freq_sigma=freq_sigma, freq_center=freq_center,
                     edge_chunks_ncut=0, chunk_edges_ncut=0, truncate=3.0) +
                            gaussian_filter_obs(
-                                   beam_use, freq_sigma=freq_sigma, freq_center=-freq_center,
-                                   edge_chunks_ncut=0, chunk_edges_ncut=0, truncate=3.0)) / 2
+                                   beam_use, freq_sigma=freq_sigma,
+                                   freq_center=-freq_center,
+                                   edge_chunks_ncut=0, chunk_edges_ncut=0,
+                                   truncate=3.0)) / 2
         beam_use = auto_flag_ts(beam_use - clean_beam, is_flat=is_flat,
                                 mad_thre=MAD_THRE_BEAM,
                                 std_thre_flat=STD_THRE_FLAT)
@@ -620,6 +635,7 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=None, flat_f
                                 std_thre_flat=STD_THRE_FLAT)
         noise_beam += ica_noise_beam
         plot_dict["ica"] = (noise_beam, {"c": "gray"})
+    processed_beam = beam_use
 
     if cross:
         beam_chunk_flux = beam_use.chunk_proc(
@@ -640,6 +656,26 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=None, flat_f
             beam_cross_flux / flat_flux, abs(beam_cross_flux / flat_flux) * \
             ((beam_cross_err / beam_cross_flux) ** 2 +
              (flat_err / flat_flux) ** 2).sqrt()
+
+    if is_bias_step:
+        freq = beam_use.query_obs_info("freq")
+        freq = freq if is_meaningful(freq) else FREQ
+        ramp_step_size = beam_use.query_obs_info("RB_cc_ramp_step_size")
+        ramp_step_size = ramp_step_size if is_meaningful(ramp_step_size) else 50
+        data_mode = beam_use.query_obs_info("data_mode")
+        data_mode = data_mode if data_mode is not None else 1
+        data_rate = beam_use.query_obs_info("RB_cc_data_rate")
+        data_rate = data_rate if is_meaningful(data_rate) else DATA_RATE
+        ramp_step_period = beam_use.query_obs_info("RB_cc_ramp_step_period")
+        ramp_step_period = ramp_step_period if is_meaningful(ramp_step_period) \
+            else RAMP_STEP_PERIOD
+        step_period = ramp_step_period / data_rate / freq * 2.
+        butterworth = 1 if data_mode == 1 else BUTTERWORTH_CONSTANT
+        di_bias = bias_to_i_bias(ramp_step_size)
+        beam_use = processed_beam.take_by_flag_along_time(
+                ~beam_use.chop_.get_flag_chunk_edges(
+                        ncut=0.03 / step_period * 2, beginning=True, end=False))
+
     beam_flux, beam_err, beam_wt = get_chop_flux(  # compute flux and error
             beam_use, chunk_method=chunk_method, method=method,
             weight=(
@@ -651,18 +687,48 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=None, flat_f
             err_type="external")
     pix_flag_list = auto_flag_pix_by_flux(  # auto flag
             beam_flux, beam_err, pix_flag_list=pix_flag_list, is_flat=is_flat,
-            snr_thre=SNR_THRE, mad_thre_err=MAD_THRE_BEAM_ERR)
+            is_bias_step=is_bias_step, snr_thre=SNR_THRE,
+            mad_thre_err=MAD_THRE_BEAM_ERR if not is_bias_step else
+            MAD_THRE_BS_ERR)
     beam_flux, beam_err = beam_flux / flat_flux, abs(beam_flux / flat_flux) * \
                           ((beam_err / beam_flux) ** 2 +
                            (flat_err / flat_flux) ** 2).sqrt()
 
+    if is_bias_step:
+        beam_flux_i = fb_to_i_tes(beam_flux, butterworth_constant=butterworth)
+        beam_err_i = fb_to_i_tes(beam_err, butterworth_constant=butterworth)
+
     if plot and plot_flux:
+        if is_bias_step:
+            plt.close(plot_beam_flux(
+                    beam_flux_i / di_bias,
+                    title=r"%s d I$_\mathrm{TES}$ / d I$_\mathrm{bias}$" %
+                          write_header.split("/")[-1],
+                    pix_flag_list=pix_flag_list, plot_show=plot_show,
+                    plot_save=plot_save, write_header="%s_di_tes_di_bias" %
+                                                      write_header,
+                    orientation=ORIENTATION))
         plt.close(plot_beam_flux(
                 beam_flux, title="%s flux" % write_header.split("/")[-1],
                 pix_flag_list=pix_flag_list, plot_show=plot_show,
                 plot_save=plot_save, write_header="%s_flux" % write_header,
                 orientation=ORIENTATION))
     if plot and plot_ts:
+        if is_bias_step:
+            folded_ts = processed_beam.fold_along_time(period=step_period, t0=0)
+            di_di_dict = {
+                "folded time series": folded_ts / flat_flux,
+                "dI_tes/dI_bias": [(beam_flux_i / di_bias).replace(
+                        ts=[folded_ts.ts_.data_.mean()]), beam_err_i / di_bias,
+                    {"c": "k", "ls": "none", "marker": "D",
+                     "markersize": 5, "twin_axes": True}]}
+            plt.close(plot_beam_ts(
+                    di_di_dict, title="%s folded dI_tes/dI_bias time series" %
+                                      write_header.split("/")[-1],
+                    pix_flag_list=pix_flag_list, reg_interest=reg_interest,
+                    plot_show=plot_show, plot_save=plot_save,
+                    write_header="%s_ts_folded" % write_header,
+                    orientation=ORIENTATION))
         if cross:
             plot_dict["chop flux"] = [beam_cross_flux, beam_cross_err,
                                       {"c": "k", "ls": "--", "twin_axes": True}]
@@ -674,14 +740,41 @@ def proc_beam(beam, write_header=None, is_flat=False, pix_flag_list=None, flat_f
 
     if cross:
         result = (beam_cross_flux, beam_cross_err, beam_cross_wt)
+    elif is_bias_step:
+        result = (beam_flux_i / di_bias, beam_err_i / di_bias, beam_wt)
     else:
         result = (beam_flux, beam_err, beam_wt)
     if return_ts:
-        result += (beam_use,)
+        result += (processed_beam,)
     if return_pix_flag_list:
         result += (pix_flag_list,)
 
     return result
+
+
+def make_map(beams_flux, map_offset, beams_err=None, write_header=None,
+             pix_flag_list=None, return_pix_flag_list=False, plot=False,
+             reg_interest=None, plot_show=False, plot_save=False,
+             raster_thre=RASTER_THRE):
+    """
+    Creat map according to the list of offset by formatting and averaging the
+    last dimension of the input object into 2-d map, then plot the raster.
+
+    :param Obs or ObsArray beams_flux: Obs or ObsArray, with flux of all the beams
+        in the last dimension
+    :param list or tuple map_offset: list or tuple of size 2 tuples, e.g.
+    :param Obs or ObsArray beams_err: Obs or ObsArray, with error of all the
+        beams in the last dimension, used for flagging pixels
+
+    """
+
+    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
+    beams_flux_obs_array = ObsArray(beams_flux.copy())
+    array_map = beams_flux_obs_array.array_map_
+    if (write_header is None) and plot:
+        write_header = os.path.join(os.getcwd(), beams_flux_obs_array.obs_id_)
+
+    # TODO: finish
 
 
 def make_raster(beams_flux, beams_err=None, write_header=None, pix_flag_list=None,
@@ -689,17 +782,15 @@ def make_raster(beams_flux, beams_err=None, write_header=None, pix_flag_list=Non
                 plot=False, reg_interest=None, plot_show=False, plot_save=False,
                 raster_thre=RASTER_THRE):
     """
-    format the last dimension of the input object recording beams flux into 2-d
+    Format the last dimension of the input object recording beams flux into 2-d
     raster, then plot the raster; the raster always starts from the lower left,
     then swipe to the right, move upwards by one, swiping to the left and so on,
     zigzagging to the top row.
 
-    :param beams_flux: Obs or ObsArray, with flux of all the beams in the last
-        dimension
-    :type beams_flux: Obs or ObsArray
-    :param beams_err: Obs or ObsArray, with error of all the beams in the last
-        dimension, used for flagging pixels
-    :type beams_err: Obs or ObsArray
+    :param Obs or ObsArray beams_flux: Obs or ObsArray, with flux of all the beams
+        in the last dimension
+    :param Obs or ObsArray beams_err: Obs or ObsArray, with error of all the
+        beams in the last dimension, used for flagging pixels
     :param str write_header: str, full path to the title to save figures,
         if left None, will write to current folder with {obs_id} as the title
     :param list or None pix_flag_list: list, a list including pixels to be flagged,
@@ -804,9 +895,9 @@ def make_raster(beams_flux, beams_err=None, write_header=None, pix_flag_list=Non
             finite_mask = np.isfinite(pix_raster)
             if finite_mask.sum() >= 5:
                 try:
-                    result = curve_fit(
-                            gauss_2d_fit, xdata=(xx[finite_mask], yy[finite_mask]),
-                            ydata=pix_raster[finite_mask], p0=(0, 0, 1, 1, 0))
+                    result = nancurve_fit(
+                            gauss_2d_fit, xdata=(xx, yy), ydata=pix_raster,
+                            p0=(0, 0, 1, 1, 0))
                     text_list += [["x0=%.2f\ny0=%.2f\n sigma=%.1f" %
                                    tuple(result[0][:3])]]
                 except RuntimeError:
@@ -926,8 +1017,8 @@ def stack_raster(raster, raster_wt=None, write_header=None, pix_flag_list=None,
 
 
 def read_beam(file_header, array_map=None, obs_log=None, flag_ts=True,
-              is_flat=False, is_total_power=False, is_bias_step=False,
-              is_iv_curve=False, **kwargs):
+              is_flat=False, is_iv_curve=False, is_total_power=False,
+              is_bias_step=False, auto_file_type=True, **kwargs):
     """
     function to read MCE time series data, convert to array map layout, add
     auxiliary information from obs log, and flag outliers if opted
@@ -941,28 +1032,74 @@ def read_beam(file_header, array_map=None, obs_log=None, flag_ts=True,
         auto_flag_ts(), default True
     :param bool is_flat: bool, flag whether the beam is flat/skychop, passed to
         auto_flag_ts(), default False
+    :param bool is_iv_curve: bool flag whether the data is IV curve, if true will
+        call read_iv_curve(), with higher priority than is_bias_step and
+        is_total_power
+    :param bool is_bias_step: bool flag whether the data is bias step, if true
+        will call read_bias_step(), with higher priority than is_total_power
     :param bool is_total_power: bool flag whether the data is total power, if
         true will call read_total_power()
-    :param bool is_bias_step: bool flag whether the data is bias step, if true
-        will call read_bias_step()
-    :param bool is_iv_curve: bool flag whether the data is IV curve, if true will
-        call read_iv_curve()
+    :param bool auto_file_type: bool flag, to select the mce file type automatically
+        based on the existence of .bias, .chop and .ts files, will be override by
+        is_total_power, is_bias_step and is_iv_curve flag
     :param kwargs: keyword arguments passed to read_total_power() or
         read_bias_step() or read_iv_curve()
     :return: Obs or ObsArray object containing the data
     :rtype: Obs or ObsArray
     """
 
+    beam = None
     if is_iv_curve:
-        return read_iv_curve(file_header=file_header, array_map=array_map, **kwargs)
+        try:
+            beam = read_iv_curve(file_header=file_header, array_map=array_map,
+                                 **kwargs)
+        except Exception as err:
+            warnings.warn("Failed to read %s as IV curve." % file_header)
     elif is_bias_step:
-        return read_bias_step(file_header=file_header, array_map=array_map,
-                              flag_ts=flag_ts, is_flat=is_flat, **kwargs)
+        try:
+            beam = read_bias_step(file_header=file_header, array_map=array_map,
+                                  flag_ts=flag_ts, is_flat=is_flat, **kwargs)
+        except Exception as err:
+            warnings.warn("Failed to read %s as bias step." % file_header)
     elif is_total_power:
-        return read_total_power(file_header=file_header, array_map=array_map,
-                                obs_log=obs_log, flag_ts=flag_ts, is_flat=is_flat,
-                                **kwargs)
-    else:
+        try:
+            beam = read_total_power(file_header=file_header, array_map=array_map,
+                                    obs_log=obs_log, flag_ts=flag_ts, is_flat=is_flat,
+                                    **kwargs)
+        except Exception as err:
+            warnings.warn("Failed to read %s as total power data." % file_header)
+
+    if beam is None:
+        if auto_file_type and os.path.isfile(file_header):
+            if os.path.isfile(file_header + ".bias"):
+                print("%s.bias is found, will read in as IV curve." % file_header)
+                return read_beam(
+                        file_header=file_header, array_map=array_map,
+                        obs_log=obs_log, flag_ts=flag_ts, is_flat=is_flat,
+                        is_iv_curve=True, is_bias_step=is_bias_step,
+                        is_total_power=is_total_power, auto_file_type=False,
+                        **kwargs)
+            elif not os.path.isfile(file_header + ".ts"):
+                if os.path.isfile(file_header + ".chop"):
+                    print(("%s.chop is found without .ts data, " % file_header) +
+                          "will read in as total power.")
+                    beam = read_beam(
+                            file_header=file_header, array_map=array_map,
+                            obs_log=obs_log, flag_ts=flag_ts, is_flat=is_flat,
+                            is_iv_curve=is_iv_curve, is_bias_step=is_bias_step,
+                            is_total_power=True, auto_file_type=False,
+                            **kwargs)
+                else:
+                    print(("%s.chop and .ts are not found, " % file_header) +
+                          "will read in as bias step.")
+                    beam = read_beam(
+                            file_header=file_header, array_map=array_map,
+                            obs_log=obs_log, flag_ts=flag_ts, is_flat=is_flat,
+                            is_iv_curve=is_iv_curve, is_bias_step=True,
+                            is_total_power=is_total_power, auto_file_type=False,
+                            **kwargs)
+
+    if beam is None:
         try:
             beam = Obs.read_header(filename=file_header)  # read in data
         except Exception as err:
@@ -987,7 +1124,7 @@ def read_beam(file_header, array_map=None, obs_log=None, flag_ts=True,
                             "ignore", message="No entry is found in obs log.")
                 beam.match_obs_log(obs_log)  # find entry in obs_log
 
-        return beam
+    return beam
 
 
 def read_beam_pair(file_header1, file_header2, array_map=None, obs_log=None,
@@ -1070,13 +1207,15 @@ def read_total_power(file_header, array_map=None, obs_log=None, flag_ts=True,
                                   ("%s due to <class 'FileNotFoundError'>: " % file_header) +
                                   ("%s or %s.hk are not hk files." % (file_header, file_header)))
         beam = read_beam(file_header=file_header, array_map=array_map,
-                         obs_log=None, flag_ts=flag_ts, is_flat=is_flat)
+                         obs_log=None, flag_ts=flag_ts, is_flat=is_flat,
+                         auto_file_type=False)
 
     if beam.ts_.empty_flag_:
         if t0 is None:
             t0 = 0.0
             if not beam.obs_info_.empty_flag_:
-                if "CTIME" in beam.obs_info_.colnames_:
+                if (beam.obs_info_.len_ > 0) and \
+                        ("CTIME" in beam.obs_info_.colnames_):
                     t0 = time_to_gps_ts(Time(
                             beam.obs_info_.table_["CTIME"][0], format="unix"))
                 else:
@@ -1085,7 +1224,7 @@ def read_total_power(file_header, array_map=None, obs_log=None, flag_ts=True,
         if freq is None:
             freq = 398.72408293460927
             if "freq" in beam.obs_info_.colnames_:
-                dt = beam.obs_info_.table_["freq"][0]
+                freq = beam.obs_info_.table_["freq"][0]
             else:
                 warnings.warn("can not find freq, using default value.",
                               UserWarning)
@@ -1121,7 +1260,9 @@ def read_iv_curve(file_header, array_map=None):
                           ("<class 'FileNotFoundError'>: %s or %s.hk " %
                            (file_header, file_header)) + "are not hk files.")
         beam = read_beam(file_header=file_header, array_map=array_map,
-                         obs_log=None, flag_ts=False, is_flat=False)
+                         obs_log=None, flag_ts=False, is_flat=False,
+                         is_iv_curve=False, is_bias_step=False,
+                         is_total_power=False, auto_file_type=False)
     bias = Tb.read(file_header + ".bias", format="ascii.csv")["<tes_bias>"]
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", "Time = 0 exists in TimeStamp.")
@@ -1171,7 +1312,7 @@ def read_bias_step(file_header, array_map=None, flag_ts=True, is_flat=False,
     beam = beam.take_by_idx_along_time(idxs=range(1, beam.len_))
 
     if data_rate is None:
-        data_rate = 38
+        data_rate = DATA_RATE
         if "data_rate" in beam.obs_info_.colnames_:
             data_rate = beam.obs_info_.table_["data_rate"][0]
         elif "RB_cc_data_rate" in beam.obs_info_.colnames_:
@@ -1180,7 +1321,7 @@ def read_bias_step(file_header, array_map=None, flag_ts=True, is_flat=False,
             warnings.warn("can not find data_rate, using default value.",
                           UserWarning)
     if ramp_step_period is None:
-        ramp_step_period = 38 * 199
+        ramp_step_period = RAMP_STEP_PERIOD
         if "RB_cc_ramp_step_period" in beam.obs_info_.colnames_:
             ramp_step_period = beam.obs_info_.table_["RB_cc_ramp_step_period"][0]
         else:
@@ -1193,10 +1334,10 @@ def read_bias_step(file_header, array_map=None, flag_ts=True, is_flat=False,
 
 
 def reduce_beam(file_header, write_dir=None, write_suffix="", array_map=None,
-                obs_log=None, is_flat=False, pix_flag_list=None, flat_flux=1,
-                flat_err=0, cross=False, do_desnake=False, ref_pix=None,
-                do_smooth=False, do_ica=False, spat_excl=None, do_clean=False,
-                return_ts=False,
+                obs_log=None, is_flat=False, is_bias_step=False,
+                pix_flag_list=None, flat_flux=1, flat_err=0, cross=False,
+                do_desnake=False, ref_pix=None, do_smooth=False, do_ica=False,
+                spat_excl=None, do_clean=False, return_ts=False,
                 return_pix_flag_list=False, plot=False, plot_ts=False,
                 reg_interest=None, plot_flux=False, plot_show=False,
                 plot_save=False):
@@ -1216,11 +1357,13 @@ def reduce_beam(file_header, write_dir=None, write_suffix="", array_map=None,
 
     print("Processing beam %s." % file_header)
     beam = read_beam(file_header=file_header, array_map=array_map,
-                     obs_log=obs_log, flag_ts=True, is_flat=is_flat)  # read data
+                     obs_log=obs_log, flag_ts=True, is_flat=is_flat,
+                     is_bias_step=is_bias_step)  # read data
     if (not beam.empty_flag_) and beam.len_ > 0:
         write_header = os.path.join(write_dir, beam.obs_id_ + write_suffix)
         result = proc_beam(
                 beam, write_header=write_header, is_flat=is_flat,
+                is_bias_step=is_bias_step,
                 pix_flag_list=pix_flag_list, flat_flux=flat_flux, flat_err=flat_err,
                 cross=cross, do_desnake=do_desnake, ref_pix=ref_pix,
                 do_smooth=do_smooth, do_ica=do_ica, spat_excl=spat_excl,
@@ -1237,6 +1380,23 @@ def reduce_beam(file_header, write_dir=None, write_suffix="", array_map=None,
             result += (pix_flag_list,)
 
     return result
+
+
+def reduce_bath_jump(file_header, write_dir=None, write_suffix="", temp_arr=1E-3,
+                     g_bath=30E-12, array_map=None, obs_log=None,
+                     pix_flag_list=None,
+                     sign=1, return_ts=False, return_pix_flag_list=False,
+                     plot=False, plot_ts=False, reg_interest=None, plot_flux=False,
+                     plot_show=False, plot_save=False):
+    """
+    a wrapper function to read data and bath jump beam in the standard way
+
+    :param float or numpy.ndarray temp_arr: float or array, if input is float, will
+        be interpreted
+
+    """
+
+    # TODO: finish
 
 
 def reduce_beam_pair(file_header1, file_header2, write_dir=None, write_suffix="",
@@ -1284,6 +1444,7 @@ def reduce_beam_pair(file_header1, file_header2, write_dir=None, write_suffix=""
         write_header = os.path.join(write_dir, header + write_suffix)
         result = proc_beam(
                 beam_pair, write_header=write_header, is_flat=is_flat,
+                is_bias_step=False,
                 pix_flag_list=pix_flag_list, flat_flux=flat_flux, flat_err=flat_err,
                 do_desnake=do_desnake, ref_pix=ref_pix, do_smooth=do_smooth,
                 do_ica=do_ica, spat_excl=spat_excl, do_clean=do_clean,
@@ -1303,8 +1464,8 @@ def reduce_beam_pair(file_header1, file_header2, write_dir=None, write_suffix=""
 
 
 def read_beams(file_header_list, array_map=None, obs_log=None, flag_ts=True,
-               is_flat=False, is_total_power=False, is_bias_step=False,
-               is_iv_curve=False, parallel=False, **kwargs):
+               is_flat=False, is_iv_curve=False, is_total_power=False,
+               is_bias_step=False, auto_file_type=True, parallel=False, **kwargs):
     """
     Function to read multiple MCE data files, optionally in a parallelized mode.
     It takes ~ 5 min on spectrosaurus to read 700 beams in parallel. It is
@@ -1320,12 +1481,16 @@ def read_beams(file_header_list, array_map=None, obs_log=None, flag_ts=True,
         auto_flag_ts(), default True
     :param bool is_flat: bool, flag whether the beam is flat/skychop, passed to
         auto_flag_ts(), default False
+    :param bool is_iv_curve: bool flag whether the data is IV curve, if true will
+        call read_iv_curve(), with higher priority than is_bias_step and
+        is_total_power
+    :param bool is_bias_step: bool flag whether the data is bias step, if true
+        will call read_bias_step(), with higher priority than is_total_power
     :param bool is_total_power: bool flag whether the data is total power, if
         true will call read_total_power()
-    :param bool is_bias_step: bool flag whether the data is bias step, if true
-        will call read_bias_step()
-    :param bool is_iv_curve: bool flag whether the data is IV curve, if true will
-        call read_iv_curve()
+    :param bool auto_file_type: bool flag, to select the mce file type automatically
+        based on the existence of .bias, .chop and .ts files, will be override by
+        is_total_power, is_bias_step and is_iv_curve flag
     :param kwargs: keyword arguments passed to read_total_power() or
         read_bias_step() or read_iv_curve()
     :param bool parallel: bool, flag whether to run it in parallelized mode,
@@ -1381,14 +1546,14 @@ def read_beams(file_header_list, array_map=None, obs_log=None, flag_ts=True,
     return all_beams
 
 
-# ====================== high level reduction functions ========================
+# ================= high level functions for parallelization ===================
 
 
 def reduce_beams(data_header, data_dir=None, write_dir=None, write_suffix="",
-                 array_map=None, obs_log=None, is_flat=False, pix_flag_list=None,
-                 flat_flux=1, flat_err=0, cross=False, parallel=False,
-                 do_desnake=False, ref_pix=None, do_smooth=False, do_ica=False,
-                 spat_excl=None, do_clean=False, return_ts=False,
+                 array_map=None, obs_log=None, is_flat=False, is_bias_step=False,
+                 pix_flag_list=None, flat_flux=1, flat_err=0, cross=False,
+                 parallel=False, do_desnake=False, ref_pix=None, do_smooth=False,
+                 do_ica=False, spat_excl=None, do_clean=False, return_ts=False,
                  return_pix_flag_list=False,
                  plot=False, plot_ts=False, reg_interest=None, plot_flux=False,
                  plot_show=False, plot_save=False, **kwargs):
@@ -1436,13 +1601,32 @@ def reduce_beams(data_header, data_dir=None, write_dir=None, write_suffix="",
         if result[0].empty_flag_ and result[1].empty_flag_:
             nan_beam_obs_id = result[0].obs_id_ if result[0].obs_id_ != "0" \
                 else "failed to read"
-            nan_beam = beams_flux.replace(
-                    arr_in=np.full(beams_flux.shape_[:-1] + (1,),
-                                   fill_value=np.nan), ts=[result[0].ts_.t_mid_],
-                    chop=[False], obs_id=nan_beam_obs_id,
-                    obs_id_list=[nan_beam_obs_id],
-                    obs_id_arr=np.array([nan_beam_obs_id]),
-                    obs_info=result[0].obs_info_)
+            if beams_flux.empty_flag_:
+                if type_result is Obs:
+                    nan_beam = beams_flux.replace(
+                            arr_in=np.full((33, 24, 1),
+                                           fill_value=np.nan),
+                            ts=[result[0].ts_.t_mid_],
+                            chop=[False], obs_id=nan_beam_obs_id,
+                            obs_id_list=[nan_beam_obs_id],
+                            obs_id_arr=np.array([nan_beam_obs_id]),
+                            obs_info=result[0].obs_info_)
+                else:
+                    nan_beam = beams_flux.replace(
+                            arr_in=np.full(array_map.shape_[:-1] + (1,),
+                                           fill_value=np.nan), ts=[result[0].ts_.t_mid_],
+                            chop=[False], obs_id=nan_beam_obs_id,
+                            obs_id_list=[nan_beam_obs_id],
+                            obs_id_arr=np.array([nan_beam_obs_id]),
+                            obs_info=result[0].obs_info_, array_map=array_map)
+            else:
+                nan_beam = beams_flux.replace(
+                        arr_in=np.full(beams_flux.shape_[:-1] + (1,),
+                                       fill_value=np.nan), ts=[result[0].ts_.t_mid_],
+                        chop=[False], obs_id=nan_beam_obs_id,
+                        obs_id_list=[nan_beam_obs_id],
+                        obs_id_arr=np.array([nan_beam_obs_id]),
+                        obs_info=result[0].obs_info_)
             beams_flux.append(nan_beam)
             beams_err.append(nan_beam)
             beams_wt.append(nan_beam)
@@ -1585,6 +1769,9 @@ def reduce_beam_pairs(data_header, data_dir=None, write_dir=None,
     return result
 
 
+# ========================= pipeline level functions ===========================
+
+
 def reduce_skychop(flat_header, data_dir=None, write_dir=None, write_suffix="",
                    array_map=None, obs_log=None, pix_flag_list=None,
                    parallel=False,
@@ -1634,7 +1821,8 @@ def reduce_skychop(flat_header, data_dir=None, write_dir=None, write_suffix="",
     if table_save:  # save to csv
         for obs, name in zip((flat_beams_flux, flat_beams_err, flat_flux, flat_err),
                              ("beams_flux", "beams_err", "flux", "err")):
-            obs.to_table(orientation=ORIENTATION).write(os.path.join(
+            ObsArray(obs).to_table(
+                    orientation=ORIENTATION, array_type=obs).write(os.path.join(
                     write_dir, "%s_%s.csv" % (flat_file_header, name)),
                     overwrite=True)
         flat_beams_flux.obs_info_.table_.write(os.path.join(
@@ -1662,8 +1850,9 @@ def reduce_skychop(flat_header, data_dir=None, write_dir=None, write_suffix="",
                 plot_ts=False, reg_interest=reg_interest, plot_psd=plot_ts,
                 plot_specgram=False, plot_show=plot_show, plot_save=plot_save)
         if table_save:
-            beams_rms.to_table(orientation=ORIENTATION).write(os.path.join(
-                    write_dir, "%s_rms.csv" % flat_file_header), overwrite=True)
+            ObsArray(beams_rms).to_table(orientation=ORIENTATION).write(
+                    os.path.join(write_dir, "%s_rms.csv" % flat_file_header),
+                    overwrite=True)
 
     result = (flat_flux, flat_err, flat_wt)
     if return_ts:
@@ -1672,6 +1861,120 @@ def reduce_skychop(flat_header, data_dir=None, write_dir=None, write_suffix="",
         result += (pix_flag_list,)
 
     return result
+
+
+def reduce_bias_step(data_header, data_dir=None, write_dir=None, write_suffix="",
+                     array_map=None, obs_log=None, pix_flag_list=None, sign=1,
+                     parallel=False, do_smooth=False, do_clean=False,
+                     return_ts=False, return_pix_flag_list=True,
+                     table_save=True, plot=True, plot_ts=True, reg_interest=None,
+                     plot_flux=True, plot_show=False, plot_save=True,
+                     analyze=False):
+    data_dir = str(data_dir) if data_dir is not None else os.getcwd()
+    write_dir = str(write_dir) if write_dir is not None else os.getcwd()
+    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
+    result = reduce_beams(
+            data_header=data_header, data_dir=data_dir, write_dir=write_dir,
+            write_suffix=write_suffix, array_map=array_map, obs_log=obs_log,
+            is_flat=False, is_bias_step=True, pix_flag_list=pix_flag_list,
+            flat_flux=sign, parallel=parallel, do_smooth=do_smooth,
+            do_clean=do_clean,
+            return_ts=(return_ts or (plot and plot_ts) or analyze),
+            return_pix_flag_list=True, plot=plot, plot_ts=plot_ts,
+            reg_interest=reg_interest, plot_flux=plot_flux,
+            plot_show=plot_show, plot_save=plot_save)
+
+    beams_flux, beams_err, beams_wt = result[:3]
+    if return_ts or (plot and plot_ts) or analyze:
+        beams_ts = result[3] * sign
+    pix_flag_list = result[-1]
+
+    beam_num_list = [idxs[1] - idxs[0] + 1 for header in data_header
+                     for idxs in data_header[header]]
+
+    type_result = Obs if array_map is None else ObsArray
+    beam_flux, beam_err, beam_wt = type_result(), type_result(), type_result()
+    for idx_i, idx_e in zip(np.cumsum([0] + beam_num_list[:-1]),
+                            np.cumsum(beam_num_list)):
+        group_flux, group_err_ex, group_wt = weighted_proc_along_axis(
+                beams_flux.take_by_idx_along_time(range(idx_i, idx_e)),
+                weight=None)
+        group_err_in = ((beams_err ** 2).proc_along_time(
+                method="nanmean")).sqrt()
+        group_err = group_err_ex.replace(
+                arr_in=np.choose(group_err_ex.data_ < group_err_in.data_,
+                                 [group_err_ex.data_, group_err_in.data_]))
+        beam_flux.append(group_flux)
+        beam_err.append(group_err)
+        beam_wt.append(group_wt)
+
+    data_file_header = build_header(data_header) + write_suffix
+    if table_save:  # save to csv
+        for obs, name in zip((beams_flux, beams_err),
+                             ("beams_di_tes_di_bias",
+                              "beams_di_tes_di_bias_err")):
+            ObsArray(obs).to_table(
+                    orientation=ORIENTATION, array_type=obs).write(os.path.join(
+                    write_dir, "%s_%s.csv" % (data_file_header, name)),
+                    overwrite=True)
+        beams_flux.obs_info_.table_.write(os.path.join(
+                write_dir, "%s_beams_info.csv" % data_file_header),
+                overwrite=True)
+    if plot and len(beams_flux) > 1:  # plot beam flux
+        plot_dict = {"beam flux": [beams_flux, beams_err,
+                                   {"c": "y", "ls": ":", "lw": 0.5}]}
+        plt.close(plot_beam_ts(
+                plot_dict, title=(data_file_header + " beam flux"),
+                pix_flag_list=pix_flag_list, reg_interest=reg_interest,
+                plot_show=plot_show, plot_save=plot_save,
+                write_header=os.path.join(
+                        write_dir, "%s_beams_flux" % data_file_header),
+                orientation=ORIENTATION))
+
+    if analyze:
+        freq = configure_helper(beam_flux, "freq")
+        freq = freq if is_meaningful(freq) else FREQ
+        data_rate = configure_helper(beam_flux, "RB_cc_data_rate")
+        data_rate = data_rate if is_meaningful(data_rate) else DATA_RATE
+        ramp_step_period = configure_helper(beam_flux, "RB_cc_ramp_step_period")
+        ramp_step_period = ramp_step_period if is_meaningful(ramp_step_period) \
+            else RAMP_STEP_PERIOD
+        step_period = ramp_step_period / data_rate / freq * 2.
+
+        beams_rms = analyze_performance(
+                beams_ts.take_by_flag_along_time(
+                        ~beams_ts.chop_.get_flag_chunk_edges(
+                                ncut=0.03 / step_period * 2, beginning=True,
+                                end=False)),
+                write_header=os.path.join(write_dir, data_file_header),
+                pix_flag_list=pix_flag_list, plot=plot, plot_rms=plot_flux,
+                plot_ts=False, reg_interest=reg_interest, plot_psd=plot_ts,
+                plot_specgram=False, plot_show=plot_show, plot_save=plot_save)
+        if table_save:
+            ObsArray(beams_rms).to_table(
+                    orientation=ORIENTATION, array_type=beams_rms).write(
+                    os.path.join(write_dir, "%s_rms.csv" % data_file_header),
+                    overwrite=True)
+
+    result = (beams_flux, beams_err, beams_wt)
+    if return_ts:
+        result += (beams_ts,)
+    if return_pix_flag_list:
+        result += (pix_flag_list,)
+
+    return result
+
+
+def reduce_bath_jump(data_header, data_dir=None, write_dir=None, write_suffix="",
+                     array_map=None, obs_log=None, pix_flag_list=None, sign=1,
+                     parallel=False, return_ts=False, return_pix_flag_list=True,
+                     table_save=True, plot=True, plot_ts=True, reg_interest=None,
+                     plot_flux=True, plot_show=False, plot_save=True,
+                     analyze=False):
+    data_dir = str(data_dir) if data_dir is not None else os.getcwd()
+    write_dir = str(write_dir) if write_dir is not None else os.getcwd()
+    pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
+    # TODO: finish
 
 
 def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
@@ -1851,8 +2154,8 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
             tb_list += [atm_trans, ]
             tb_names += ["atm_trans", ]
         for obs, name in zip(tb_list, tb_names):
-            obs.to_table(orientation=ORIENTATION).write(os.path.join(
-                    write_dir, "%s_%s.csv" % (data_file_header, name)),
+            ObsArray(obs).to_table(orientation=ORIENTATION, array_type=obs).write(
+                    os.path.join(write_dir, "%s_%s.csv" % (data_file_header, name)),
                     overwrite=True)
         beam_pairs_flux.obs_info_.table_.write(os.path.join(
                 write_dir, "%s_beam_pairs_info.csv" % data_file_header),
@@ -1872,24 +2175,25 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                 orientation=ORIENTATION))
 
         # plot spectrum
-        fig = FigSpec.plot_spec(zobs_flux, yerr=zobs_err,
-                                pix_flag_list=pix_flag_list, color="k")
-        fig.imshow_flag(pix_flag_list=pix_flag_list)
+        fig_spec = FigSpec.plot_spec(zobs_flux, yerr=zobs_err,
+                                     pix_flag_list=pix_flag_list, color="k")
+        fig_spec.imshow_flag(pix_flag_list=pix_flag_list)
         array_map_tmp = ObsArray(zobs_flux).array_map_
-        fig.plot_all_spat([array_map_tmp.array_spec_llim_,
-                           array_map_tmp.array_spec_ulim_], [0, 0], "k:")
+        fig_spec.plot_all_spat([array_map_tmp.array_spec_llim_,
+                                array_map_tmp.array_spec_ulim_], [0, 0], "k:")
         if plot_atm and trans_flag:
-            fig.plot(atm_trans_raw, "c:", twin_axes=True,
-                     label="raw atm transmission pwv=%.2f, elev=%i" % (pwv, elev))
-            fig.step(atm_trans, "r", twin_axes=True,
-                     label="pixel atm transmission")
-            fig.legend(twin_axes=True, loc="lower right")
-        fig.set_title("%s spectrum" % data_file_header)
+            fig_spec.plot(
+                    atm_trans_raw, "c:", twin_axes=True, label=
+                    "raw atm transmission pwv=%.2f, elev=%i" % (pwv, elev))
+            fig_spec.step(atm_trans, "r", twin_axes=True,
+                          label="pixel atm transmission")
+            fig_spec.legend(twin_axes=True, loc="lower right")
+        fig_spec.set_title("%s spectrum" % data_file_header)
         if plot_show:
-            plt.show()
+            plt.show(fig_spec)
         if plot_save:
-            fig.savefig(os.path.join(write_dir, "%s_spec.png" % data_file_header))
-        plt.close(fig)
+            fig_spec.savefig(os.path.join(
+                    write_dir, "%s_spec.png" % data_file_header))
 
         # get PWV
         if ("UTC" in zobs_flux.obs_info_.table_.colnames) and \
@@ -1956,42 +2260,30 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                 reg_interest=reg_interest, plot_psd=plot_ts,
                 plot_specgram=False, plot_show=plot_show, plot_save=plot_save)
         if table_save:
-            beams_rms.to_table(orientation=ORIENTATION).write(os.path.join(
-                    write_dir, "%s_rms.csv" % data_file_header), overwrite=True)
+            ObsArray(beams_rms).to_table(
+                    orientation=ORIENTATION, array_type=beams_rms).write(
+                    os.path.join(write_dir, "%s_rms.csv" % data_file_header),
+                    overwrite=True)
         flat_use = flat_flux.proc_along_time("nanmean") if \
             isinstance(flat_flux, type(beams_rms)) else flat_flux
         beams_sensitivity = 2 * np.sqrt(3) * beams_rms / abs(flat_use) / \
                             np.sqrt(zobs_ts.len_ * (stack + 1))
         if plot:
-            fig = FigSpec.plot_spec(
-                    zobs_flux, yerr=zobs_err, pix_flag_list=pix_flag_list,
-                    color="k", label="spectrum")
-            fig.step(beams_sensitivity, lw=.5, c="b", pix_flag_list=pix_flag_list,
-                     label="predicted error")
-            fig.imshow_flag(pix_flag_list=pix_flag_list)
-            array_map = ObsArray(zobs_flux).array_map_
-            fig.plot_all_spat(
-                    [array_map.array_spec_llim_, array_map.array_spec_ulim_],
-                    [0, 0], "k:")
-            if plot_atm and trans_flag:
-                fig.plot(atm_trans_raw, "c:", twin_axes=True,
-                         label="raw atm transmission pwv=%.2f, elev=%i" %
-                               (pwv, elev))
-                fig.step(atm_trans, "r", twin_axes=True,
-                         label="pixel atm transmission")
-                fig.legend(twin_axes=True, loc="lower right")
-            fig.legend()
-            fig.set_title("%s spectrum" % data_file_header)
+            fig_spec.step(beams_sensitivity, lw=.5, c="b", pix_flag_list=pix_flag_list,
+                          label="predicted error")
             if plot_show:
-                plt.show()
+                plt.show(fig_spec)
             if plot_save:
-                fig.savefig(os.path.join(
+                fig_spec.savefig(os.path.join(
                         write_dir, "%s_spec.png" % data_file_header))
-            plt.close(fig)
         if table_save:
-            beams_sensitivity.to_table(orientation=ORIENTATION).write(
+            ObsArray(beams_sensitivity).to_table(
+                    orientation=ORIENTATION, array_type=beams_sensitivity).write(
                     os.path.join(write_dir, "%s_predicted_err.csv" %
                                  data_file_header), overwrite=True)
+
+    if plot:
+        plt.close(fig_spec)
 
     result = (zobs_flux, zobs_err, zobs_wt)
     if return_ts:
@@ -2000,9 +2292,6 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
         result += (pix_flag_list,)
 
     return result
-
-
-# TODO: return intermediate result
 
 
 def reduce_calibration(data_header, data_dir=None, write_dir=None,
@@ -2048,7 +2337,8 @@ def reduce_calibration(data_header, data_dir=None, write_dir=None,
     if table_save:  # save to csv
         for obs, name in zip((beams_flux, beams_err),
                              ("beams_flux", "beams_err")):
-            obs.to_table(orientation=ORIENTATION).write(os.path.join(
+            ObsArray(obs).to_table(
+                    orientation=ORIENTATION, array_type=obs).write(os.path.join(
                     write_dir, "%s_%s.csv" % (data_file_header, name)),
                     overwrite=True)
         beams_flux.obs_info_.table_.write(os.path.join(
@@ -2088,8 +2378,10 @@ def reduce_calibration(data_header, data_dir=None, write_dir=None,
                 plot_ts=False, reg_interest=reg_interest, plot_psd=plot_ts,
                 plot_specgram=False, plot_show=plot_show, plot_save=plot_save)
         if table_save:
-            beams_rms.to_table(orientation=ORIENTATION).write(os.path.join(
-                    write_dir, "%s_rms.csv" % data_file_header), overwrite=True)
+            ObsArray(beams_rms).to_table(
+                    orientation=ORIENTATION, array_type=beams_rms).write(
+                    os.path.join(write_dir, "%s_rms.csv" % data_file_header),
+                    overwrite=True)
 
     result = (beams_flux, beams_err, beams_wt)
     if return_ts:
@@ -2154,9 +2446,10 @@ def reduce_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
         if table_save:  # save to csv
             for obs, name in zip((beams_flux, beams_err),
                                  ("beam_pairs_flux", "beam_pairs_err")):
-                obs.to_table(orientation=ORIENTATION).write(os.path.join(
-                        write_dir, "%s_%s.csv" % (data_file_header, name)),
-                        overwrite=True)
+                ObsArray(obs).to_table(
+                        orientation=ORIENTATION, array_type=obs).write(
+                        os.path.join(write_dir, "%s_%s.csv" %
+                                     (data_file_header, name)), overwrite=True)
             beams_flux.obs_info_.table_.write(os.path.join(
                     write_dir, "%s_beam_pairs_info.csv" % data_file_header),
                     overwrite=True)
@@ -2213,8 +2506,9 @@ def reduce_zpold(data_header, data_dir=None, write_dir=None, write_suffix="",
                 plot_specgram=False, plot_show=plot_show,
                 plot_save=plot_save)
         if table_save:
-            beams_rms.to_table(orientation=ORIENTATION).write(os.path.join(
-                    write_dir, "%s_rms.csv" % data_file_header),
+            ObsArray(beams_rms).to_table(
+                    orientation=ORIENTATION, array_type=beams_rms).write(
+                    os.path.join(write_dir, "%s_rms.csv" % data_file_header),
                     overwrite=True)
 
     result = (raster_flux,)
@@ -2289,8 +2583,10 @@ def eval_performance(data_header, data_dir=None, write_dir=None, write_suffix=""
             plot_specgram=plot_specgram, plot_show=plot_show,
             plot_save=plot_save)
     if table_save:
-        beams_rms.to_table(orientation=ORIENTATION).write(os.path.join(
-                write_dir, "%s_rms.csv" % data_file_header), overwrite=True)
+        ObsArray(beams_rms).to_table(
+                orientation=ORIENTATION, array_type=beams_rms).write(
+                os.path.join(write_dir, "%s_rms.csv" % data_file_header),
+                overwrite=True)
         beams_rms.obs_info_.table_.write(os.path.join(
                 write_dir, "%s_info.csv" % data_file_header), overwrite=True)
 

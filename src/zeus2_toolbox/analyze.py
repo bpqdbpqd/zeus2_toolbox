@@ -267,7 +267,7 @@ def bias_step_physics_model(t, t0, period, tau, RLR0, L, tau_bias=0, a0=0, a1=0,
     """
 
     phase = (t - t0) % (period / 2)
-    sign = np.choose((((t - t0) // cycle) % 2).astype(int), (1, -1))
+    sign = np.choose((((t - t0) // (period / 2)) % 2).astype(int), (1, -1))
 
     step_eff = (1 - L) / (1 + L)
     tau_eff = tau * (1 + RLR0) / (1 + RLR0 + (1 - RLR0) * L)
@@ -532,59 +532,71 @@ def nfft_obs(obs, nfft=5., noverlap=4.):
 
     return obs_nfft, freq_ts
 
-# TODO: def func_obs(f, obs, *args, **kwargs):
+
+def apply_along_axis_obs(func1d, axis, obs, *args, expand_dims=True, **kwargs):
     """
-    Apply arbitrary function to the data in obs by calling input f(), iterating
-    over all but the last axis of obs.data_.
+    Apply any function to the obs.data_ in obs by calling np.apply_along_axis(),
+    but mind the output may have different dimension and shape. If the function
+    removes the one dimension on the axis it is applied on, expand_dims can be
+    set to true so that np.expand_dims() will be called to recover that dimension
+    if new ndim is smaller than the original ndim. If the length in the specific
+    axis doesn't match with ts, chop, obs_id_arr, or array_map (for ObsArray)
+    class variable, these variables will be reset to empty.
+
+    :param function func1d: function that operates on an 1d array, it will be
+        called as func1d(arr, *args, **kwargs), passed to np.apply_along_axis()
+    :param int axis: int, axis along which arr is sliced, passed to
+        np.apply_along_axis()
+    :param Obs or ObsArray obs: Obs or ObsArray object, the obs.data_ is
+        passed to np.apply_along_axis()
+    :param bool expand_dims: bool flag, in the case that new ndim is less than
+        the original ndim, whether to call np.expand_dims() to recover the lost
+        dimension
+    :param args: arguments for func1d, passed to np.apply_along_axis()
+    :param kwargs: keyword arguments for func1d, passed to np.apply_along_axis()
+    :return: Obs or ObsArray object with data_ replaced by the processed array,
+        and caution that ts, chop, obs_id_arr, and array_map may be reset to
+        empty
+    :rtype: Obs or ObsArray
     """
 
+    arr_new = np.apply_along_axis(func1d=func1d, axis=axis, arr=obs.data_,
+                                  *args, **kwargs)
+    if (arr_new.ndim < obs.ndim_) and expand_dims:
+        arr_new = np.expand_dims(arr_new, axis=axis)
 
-def fit_obs(obs, features):
+    replace_kwargs = {"arr_in": arr_new}
+    for obj, kw in zip((obs.chop_, obs.ts_, obs.obs_id_arr_),
+                       ("chop", "ts", "obs_id_arr")):
+        if (not obj.empty_flag_) and (obj.len_ != arr_new.shape[-1]):
+            replace_kwargs[kw] = None
+    if isinstance(obs, ObsArray) and (obs.array_map_.len_ != arr_new.shape[0]):
+        replace_kwargs["array_map"] = None
+
+    return obs.replace(**replace_kwargs)
+
+
+def apply_along_time_obs(func1d, obs, *args, **kwargs):
     """
-    Least mean square fit of features to obs in the last axis. Features must be
-    an Obs object with the same length as obs_fft.ts_. Return an object of the
-    same type as the input, the same shape for all but the last axis. The
-    amplitude of the fit is recorded in the last axis of the data_ in the
-    returned object, and the best fit model can then be derived by calling
-    dot_prod_obs(amp, features)
+    Apply any function to the obs.data_ in obs by calling
+    np.apply_along_axis_obs(..., axis=-1, expand_dims=True). It always try to
+    preserve the dimension, and in the case the processed array have different
+    length than chop, ts or obs_id_arr, the variable will be reset
 
-    :param obs: Obs or ObsArray object
-    :type obs: Obs or ObsArray
-    :param Obs features: Obs object, containing features, can only be 2-d with
-        features in the first axis, and samples of features in the second
-        axis
-    :return: Obs or ObsArray object with amplitude of the fit as well as only
-        obs_id related attributes. The amplitudes are in the last axis, in the
-        same order of input feature.
-    :raises TypeError: invalid input type
-    :raises ValueError: invalid length
+    :param function func1d: function that operates on an 1d array, it will be
+        called as func1d(arr, *args, **kwargs), passed to np.apply_along_axis()
+    :param Obs or ObsArray obs: Obs or ObsArray object, the obs.data_ is
+        passed to np.apply_along_axis()
+    :param args: arguments for func1d, passed to np.apply_along_axis()
+    :param kwargs: keyword arguments for func1d, passed to np.apply_along_axis()
+    :return: Obs or ObsArray object with data_ replaced by the processed array,
+        and caution that ts, chop, obs_id_arr, and array_map may be reset to
+        empty
+    :rtype: Obs or ObsArray
     """
 
-    if not isinstance(obs, Obs):
-        raise TypeError("Invalid type for input obs_fft, " +
-                        "expect Obs or ObsArray.")
-    if not isinstance(features, Obs):
-        raise TypeError("Invalid type for input features, expect Obs.")
-    features = Obs(arr_in=features)
-    if obs.len_ != features.len_:
-        raise ValueError("Inconsistent length.")
-    feature_vectors = features.data_.transpose()
-
-    fit_features = lambda arr: nanlstsq(feature_vectors, arr, rcond=-1,
-                                        fill_value=np.nan)[0]
-    amp_arr = np.apply_along_axis(fit_features, axis=-1, arr=obs.data_)
-    kwargs = {"array_map": obs.array_map_} if isinstance(obs, ObsArray) else {}
-    amp = type(obs)(arr_in=amp_arr, obs_info=obs.obs_info_,
-                    obs_id=obs.obs_id_, obs_id_list=obs.obs_id_list_,
-                    t_start_time=obs.t_start_time_,
-                    t_end_time=obs.t_end_time_, **kwargs)
-
-    return amp
-
-# TODO: def curve_fit_obs(f, obs, xdata=None, **kwargs):
-    """
-    Fitting arbitrary function to the data in obs by calling nancurve_fit().
-    """
+    return apply_along_axis_obs(func1d=func1d, axis=-1, obs=obs, *args,
+                                expand_dims=True, **kwargs)
 
 
 def dot_prod_obs(obs1, obs2):
@@ -629,6 +641,58 @@ def dot_prod_obs(obs1, obs2):
                 chop=obs2.chop_, ts=obs2.ts_, obs_id_arr=obs2.obs_id_arr_,
                 t_start_time=obs1.t_start_time_,
                 t_end_time=obs1.t_end_time_, **kwargs)
+
+
+def fit_obs(obs, features, **kwargs):
+    """
+    Least mean square fit of features to obs in the last axis by calling
+    apply_along_time_obs(func1d=fit_features, ...). Features must be
+    an Obs object with the same length as obs_fft.ts_. Return an object of the
+    same type as the input, the same shape for all but the last axis. The
+    amplitude of the fit is recorded in the last axis of the data_ in the
+    returned object, and the best fit model can then be derived by calling
+    dot_prod_obs(amp, features)
+
+    :param obs: Obs or ObsArray object
+    :type obs: Obs or ObsArray
+    :param Obs features: Obs object, containing features, can only be 2-d with
+        features in the first axis, and samples of features in the second
+        axis
+    :param kwargs: keyword arguments passed to nanlstsq
+    :return: Obs or ObsArray object with amplitude of the fit as well as only
+        obs_id related attributes. The amplitudes are in the last axis, in the
+        same order of input feature.
+    :raises TypeError: invalid input type
+    :raises ValueError: invalid length
+    """
+
+    if not isinstance(obs, Obs):
+        raise TypeError("Invalid type for input obs_fft, " +
+                        "expect Obs or ObsArray.")
+    if not isinstance(features, Obs):
+        raise TypeError("Invalid type for input features, expect Obs.")
+    features = Obs(arr_in=features)
+    if obs.len_ != features.len_:
+        raise ValueError("Inconsistent length.")
+    feature_vectors = features.data_.transpose()
+
+    fit_features = lambda arr: nanlstsq(feature_vectors, arr, **kwargs)[0]
+    amp = apply_along_time_obs(func1d=fit_features, obs=obs)
+
+    return amp
+
+
+def curve_fit_obs(f, obs, xdata=None, p0=None, bounds=(-np.inf, np.inf),
+                  **kwargs):
+    """
+    Fitting arbitrary function to the data in obs by calling
+    apply_along_time_obs(func1d=nancurve_fit, ...). The input xdata, p0 and bounds
+    can be flexible as explained below.
+
+
+    """
+
+    # TODO: finish
 
 
 def prep_sklearn_obs(obs):
@@ -1068,6 +1132,59 @@ def get_chop_flux(obs, chunk_method="nanmedian", method="nanmean",
     return obs_flux, obs_err, obs_wt
 
 
+def get_bias_obs(obs, bias_str=None):
+    """
+    Construct an Obs or ObsArray object of the bias value, using the RB_tes_bias
+    string in .run file
+
+    :param ArrayMap or Obs or ObsArray obs: ArrayMap or Obs or ObsArray, will
+        determine the column used for bias and output type
+    :param str bias_str: str, recorded in RB_tes_bias; if left None, will try to
+        use RB_tes_bias in obs.obs_info_
+    :return: Obs or ObsArray object corresponding to the input bias_str, if the
+        input is ArrayMap,
+    :rtype: Obs or ObsArray
+    :raises TypeError: bias_str is None with obs not supported, Unsupported type
+        of bias_str or obs.
+    """
+
+    if isinstance(obs, Obs):
+        array_map = obs.to_obs_array().array_map_
+    elif isinstance(obs, ObsArray):
+        array_map = obs.array_map_
+    elif isinstance(obs, ArrayMap):
+        array_map = obs
+    else:
+        raise TypeError("Unsupported type of obs.")
+
+    if bias_str is None:
+        if not isinstance(obs, (Obs, ObsArray)):
+            raise TypeError("Input bias_str is None with unsupported obs.")
+        bias_str = obs.query_obs_info("RB_tes_bias")
+        if not is_meaningful(bias_str):
+            raise ValueError("'RB_tes_bias' is not found in %s.obs_info_" % obs)
+
+    if isinstance(bias_str, str):
+        tes_bias = np.fromstring(bias_str, sep="  ")
+    elif isinstance(bias_str, (np.ndarray, list, tuple)):
+        tes_bias = np.asarray(bias_str).flatten()
+    else:
+        raise TypeError("Unsupported type of bias_str.")
+
+    bias_arr = np.full(array_map.len_, fill_value=0, dtype=float)
+    col_mask = np.any(array_map.mce_col_[:, None] ==
+                      np.asarray(list(COL_BIAS_MAP.keys())), axis=1)
+    bias_idx = np.array([
+        COL_BIAS_MAP[col] for col in array_map.mce_col_[col_mask]])
+    bias_arr[col_mask] = tes_bias[bias_idx]
+
+    bias_obs = ObsArray(bias_arr[:, None], array_map=array_map)
+    if isinstance(obs, Obs):
+        bias_obs = bias_obs.to_obs()
+
+    return bias_obs
+
+
 def configure_helper(obs, keyword, var=None, supersede=True):
     """
     a helper function to pick the best possible configuration parameter for any
@@ -1306,7 +1423,8 @@ def get_transmission_obs_array(array_map, pwv, elev=60):
     return trans_obs_array
 
 
-def auto_flag_ts(obs, is_flat=False, mad_thre=7, std_thre_flat=2):
+def auto_flag_ts(obs, is_iv_curve=False, is_bias_step=False, is_flat=False,
+                 mad_thre=7, std_thre_flat=2):
     """
     flag time series in obs in a standard way: first remove known glitch feature
     like weird data point at 0 and -0.0625; then flag by MAD threshold, the
@@ -1318,6 +1436,11 @@ def auto_flag_ts(obs, is_flat=False, mad_thre=7, std_thre_flat=2):
 
     :param obs: Obs or ObsArray object containing the time series
     :type obs: Obs or ObsArray
+    :param bool is_iv_curve: bool, flag for IV curve, having higher priority than
+        is_flat and is_bias_step, will flag all parts of data that is
+        superconducting
+    :param bool is_bias_step: bool, flag for bias step, higher priority than
+        is_flat, will only flag glitch
     :param bool is_flat: bool, flag indicating this beam is flat field, which will
         use much larger mad flag threshold in the variable MAD_THRE_FLAT
     :param int or float mad_thre: int or float, MAD threshold for flagging ordinary
@@ -1327,32 +1450,39 @@ def auto_flag_ts(obs, is_flat=False, mad_thre=7, std_thre_flat=2):
     """
 
     obs_new = obs.copy()
-    glitch_mask = (obs_new.data_ == -0.0625) | \
-                  (obs_new.data_ == -112723640.0625) | \
-                  (obs_new.data_ == 109850542.375) | \
-                  (obs_new.data_ == 109848204.125)  # known outlier values
-    blank_mask = (obs_new.data_ == 0.)  # find 0 data points
-    blank_mask *= (blank_mask.sum(axis=-1, keepdims=True) <
-                   0.1 * blank_mask.shape[-1])  # ignore dead pixels
-    obs_new.fill_by_mask(glitch_mask | blank_mask, fill_value=np.nan)
 
-    if obs_new.chop_.empty_flag_:  # no chop data
-        if is_flat:
-            outlier_mask = \
-                abs(obs_new - obs_new.proc_along_time(method="nanmean")).data_ > \
-                std_thre_flat * obs_new.proc_along_time(method="nanstd").data_
-        else:  # flag by MAD
-            outlier_mask = obs_new.get_double_nanmad_flag(
-                    thre=mad_thre, axis=-1)
-    else:  # flat on and off chop separately by MAD
-        outlier_mask = np.full(obs_new.shape_, fill_value=False, dtype=bool)
-        outlier_mask[..., obs_new.chop_.data_] = \
-            obs_new.take_by_flag_along_time(chop=True).get_double_nanmad_flag(
-                    thre=mad_thre, axis=-1)
-        outlier_mask[..., ~obs_new.chop_.data_] = \
-            obs_new.take_by_flag_along_time(chop=False).get_double_nanmad_flag(
-                    thre=mad_thre, axis=-1)
-    obs_new.fill_by_mask(mask=outlier_mask, fill_value=np.nan)
+    if is_iv_curve:
+        iv_mask = get_iv_curve_mask(obs)
+        obs_new.fill_by_mask(iv_mask, fill_value=np.nan)
+    else:
+        glitch_mask = (obs_new.data_ == -0.0625) | \
+                      (obs_new.data_ == -112723640.0625) | \
+                      (obs_new.data_ == 109850542.375) | \
+                      (obs_new.data_ == 109848204.125)  # known outlier values
+        blank_mask = (obs_new.data_ == 0.)  # find 0 data points
+        blank_mask *= (blank_mask.sum(axis=-1, keepdims=True) <
+                       0.1 * blank_mask.shape[-1])  # ignore dead pixels
+        obs_new.fill_by_mask(glitch_mask | blank_mask, fill_value=np.nan)
+
+        if not is_bias_step:
+            if obs_new.chop_.empty_flag_:  # no chop data
+                if is_flat:
+                    outlier_mask = abs(obs_new - obs_new.proc_along_time(
+                            method="nanmean")).data_ > \
+                                   std_thre_flat * obs_new.proc_along_time(
+                            method="nanstd").data_
+                else:  # flag by MAD
+                    outlier_mask = obs_new.get_double_nanmad_flag(
+                            thre=mad_thre, axis=-1)
+            else:  # flat on and off chop separately by MAD
+                outlier_mask = np.full(obs_new.shape_, fill_value=False, dtype=bool)
+                outlier_mask[..., obs_new.chop_.data_] = \
+                    obs_new.take_by_flag_along_time(chop=True). \
+                        get_double_nanmad_flag(thre=mad_thre, axis=-1)
+                outlier_mask[..., ~obs_new.chop_.data_] = \
+                    obs_new.take_by_flag_along_time(chop=False). \
+                        get_double_nanmad_flag(thre=mad_thre, axis=-1)
+            obs_new.fill_by_mask(mask=outlier_mask, fill_value=np.nan)
 
     return obs_new
 
@@ -1379,7 +1509,7 @@ def auto_flag_pix_by_ts(obs, thre_flag=5E7):
 
 
 def auto_flag_pix_by_flux(obs_flux, obs_err, pix_flag_list=None, is_flat=False,
-                          snr_thre=50, mad_thre_err=10):
+                          is_bias_step=False, snr_thre=50, mad_thre_err=10):
     """
     automatically flag pixel by the flux and error of the beam, return a list of
     [spat, spec] or [row, col] of pixels to flag, depending on the input type
@@ -1391,6 +1521,8 @@ def auto_flag_pix_by_flux(obs_flux, obs_err, pix_flag_list=None, is_flat=False,
     :param list or None pix_flag_list: list, [[spat, spec], ...] of the pixel not
         to consider in the auto flagging procedure, which increases the
         sensitivity to bad pixels
+    :param bool is_bias_step: bool, flag whether the input is is_bias_step,
+        overriding is_flat
     :param bool is_flat: bool, flag whether the input is a flat field, which follows
         some flagging criteria
     :param int or float snr_thre: int or float, SNR threshold of flat for a pixel
@@ -1404,13 +1536,22 @@ def auto_flag_pix_by_flux(obs_flux, obs_err, pix_flag_list=None, is_flat=False,
     pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
     obs_flux_array, obs_err_array = ObsArray(obs_flux), ObsArray(obs_err)
     array_map = obs_flux_array.array_map_
-    if is_flat:
-        pix_flag = ~np.isfinite(obs_flux_array.data_) | \
-                   ~np.isfinite(obs_err_array.data_) | \
+    pix_flag = ~np.isfinite(obs_flux_array.data_) | \
+               ~np.isfinite(obs_err_array.data_)
+    if is_flat and not is_bias_step:
+        pix_flag = pix_flag | \
                    (abs(obs_flux_array.data_) < 10) | \
                    (abs(obs_flux_array.data_) < snr_thre * obs_err_array.data_)
     else:
-        pix_flag = obs_err_array.get_nanmad_flag(thre=mad_thre_err, axis=None)
+        pix_flag = pix_flag | obs_err_array.get_nanmad_flag(
+                thre=mad_thre_err, axis=None)
+    if is_bias_step:
+        pix_flag = pix_flag | (obs_flux_array.data_ == 0) | \
+                   (obs_err_array.data_ == 0)
+        ramp_step_size = obs_err_array.query_obs_info("RB_cc_ramp_step_size")
+        if is_meaningful(ramp_step_size):
+            pix_flag = pix_flag | (abs(obs_flux_array.data_) >
+                                   10 * abs(ramp_step_size))
     if pix_flag.ndim > 1:
         pix_flag = np.any(
                 pix_flag, axis=tuple(np.arange(pix_flag.ndim, dtype=int)[1:]))

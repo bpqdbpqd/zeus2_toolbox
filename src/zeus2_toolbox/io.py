@@ -12,6 +12,7 @@ import configparser
 import copy
 import inspect
 import os.path
+import warnings
 from collections import Counter
 from datetime import datetime, timezone
 
@@ -21,6 +22,8 @@ from astropy.table import vstack, hstack, unique, Table as Tb, Row
 from .mce_data import *
 from .tools import *
 from .convert import *
+
+FREQ = 398.72408293460927  # default data sampling frequency
 
 
 class BaseObj(object):
@@ -190,6 +193,7 @@ class TableObj(BaseObj):
                 self.table_.add_column(Tb.Column([obs_id] * self.len_,
                                                  name="obs_id", dtype="<U40"),
                                        index=0)
+                self.colnames_ += ["obs_id"]
             except ValueError:
                 pass
 
@@ -403,7 +407,9 @@ class DataObj(BaseObj):
                              (str(shape1), str(shape2)))
         else:
             arr_new = operator(arr1, arr2) if not r else operator(arr2, arr1)
-            if (self.ndim_ - other.ndim_) == -1:
+            if ((self.ndim_ - other.ndim_) == -1) or \
+                    (isinstance(other, type(self)) and
+                     not isinstance(self, type(other))):
                 return other.replace(arr_in=arr_new)
             else:
                 return self.replace(arr_in=arr_new)
@@ -963,6 +969,7 @@ class ArrayMap(DataObj):
     array_wl_ = np.empty(0, dtype=float)  # type: numpy.ndarray # wavelength of
     # each pixel
     array_d_wl_ = np.empty(0, dtype=float)  # type: numpy.ndarray # wavelength
+
     # interval covered by each pixel, optional
 
     @classmethod
@@ -2141,17 +2148,18 @@ class Chop(DataObj):
         self.append_along_axis(other=other, axis=0)
         self.update_chunk(chunk_edge_idxs=chunk_edge_idxs_new)
 
-    def get_flag_chunk_edges(self, ncut=0.05):
+    def get_flag_chunk_edges(self, ncut=0.05, beginning=True, end=True):
         """
         Return a bool array in which edge of both the beginning and the end of
         each chop phase(chunk) are flagged as True. ncut can be ratio or number
         of data points.
 
-        :param ncut: int or float, ratio(float, <= 0.5) of chop phase(chunk) or
-            number of data points(int, non-negative) to flag
-        :type ncut: int or float
-        :return chunk_edges_flag: array, bool array where edges of each chop
-            phase are flagged
+        :param int or float ncut: int or float, ratio(float, <= 0.5) of chop
+            phase (chunk) or number of data points(int, non-negative) to flag
+        :param bool beginning: bool, flag to flag the beginning of the chunk
+        :param bool end: bool, flag to flag the end of the chunk
+        :return chunk_edges_flag: array, bool array where edges of
+            each chop phase are flagged
         :rtype: numpy.ndarray
         :raises ValueError: invalid value of edge
         :raises TypeError: invalid type of edge
@@ -2185,12 +2193,14 @@ class Chop(DataObj):
                 n = int(round(ncut * chunk_len))
             else:
                 n = min(chunk_len, ncut)
-            chunk_edges_flag[idx_i:idx_i + n] = True
-            chunk_edges_flag[idx_e - n:idx_e] = True
+            if beginning:
+                chunk_edges_flag[idx_i:idx_i + n] = True
+            if end:
+                chunk_edges_flag[idx_e - n:idx_e] = True
 
         return chunk_edges_flag
 
-    def get_flag_edge_chunks(self, ncut=3):
+    def get_flag_edge_chunks(self, ncut=3, beginning=True, end=True):
         """
         Return a bool array in which data in the chop phases(chunks) at both the
         beginning and the end of the data are flagged as True. Be cautious that
@@ -2199,6 +2209,8 @@ class Chop(DataObj):
 
         :param int ncut: int, number of chop phases(chunks) at both edges of the
             data to flag
+        :param bool beginning: bool, flag to flag the beginning of the data
+        :param bool end: bool, flag to flag the end of the data
         :return edge_chunk_flag: array, bool array where ncut of chop phases
             are flagged
         :rtype: numpy.ndarray
@@ -2219,8 +2231,10 @@ class Chop(DataObj):
 
         edge_chunks_flag = np.zeros(self.len_, dtype=bool)  # empty bool array
         ncut = min(ncut, self.chunk_num_)
-        edge_chunks_flag[:self.chunk_edge_idxs_[ncut]] = True
-        edge_chunks_flag[self.chunk_edge_idxs_[self.chunk_num_ - ncut]:] = True
+        if beginning:
+            edge_chunks_flag[:self.chunk_edge_idxs_[ncut]] = True
+        if end:
+            edge_chunks_flag[self.chunk_edge_idxs_[self.chunk_num_ - ncut]:] = True
 
         return edge_chunks_flag
 
@@ -3017,17 +3031,49 @@ class Obs(DataObj):
             self.__check()
 
     def __operate__(self, other, operator, r=False):
-        obs_new = super(Obs, self).__operate__(
-                other=other, operator=operator, r=r)
-        if isinstance(other, Obs) and not other.empty_flag_:
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message=
+            "%s data_ and chop_ length disagree!" % self.obs_id_)
+            if isinstance(other, Obs):
+                warnings.filterwarnings("ignore", message=
+                "%s data_ and chop_ length disagree!" % other.obs_id_)
+            obs_new = super(Obs, self).__operate__(
+                    other=other, operator=operator, r=r)
+        if isinstance(other, Obs) and (not other.empty_flag_):
             obs_new.obs_id_list_ = np.unique(
                     self.obs_id_list_ + other.obs_id_list_).tolist()
             obs_new.obs_info_.append(other.obs_info_)
             if (not obs_new.obs_info_.empty_flag_) and \
                     ("obs_id" in obs_new.obs_info_.colnames_) and \
                     (obs_new.obs_info_.len_ > 0):
-                obs_new.obs_info_.table_ = unique(obs_new.obs_info_.table_,
-                                                  keys="obs_id")
+                obs_new.update_obs_info(unique(obs_new.obs_info_.table_,
+                                               keys="obs_id"))
+        if ((not self.ts_.empty_flag_) and (self.ts_.len_ == obs_new.len_) and
+            (self.ts_ != obs_new.ts_)) or \
+                ((not self.chop_.empty_flag_) and
+                 (self.chop_.len_ == obs_new.len_) and
+                 (self.chop_ != obs_new.ts_)) or \
+                ((not self.obs_id_arr_.empty_flag_) and
+                 (self.obs_id_arr_.len_ == obs_new.len_) and
+                 (self.obs_id_arr_ != obs_new.ts_)):
+            obs_new = obs_new.replace(ts=self.ts_, chop=self.chop_,
+                                      obs_id_arr=self.obs_id_arr_,
+                                      t_start_time=self.t_start_time_,
+                                      t_end_time=self.t_end_time_)
+        elif isinstance(other, Obs) and (not other.empty_flag_) and \
+                (((not other.ts_.empty_flag_) and (other.ts_.len_ == obs_new.len_) and
+                  (other.ts_ != obs_new.ts_)) or \
+                 ((not other.chop_.empty_flag_) and
+                  (other.chop_.len_ == obs_new.len_) and
+                  (other.chop_ != obs_new.ts_)) or \
+                 ((not other.obs_id_arr_.empty_flag_) and
+                  (other.obs_id_arr_.len_ == obs_new.len_) and
+                  (other.obs_id_arr_ != obs_new.ts_))):
+            obs_new = obs_new.replace(ts=other.ts_, chop=other.chop_,
+                                      obs_id_arr=other.obs_id_arr_,
+                                      t_start_time=other.t_start_time_,
+                                      t_end_time=other.t_end_time_)
+
         return obs_new
 
     def replace(self, **kwargs):
@@ -3185,13 +3231,13 @@ class Obs(DataObj):
             ctime_start, ctime_end = obs_info.table_["CTIME"][arg_start], \
                                      obs_info.table_["CTIME"][arg_end]
             if ("freq" in obs_info.colnames_):
-                freq = obs_info.table_["freq"].filled(398.72408293460927)[arg_end]
+                freq = obs_info.table_["freq"].filled(FREQ)[arg_end]
                 if "n_frames" in obs_info.colnames_:
                     n_frames = obs_info.table_["freq"].filled(0)[arg_end]
                 else:
                     n_frames = 0
             else:
-                freq = 398.72408293460927
+                freq = FREQ
             d_time_end = 1 / freq * n_frames
             time_start, time_end = Time(ctime_start, format="unix"), \
                                    Time(ctime_end + d_time_end, format="unix")
@@ -3209,7 +3255,7 @@ class Obs(DataObj):
                 self.obs_id_arr_ = IdArr(arr_in=[self.obs_id_] * self.len_)
             if not self.chop_.empty_flag_:
                 if self.len_ != self.chop_.len_:
-                    warnings.warn("%s data_ and chop__ length disagree!" %
+                    warnings.warn("%s data_ and chop_ length disagree!" %
                                   self.obs_id_)
                     if (self.len_ > 1) and (self.chop_.len_ > 1):
                         raise ValueError(("%s data_ and chop_ " % self.obs_id_) +
@@ -3258,7 +3304,7 @@ class Obs(DataObj):
         to spat, the second dimension(col) to spec
 
         :param array_map: ArrayMap or list or tuple or array, to initialize
-            ArrayMap object
+            ArrayMap object, if left None, row -> spat, col -> spec
         :type array_map: ArrayMap or list or tuple or numpy.ndarray or None
         :return obs_array: ObsArray object
         :rtype ObsArray: ObsArray
@@ -3840,6 +3886,35 @@ class Obs(DataObj):
         entries = obs_log.take_by_time(time=time_mid - time_offset * units.s)
         self.obs_info_.expand(entries)
 
+    def query_obs_info(self, colname):
+        """
+        Query the class variable obs_info_ for the given the column name, and
+        return the first result matching the obs_id; will return None if the
+        result is not found
+
+        :param str colname: str, the column name to search for
+        :return: the first value in the target column with matching obs_id
+        """
+
+        val = None
+        if self.obs_info_.empty_flag_:
+            warnings.warn("%s.obs_info_ variable is empty." % self.obs_id_)
+        elif "obs_id" not in self.obs_info_.colnames_:
+            warnings.warn("%s.obs_info_ missing column 'obs_id'." % self.obs_id_)
+        elif str(colname) not in self.obs_info_.colnames_:
+            warnings.warn("%s.obs_info_ missing input column '%s'." %
+                          (self.obs_id_, colname))
+        elif self.obs_info_.len_ == 0:
+            warnings.warn("%s.obs_info_ has zero length." % self.obs_id_)
+        else:
+            idx_where = np.nonzero(self.obs_info_.table_["obs_id"] ==
+                                   self.obs_id_)
+            if len(idx_where[0]) == 0:
+                warnings.warn("%s is not found in obs_info_" % self.obs_id_)
+            else:
+                val = self.obs_info_.table_[colname][idx_where[0][0]]
+
+        return val
 
 # TODO: to_table
 # TODO: def bin(self, method):
@@ -3914,14 +3989,26 @@ class ObsArray(Obs):
         colnames = np.array(tb_in.colnames)
         colnames_lower = np.char.lower(colnames)
         if "spatial_position" in colnames_lower:  # check main column
-            horizontal = True
+            horizontal, array_type = True, "tes"
         elif "spectral_index" in colnames_lower:
-            horizontal = False
+            horizontal, array_type = False, "tes"
+        elif "row" in colnames_lower:
+            horizontal, array_type = True, "mce"
+        elif "column" in colnames_lower:
+            horizontal, array_type = False, "mce"
         else:
-            raise ValueError("Unsupported table format, missing " +
-                             "spatial_position or spectral_position column.")
-        colname_main, colname_repeat = ("spatial_position", "spectral_index")[
-                                       ::(1 if horizontal else -1)]
+            raise ValueError("Unsupported table format, missing columne named " +
+                             "spatial_position or spectral_position column " +
+                             "or row or column.")
+        if check_array_type(array_type=array_type):
+            colname_main, colname_repeat = \
+                ("row", "column")[::(
+                    1 if horizontal else -1)]
+        else:
+            colname_main, colname_repeat = \
+                ("spatial_position", "spectral_index")[::(
+                    1 if horizontal else -1)]
+
         colname_main = colnames[
             np.argwhere(colnames_lower == colname_main)[0, 0]]
         row_data = tb_in[colname_main].data.astype(int).filled(-1)
@@ -3953,7 +4040,7 @@ class ObsArray(Obs):
             col_time.append("obs_id")
             data_time_list.append(
                     tb_in[colname_time].data.astype(IdArr.dtype_).filled("0"))
-        if len(colname_time) == 0:
+        if len(col_time) == 0:
             if row_counts.max() > 1:
                 warnings.warn("Missing time_stamp and obs_id with ambiguous " +
                               "time sequence.", UserWarning)
@@ -4109,7 +4196,7 @@ class ObsArray(Obs):
         if other.empty_flag_:
             pass
         else:
-            if not self.empty_flag_:
+            if (not self.empty_flag_) and (not other.empty_flag_):
                 if self.array_map_ != other.array_map_:
                     raise ValueError("Array map mismatch.")
             super(ObsArray, self).append(other=other)
@@ -4341,28 +4428,38 @@ class ObsArray(Obs):
 
         return obs_array_chunk_list
 
-    def to_obs(self, array_type="tes", fill_value=np.nan):
+    def to_obs(self, array_type="mce", fill_value=np.nan):
         """
-        Reshape the data to (spat, spec, ...) configuration and return as an
-        Obs object. All the elements not in the array map will be set to
-        fill_value.
+        Reshape the data to (spat, spec, ...) or (row, col, ...) configuration
+        and return as an Obs object. All the elements not in the array map will
+        be set to fill_value.
 
         :param str or Obs or ObsArray array_type: str or Obs or ObsArray,
             the arrangement of the data_, will use [spat, spec] if array_type=
-            "tes", will use
-            allowed values are 'mce' and 'tes', if input is Obs object, 'mce'
-            will be used, if ObsArray, 'tes' will be used
+            "tes", so that spat -> row, spec -> col, otherwise will use
+            [row, col] and row -> row, col -> col
+        :param str array_type: str or Obs or ObsArray object, allowed values are
+            'mce' and 'tes', if input is Obs object, 'mce' will be used, if
+            ObsArray, 'tes' will be used
         :param float fill_value: float, value to fill in the elements not in the
             array map
         :return obs_array
         """
 
-        new_shape = (self.array_map_.array_spat_ulim_ + 1,
-                     self.array_map_.array_spec_ulim_ + 1) + self.shape_[1:]
+        if check_array_type(array_type=array_type):
+            row_ulim, col_ulim = self.array_map_.array_spat_ulim_, \
+                                 self.array_map_.array_spec_ulim_
+            row_col_idxs = self.array_map_.array_idxs_
+        else:
+            row_ulim, col_ulim = self.array_map_.mce_row_ulim_, \
+                                 self.array_map_.mce_col_ulim_
+            row_col_idxs = self.array_map_.mce_idxs_
+
+        new_shape = (row_ulim + 1, col_ulim + 1) + self.shape_[1:]
         data_new = np.full(shape=new_shape, fill_value=fill_value,
                            dtype=self.dtype_)
-        for i, (spat, spec) in enumerate(self.array_map_.array_idxs_):
-            data_new[spat, spec, ...] = self.data_[i]
+        for i, (row, col) in enumerate(row_col_idxs):
+            data_new[row, col, ...] = self.data_[i]
         obs = Obs(arr_in=data_new, chop=self.chop_, ts=self.ts_,
                   obs_info=self.obs_info_, obs_id=self.obs_id_,
                   obs_id_list=self.obs_id_list_, obs_id_arr=self.obs_id_arr_,
@@ -4402,10 +4499,13 @@ class ObsArray(Obs):
 
         return obs
 
-    def to_table(self, orientation="horizontal"):
+    def to_table(self, array_type="tes", orientation="horizontal"):
         """
         Return a table representation of ObsArray data.
 
+        :param str array_type: str or Obs or ObsArray object, allowed values are
+            "tes" and "mce"; the row and column names will be 'spatial_position'
+            and 'spectral_index' if "tes", otherwise 'row' and 'column'
         :param str orientation: str, allowed values are 'horizontal' and
             'vertical', if the former, columns of table will be
             (spatial_position, spectral_index=0, spectral_index=1, ...),
@@ -4416,16 +4516,30 @@ class ObsArray(Obs):
 
         tb = Tb(masked=True)
         if not self.empty_flag_:
-            array_bound = ((self.array_map_.array_spat_llim_,
-                            self.array_map_.array_spat_ulim_),
-                           (self.array_map_.array_spec_llim_,
-                            self.array_map_.array_spec_ulim_))[
-                          ::(1 if horizontal else -1)]
-            row_num, col_num = np.diff(array_bound).flatten() + 1
-            colname_main, colname_repeat = \
-                ("spatial_position", "spectral_index")[::(
-                    1 if horizontal else -1)]
+            if check_array_type(array_type=array_type):
+                array_bound = ((self.array_map_.mce_row_llim_,
+                                self.array_map_.mce_row_ulim_),
+                               (self.array_map_.mce_col_llim_,
+                                self.array_map_.mce_col_ulim_))[
+                              ::(1 if horizontal else -1)]
+                colname_main, colname_repeat = \
+                    ("row", "column")[::(
+                        1 if horizontal else -1)]
+                col_kw = "col" if horizontal else "row"
+                pos_kw = "row_col"
+            else:
+                array_bound = ((self.array_map_.array_spat_llim_,
+                                self.array_map_.array_spat_ulim_),
+                               (self.array_map_.array_spec_llim_,
+                                self.array_map_.array_spec_ulim_))[
+                              ::(1 if horizontal else -1)]
+                colname_main, colname_repeat = \
+                    ("spatial_position", "spectral_index")[::(
+                        1 if horizontal else -1)]
+                col_kw = "spec" if horizontal else "spat"
+                pos_kw = "spat_spec"
 
+            row_num, col_num = np.diff(array_bound).flatten() + 1
             row_idx_arr = np.arange(array_bound[0][0], array_bound[0][1] + 1,
                                     dtype=int)
             row_idx_arr = np.repeat(row_idx_arr, self.len_)
@@ -4448,13 +4562,17 @@ class ObsArray(Obs):
                 col_data = np.ma.empty((row_num, self.len_), dtype=np.double)
                 col_data.mask = True
                 array_map_col = self.array_map_.take_where(
-                        **{("spec" if horizontal else "spat"): col_repeat})
-                for row_idx in (
-                        array_map_col.array_spat_ if horizontal else
-                        array_map_col.array_spec_):
+                        **{col_kw: col_repeat})
+                if check_array_type(array_type=array_type):
+                    row_idxs = array_map_col.mce_row_ if horizontal else \
+                        array_map_col.mce_col_
+                else:
+                    row_idxs = array_map_col.array_spat_ if horizontal else \
+                        array_map_col.array_spec_
+                for row_idx in row_idxs:
                     pix_idx = self.array_map_.get_index_where(
-                            spat_spec=(row_idx, col_repeat)[
-                                      ::(1 if horizontal else -1)])[0]
+                            **{pos_kw: (row_idx, col_repeat)[
+                                       ::(1 if horizontal else -1)]})[0]
                     col_data[row_idx - array_bound[0][0]] = \
                         self.data_[pix_idx].flatten()
                     col_data.mask[row_idx - array_bound[0][0]] = False
