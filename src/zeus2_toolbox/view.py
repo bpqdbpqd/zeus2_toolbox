@@ -219,20 +219,21 @@ class FigFlux(Figure):
         Plot array
         """
 
-        ndim, shape = arr.ndim, arr.shape
+        arr_plot = arr.copy()
+        ndim, shape = arr_plot.ndim, arr_plot.shape
         if (ndim > 3) or ((ndim == 3) and (shape[2] != 1)):  # set arr
             raise ValueError("Invalid array shape %s" % str(shape))
         if ndim == 3:
-            arr = arr.reshape(shape[:2])
+            arr_plot = arr_plot.reshape(shape[:2])
         elif ndim == 1:
-            arr = arr[None, ...]
-        shape = arr.shape
+            arr_plot = arr_plot[None, ...]
+        shape = arr_plot.shape
         if orientation is None:
             orientation = self.orientation_
         if mask is not None:  # set mask
             mask = mask.reshape(shape)
         if extent is None:  # set extent
-            extent = get_extent(obs=arr, orientation=orientation,
+            extent = get_extent(obs=arr_plot, orientation=orientation,
                                 extent_offset=(-0.5, -0.5, -0.5, -0.5))
         if ran is None:  # set ran
             arr_mask = np.full(shape=shape, fill_value=False, dtype=bool)
@@ -251,16 +252,18 @@ class FigFlux(Figure):
                 for row, col in zip(row_idxs, col_idxs):
                     arr_mask[row, col] = True
             if np.any(~arr_mask):
-                min, max = np.nanmin(arr[~arr_mask]), \
-                           np.nanmax(arr[~arr_mask])
+                min, max = np.min(arr_plot[~arr_mask & np.isfinite(arr_plot)],
+                                  initial=0), \
+                           np.max(arr_plot[~arr_mask & np.isfinite(arr_plot)],
+                                  initial=0)
             else:
                 warnings.warn("All the data are masked.")
                 min = max = 0
             if min * max >= 0:
                 ran_alt = (min, max)
             else:
-                ran_alt = (-np.nanmax(abs(arr[~arr_mask])),
-                           np.nanmax(abs(arr[~arr_mask])))
+                ran_alt = (-np.nanmax(abs(arr_plot[~arr_mask])),
+                           np.nanmax(abs(arr_plot[~arr_mask])))
 
             ran = ()
             if "vmin" in kwargs:
@@ -278,9 +281,9 @@ class FigFlux(Figure):
         if "cmap" in kwargs:
             self.cmap_ = plt.get_cmap(kwargs["cmap"])
         self.norm_ = colors.Normalize(vmin=np.nanmin(ran), vmax=np.nanmax(ran))
-        flag_nan = np.isnan(arr)
-        np.putmask(arr, np.isnan(arr), 0)  # replace nan by 0
-        arr_rgba = self.cmap_(self.norm_(arr))  # get rgba values
+        flag_nan = np.isnan(arr_plot)
+        np.putmask(arr_plot, np.isnan(arr_plot), 0)  # replace nan by 0
+        arr_rgba = self.cmap_(self.norm_(arr_plot))  # get rgba values
         arr_rgba[flag_nan] = np.array([self.nan_pix_color_])  # nan pixels
         # set orientation
         if not check_orientation(orientation=orientation):

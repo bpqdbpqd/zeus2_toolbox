@@ -685,18 +685,22 @@ def proc_beam(beam, write_header=None, is_flat=False, is_bias_step=False,
                      (beam_use.chunk_proc("nanmedian", keep_shape=True) -
                       beam_use.chunk_proc("nanmean", keep_shape=True)) ** 2)),
             err_type="external")
-    pix_flag_list = auto_flag_pix_by_flux(  # auto flag
-            beam_flux, beam_err, pix_flag_list=pix_flag_list, is_flat=is_flat,
-            is_bias_step=is_bias_step, snr_thre=SNR_THRE,
-            mad_thre_err=MAD_THRE_BEAM_ERR if not is_bias_step else
-            MAD_THRE_BS_ERR)
     beam_flux, beam_err = beam_flux / flat_flux, abs(beam_flux / flat_flux) * \
                           ((beam_err / beam_flux) ** 2 +
                            (flat_err / flat_flux) ** 2).sqrt()
 
-    if is_bias_step:
+    if is_bias_step:  # auto flag
+        pix_flag_list = auto_flag_pix_by_flux(
+                beam_flux, beam_err, pix_flag_list=pix_flag_list,
+                is_flat=False, is_bias_step=True, snr_thre=SNR_THRE,
+                mad_thre_err=MAD_THRE_BS_ERR)
         beam_flux_i = fb_to_i_tes(beam_flux, butterworth_constant=butterworth)
         beam_err_i = fb_to_i_tes(beam_err, butterworth_constant=butterworth)
+    else:
+        pix_flag_list = auto_flag_pix_by_flux(  # auto flag
+                beam_flux, beam_err, pix_flag_list=pix_flag_list, is_flat=is_flat,
+                is_bias_step=is_bias_step, snr_thre=SNR_THRE,
+                mad_thre_err=MAD_THRE_BEAM_ERR)
 
     if plot and plot_flux:
         if is_bias_step:
@@ -1207,7 +1211,7 @@ def read_total_power(file_header, array_map=None, obs_log=None, flag_ts=True,
                                   ("%s due to <class 'FileNotFoundError'>: " % file_header) +
                                   ("%s or %s.hk are not hk files." % (file_header, file_header)))
         beam = read_beam(file_header=file_header, array_map=array_map,
-                         obs_log=None, flag_ts=flag_ts, is_flat=is_flat,
+                         obs_log=None, flag_ts=flag_ts, is_flat=True,
                          auto_file_type=False)
 
     if beam.ts_.empty_flag_:
@@ -1790,7 +1794,7 @@ def reduce_skychop(flat_header, data_dir=None, write_dir=None, write_suffix="",
             write_suffix=write_suffix, array_map=array_map, obs_log=obs_log,
             is_flat=True, pix_flag_list=pix_flag_list, parallel=parallel,
             return_ts=(return_ts or (plot and plot_ts) or analyze),
-            return_pix_flag_list=True, plot=plot, plot_ts=False,
+            return_pix_flag_list=True, plot=plot, plot_ts=plot_ts,
             reg_interest=reg_interest, plot_flux=plot_flux,
             plot_show=plot_show, plot_save=plot_save)
     flat_beams_flux, flat_beams_err, flat_beams_wt = result[:3]
@@ -1870,6 +1874,10 @@ def reduce_bias_step(data_header, data_dir=None, write_dir=None, write_suffix=""
                      table_save=True, plot=True, plot_ts=True, reg_interest=None,
                      plot_flux=True, plot_show=False, plot_save=True,
                      analyze=False):
+    """
+    pipeline function to reduce bias step data
+    """
+
     data_dir = str(data_dir) if data_dir is not None else os.getcwd()
     write_dir = str(write_dir) if write_dir is not None else os.getcwd()
     pix_flag_list = list(pix_flag_list).copy() if pix_flag_list is not None else []
@@ -2127,7 +2135,8 @@ def reduce_zobs(data_header, data_dir=None, write_dir=None, write_suffix="",
                                var=pwv, supersede=True)
         elev = configure_helper(zobs_flux, keyword=("elev", "Elevation"),
                                 var=elev, supersede=True)
-        if is_meaningful(pwv) and is_meaningful(elev):
+        if is_meaningful(pwv) and is_meaningful(elev) and \
+                is_meaningful(grat_idx):
             atm_trans_raw = get_transmission_raw_obs_array(
                     array_map=array_map, pwv=pwv, elev=elev, grat_idx=grat_idx)
             atm_trans = get_transmission_obs_array(

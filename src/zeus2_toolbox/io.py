@@ -368,16 +368,9 @@ class DataObj(BaseObj):
 
         shape1, shape2 = self.shape_, other.shape_
         arr1, arr2 = self.data_, other.data_
-        try:
-            shape_common = np.broadcast_shapes(shape1, shape2)
-        except ValueError:
-            shape_flag = False
-        else:
-            shape_flag = True
+        shape_flag = False
 
-        if shape_flag:  # the shapes match
-            pass
-        elif self.ndim_ == other.ndim_:  # ndim match, will try to reshape
+        if self.ndim_ == other.ndim_:  # ndim match, will try to reshape
             shape_flag = True
             for i in range(self.ndim_):
                 if (shape1[i] != 1) and (shape2[i] != 1) and \
@@ -402,17 +395,21 @@ class DataObj(BaseObj):
                 if shape_flag and (axis_new is not None):
                     arr1 = np.expand_dims(arr1, axis=axis_new)
 
-        if not shape_flag:  # can not get shapes to match
-            raise ValueError("Can not operate between shape %s and %s." %
-                             (str(shape1), str(shape2)))
+        if not shape_flag:
+            try:
+                shape_common = np.broadcast_shapes(shape1, shape2)
+            except Exception as err:
+                raise ValueError("Can not operate between shape %s and %s." %
+                                 (str(shape1), str(shape2))) from err
+
+        arr_new = operator(arr1, arr2) if not r else operator(arr2, arr1)
+
+        if ((self.ndim_ - other.ndim_) == -1) or \
+                (isinstance(other, type(self)) and
+                 not isinstance(self, type(other))):
+            return other.replace(arr_in=arr_new)
         else:
-            arr_new = operator(arr1, arr2) if not r else operator(arr2, arr1)
-            if ((self.ndim_ - other.ndim_) == -1) or \
-                    (isinstance(other, type(self)) and
-                     not isinstance(self, type(other))):
-                return other.replace(arr_in=arr_new)
-            else:
-                return self.replace(arr_in=arr_new)
+            return self.replace(arr_in=arr_new)
 
     def __add__(self, other):
         """

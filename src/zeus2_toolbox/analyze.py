@@ -1148,10 +1148,10 @@ def get_bias_obs(obs, bias_str=None):
         of bias_str or obs.
     """
 
-    if isinstance(obs, Obs):
-        array_map = obs.to_obs_array().array_map_
-    elif isinstance(obs, ObsArray):
+    if isinstance(obs, ObsArray):
         array_map = obs.array_map_
+    elif isinstance(obs, Obs):
+        array_map = obs.to_obs_array().array_map_
     elif isinstance(obs, ArrayMap):
         array_map = obs
     else:
@@ -1178,8 +1178,8 @@ def get_bias_obs(obs, bias_str=None):
         COL_BIAS_MAP[col] for col in array_map.mce_col_[col_mask]])
     bias_arr[col_mask] = tes_bias[bias_idx]
 
-    bias_obs = ObsArray(bias_arr[:, None], array_map=array_map)
-    if isinstance(obs, Obs):
+    bias_obs = ObsArray(bias_arr[:, None], array_map=array_map, obs_id="bias")
+    if type(obs) == Obs:
         bias_obs = bias_obs.to_obs()
 
     return bias_obs
@@ -1390,7 +1390,8 @@ def get_transmission_raw_obs_array(array_map, pwv, elev=60, **kwargs):
     array_map_new.array_wl_ = wl
     array_map_new.array_d_wl_ = 0.1 / wl_to_freq(wl) * wl
 
-    trans_obs_array = ObsArray(arr_in=trans[:, None], array_map=array_map_new)
+    trans_obs_array = ObsArray(arr_in=trans[:, None], array_map=array_map_new,
+                               obs_id="sky_transmission")
 
     return trans_obs_array
 
@@ -1418,7 +1419,8 @@ def get_transmission_obs_array(array_map, pwv, elev=60):
     d_freq = np.nanmedian(d_wl / wl * freq)
     trans = transmission_pixel(freq=freq, pwv=pwv, elev=elev, r=r, d_freq=d_freq)
 
-    trans_obs_array = ObsArray(arr_in=trans[:, None], array_map=array_map)
+    trans_obs_array = ObsArray(arr_in=trans[:, None], array_map=array_map,
+                               obs_id="sky_transmission")
 
     return trans_obs_array
 

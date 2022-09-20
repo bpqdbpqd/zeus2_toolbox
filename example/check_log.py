@@ -78,6 +78,8 @@ for beam_header in beam_header_list:
             ("Failed to read .hk for %s " % beam_header) +
             ("due to <class 'FileNotFoundError'>: %s" %
              ("%s or %s.hk are not hk files." % (beam_header, beam_header))))
+            warnings.filterwarnings(
+                    "ignore", message="No entry is found in obs log.")
             beam = z2pipl.Obs.read_header(
                     filename=beam_header, try_data=False, try_chop=False,
                     try_ts=True, try_info=True)
