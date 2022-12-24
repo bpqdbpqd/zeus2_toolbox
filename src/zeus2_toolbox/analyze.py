@@ -1185,6 +1185,38 @@ def get_bias_obs(obs, bias_str=None):
     return bias_obs
 
 
+def get_power_obs(obs, bias=None):
+    """
+    Convert fb values in obs to power = I * V
+
+    :param Obs or ObsArray obs: Obs or ObsArray object, containing data in DAC
+        unit
+    :param Obs or ObsArray bias: Obs or ObsArray object, bias values for each
+        pixel
+    :return: Obs or ObsArray object same as the input containing the power
+        of data in the unit of W
+    :type: Obs or ObsArray
+    """
+
+    if bias is None:
+        bias = get_bias_obs(obs)
+
+    data_mode = obs.query_obs_info("data_mode")
+    obs_i = fb_to_i_tes(obs, butterworth_constant=1 if data_mode == 1 else
+    BUTTERWORTH_CONSTANT)
+    if isinstance(obs, ObsArray):
+        mce_col = obs.array_map_.mce_col_
+    else:
+        new_dim = np.arange(obs.ndim_, dtype=int).tolist()
+        new_dim.pop(1)
+        mce_col = np.expand_dims(np.arange(obs.shape_[1]), new_dim)
+    obs_v = fb_to_v_tes(bias=bias, fb=obs, mce_col=mce_col,
+                        butterworth_constant=1 if data_mode == 1 else
+                        BUTTERWORTH_CONSTANT)
+
+    return abs(obs_v * obs_i)
+
+
 def configure_helper(obs, keyword, var=None, supersede=True):
     """
     a helper function to pick the best possible configuration parameter for any
@@ -1248,6 +1280,8 @@ def configure_helper(obs, keyword, var=None, supersede=True):
                         break
     # check whether to use var value as a fallback
     if (not is_meaningful(conf)) and is_meaningful(var=var) and (not supersede):
+        warnings.warn("can not find %s in %s, fall back to default value %s." %
+                      (keyword, obs.obs_id_, var))
         conf = var
 
     return conf
@@ -1466,25 +1500,30 @@ def auto_flag_ts(obs, is_iv_curve=False, is_bias_step=False, is_flat=False,
                        0.1 * blank_mask.shape[-1])  # ignore dead pixels
         obs_new.fill_by_mask(glitch_mask | blank_mask, fill_value=np.nan)
 
-        if not is_bias_step:
-            if obs_new.chop_.empty_flag_:  # no chop data
-                if is_flat:
-                    outlier_mask = abs(obs_new - obs_new.proc_along_time(
-                            method="nanmean")).data_ > \
-                                   std_thre_flat * obs_new.proc_along_time(
-                            method="nanstd").data_
-                else:  # flag by MAD
-                    outlier_mask = obs_new.get_double_nanmad_flag(
-                            thre=mad_thre, axis=-1)
-            else:  # flat on and off chop separately by MAD
-                outlier_mask = np.full(obs_new.shape_, fill_value=False, dtype=bool)
-                outlier_mask[..., obs_new.chop_.data_] = \
-                    obs_new.take_by_flag_along_time(chop=True). \
-                        get_double_nanmad_flag(thre=mad_thre, axis=-1)
-                outlier_mask[..., ~obs_new.chop_.data_] = \
-                    obs_new.take_by_flag_along_time(chop=False). \
-                        get_double_nanmad_flag(thre=mad_thre, axis=-1)
-            obs_new.fill_by_mask(mask=outlier_mask, fill_value=np.nan)
+        if obs_new.chop_.empty_flag_:  # no chop data
+            if is_flat or is_bias_step:
+                outlier_mask = abs(obs_new - obs_new.proc_along_time(
+                        method="nanmean")).data_ > \
+                               std_thre_flat * (1 + 2 * is_bias_step) * \
+                               obs_new.proc_along_time(method="nanstd").data_
+            else:  # flag by MAD
+                outlier_mask = obs_new.get_double_nanmad_flag(
+                        thre=mad_thre, axis=-1)
+        elif not is_bias_step:  # flat on and off chop separately by MAD
+            outlier_mask = np.full(obs_new.shape_, fill_value=False, dtype=bool)
+            outlier_mask[..., obs_new.chop_.data_] = \
+                obs_new.take_by_flag_along_time(chop=True). \
+                    get_double_nanmad_flag(thre=mad_thre, axis=-1)
+            outlier_mask[..., ~obs_new.chop_.data_] = \
+                obs_new.take_by_flag_along_time(chop=False). \
+                    get_double_nanmad_flag(thre=mad_thre, axis=-1)
+        else:
+            outlier_mask = abs(obs_new - obs_new.proc_along_time(
+                    method="nanmean")).data_ > \
+                           std_thre_flat * (1 + 2 * is_bias_step) * \
+                           obs_new.proc_along_time(method="nanstd").data_
+
+        obs_new.fill_by_mask(mask=outlier_mask, fill_value=np.nan)
 
     return obs_new
 

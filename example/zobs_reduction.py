@@ -50,6 +50,8 @@ SPAT_EXCL = None  # list of the range of the spatial positions to be excluded
 
 PARALLEL = True  # flag whether to run the reduction in parallel mode
 TABLE_SAVE = True  # flag whether to save the reduction result as csv table
+SAVE_WL = True  # flag whether to save the wavelength to table
+SAVE_ATM = True  # flag whether to save atm transmission to table
 PLOT = True  # flag whether to plot the reduction result
 PLOT_TS = True  # flag whether to plot the time series of each beam use in the
 # reduction
@@ -72,10 +74,18 @@ REG_INTEREST = None  # the region of interest of the array to plot in the format
 # reduction; please refer to the API document for
 # ArrayMap.take_where() method for the accepted keywords
 PLOT_FLUX = True  # flag whether to plot the flux of each beam
+PLOT_ATM = True  # flag whether to plot the atmosphere transmission
 PLOT_SHOW = False  # flag whether to show the figures, can slow down the reduction
 PLOT_SAVE = True  # flag whether to save the figures as png files
 ANALYZE = True  # flag whether to perform pixel performance analyze based on rms
 # and power spectrum
+
+GRAT_IDX = None
+PWV = None
+ELEV = None
+
+USE_HK = True  # flag whether to use .hk for determining nodding phase, change to
+# False in error "observation is not nodding."
 
 # ========================= run the reduction pipeline =========================
 
@@ -101,7 +111,8 @@ zobs_result = z2pipl.reduce_zobs(
         flat_flux=flat_flux, flat_err=flat_err, parallel=PARALLEL, stack=DO_ICA,
         do_desnake=DO_DESNAKE, ref_pix=REF_PIX, do_smooth=DO_SMOOTH,
         do_ica=DO_ICA, spat_excl=SPAT_EXCL, return_pix_flag_list=True,
-        table_save=TABLE_SAVE, plot=PLOT, plot_ts=PLOT_TS,
+        table_save=TABLE_SAVE, save_wl=SAVE_WL, save_atm=SAVE_ATM, plot=PLOT,
+        plot_ts=PLOT_TS, plot_atm=PLOT_ATM,
         reg_interest=REG_INTEREST, plot_flux=PLOT_FLUX,
         plot_show=PLOT_SHOW, plot_save=PLOT_SAVE, analyze=ANALYZE, use_hk=True)
 zobs_flux, zobs_err, zobs_pix_flag_list = zobs_result[:2] + zobs_result[-1:]

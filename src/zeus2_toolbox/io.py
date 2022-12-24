@@ -3913,7 +3913,6 @@ class Obs(DataObj):
 
         return val
 
-# TODO: to_table
 # TODO: def bin(self, method):
 
 

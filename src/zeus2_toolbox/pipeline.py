@@ -11,6 +11,8 @@ requirements:
 import os
 import warnings
 
+import numpy as np
+
 from .analyze import *
 from .view import *
 
@@ -27,7 +29,7 @@ STD_THRE_FLAT = 2  # default MAD threshold for flagging skychop/flat
 THRE_FLAG = 5E7  # absolute value threshold of the time series to flag a pixel
 SNR_THRE = 20  # default SNR threshold to flag pixel for flat field
 MAD_THRE_BEAM_ERR = 10  # default MAD threshold for flagging pixel based on error
-MAD_THRE_BS_ERR = 10  # default MAD threshold for flagging bias step data
+MAD_THRE_BS_ERR = 50  # default MAD threshold for flagging bias step data
 
 CORR_THRE = 0.6  # default correlation threshold used in building snake model
 MIN_PIX_NUM = 10  # default minimum number of pixels used to build snake model
@@ -136,7 +138,7 @@ def desnake_beam(obs, ref_pix=None, pix_flag_list=None, corr_thre=CORR_THRE,
 def ica_treat_beam(obs, spat_excl=None, pix_flag_list=None, verbose=VERBOSE,
                    finite_thre=FINITE_THRE, n_components_init=N_COMPONENTS_INIT,
                    n_components_max=N_COMPONENTS_MAX, max_iter=MAX_ITER,
-                   random_state=RANDOM_STATE):
+                   random_state=RANDOM_STATE, smooth_ts=True):
     """
     build noise model by running FastICA decomposition on each MCE column, then
     fit and subtract noise from the input data; return the data with noise
@@ -172,7 +174,9 @@ def ica_treat_beam(obs, spat_excl=None, pix_flag_list=None, verbose=VERBOSE,
               np.nanmax(obs_array.proc_along_time("num_is_finite").data_)) <
              finite_thre) |
             ((obs_array.data_ == 0).sum(axis=-1, keepdims=True) /
-             obs_array.len_ > 0.5)).array_idxs_.tolist()
+             obs_array.len_ > 0.5) |
+            (obs_array.proc_along_time("nanstd").data_ < 1e-5)
+    ).array_idxs_.tolist()
     obs_flattened = obs_array.flatten().exclude_where(
             spat_spec_list=pix_excl_list, spat_ran=spat_excl, logic="or")
 
@@ -183,9 +187,10 @@ def ica_treat_beam(obs, spat_excl=None, pix_flag_list=None, verbose=VERBOSE,
             ica = FastICA(
                     n_components=min(n_components_init, obs_use.shape_[0]),
                     fun='exp', max_iter=max_iter, random_state=random_state)
-            obs_use = gaussian_filter_obs(
-                    obs_use, freq_sigma=15, chunk_edges_ncut=4,
-                    edge_chunks_ncut=1)
+            if smooth_ts:
+                obs_use = gaussian_filter_obs(
+                        obs_use, freq_sigma=15, chunk_edges_ncut=4,
+                        edge_chunks_ncut=1)
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", message=
                 "FastICA did not converge. Consider increasing tolerance or" +
@@ -212,7 +217,7 @@ def ica_treat_beam(obs, spat_excl=None, pix_flag_list=None, verbose=VERBOSE,
 
 def plot_beam_ts(obs, title=None, pix_flag_list=None, reg_interest=None,
                  plot_show=False, plot_save=False, write_header=None,
-                 orientation=ORIENTATION):
+                 orientation=ORIENTATION, **kwargs):
     """
     plot time series for the pipeline reduction
 
@@ -240,6 +245,7 @@ def plot_beam_ts(obs, title=None, pix_flag_list=None, reg_interest=None,
         plot_save=True; will use the first available obs_id if left None
     :param str orientation: str, the orientation of the figure, passed to
         FigArray.init_with_array_map
+    :param kwargs: passed to FigArray.init_by_array_map
     :return: FigArray, object of the figure
     :rtype: FigArray
     """
@@ -271,8 +277,8 @@ def plot_beam_ts(obs, title=None, pix_flag_list=None, reg_interest=None,
         array_map_use.array_spat_.max() - array_map_use.array_spat_.min() + 1
     x_size = min(x_size, 400 / x_len)
 
-    fig = FigArray.init_by_array_map(array_map_use,
-                                     orientation=orientation, x_size=x_size)
+    fig = FigArray.init_by_array_map(array_map_use, orientation=orientation,
+                                     x_size=x_size, **kwargs)
     if isinstance(obs, (Obs, ObsArray, np.ndarray)):
         fig.scatter(obs)
     elif isinstance(obs, dict):
@@ -282,10 +288,10 @@ def plot_beam_ts(obs, title=None, pix_flag_list=None, reg_interest=None,
                     fig.plot
                 if len(obs[key]) > 1:
                     if isinstance(obs[key][1], (Obs, ObsArray)):
-                        kwargs = obs[key][2] if len(obs[key]) > 2 else {}
-                        plot_func(obs[key][0], **kwargs)
+                        plot_kwargs = obs[key][2] if len(obs[key]) > 2 else {}
+                        plot_func(obs[key][0], **plot_kwargs)
                         fig.errorbar(obs[key][0], yerr=obs[key][1], label=key,
-                                     **kwargs)
+                                     **plot_kwargs)
                     else:
                         plot_func(obs[key][0], label=key, **obs[key][1])
                 else:
@@ -311,7 +317,8 @@ def plot_beam_ts(obs, title=None, pix_flag_list=None, reg_interest=None,
 
 
 def plot_beam_flux(obs, title=None, pix_flag_list=None, plot_show=False,
-                   plot_save=False, write_header=None, orientation=ORIENTATION):
+                   plot_save=False, write_header=None, orientation=ORIENTATION,
+                   **kwargs):
     """
     plot flux for the pipeline reduction
 
@@ -328,6 +335,7 @@ def plot_beam_flux(obs, title=None, pix_flag_list=None, plot_show=False,
         plot_save=True; will use the first available obs_id if left None
     :param str orientation: str, the orientation of the figure, passed to
         FigFlux.plot_flux
+    :param kwargs: passed to FigFlux.plot_flux()
     :return: FigFlux, the figure object
     :rtype: FigFlux
     """
@@ -339,7 +347,7 @@ def plot_beam_flux(obs, title=None, pix_flag_list=None, plot_show=False,
         write_header = obs.obs_id_
 
     fig = FigFlux.plot_flux(obs, pix_flag_list=pix_flag_list,
-                            orientation=orientation)
+                            orientation=orientation, **kwargs)
     fig.set_labels(obs, orientation=orientation)
     fig.set_title(title)
     if plot_save:
@@ -388,6 +396,17 @@ def analyze_performance(beam, write_header=None, pix_flag_list=None, plot=False,
     beam_rms = weighted_proc_along_axis(beam_chop_rms, method="nanmean",
                                         weight=beam_chop_wt, axis=-1)[0]
 
+    nep_flag = False
+    try:
+        data_mode = beam_rms.query_obs_info("data_mode")
+        freq = beam_rms.query_obs_info("freq")
+        freq = freq if is_meaningful(freq) else FREQ
+        beam_nep = get_power_obs(beam_rms)
+        beam_nep *= 1 / np.sqrt(freq) * (1 if data_mode == 1 else np.sqrt(3))
+        nep_flag = True
+    except Exception as err:
+        pass
+
     if plot:
         if plot_rms:
             print("Plotting rms.")
@@ -398,18 +417,26 @@ def analyze_performance(beam, write_header=None, pix_flag_list=None, plot=False,
                     plot_save=plot_save, write_header="%s_rms" %
                                                       write_header,
                     orientation=ORIENTATION))
-        print("Plotting rms time series.")
-        plot_dict = {"rms": (beam_chop_rms, {"c": "k"})}
-        if plot_ts and np.prod(beam.shape_) < 3 * 10 * 10000:
-            plot_dict["raw data"] = (beam, {"twin_axes": True})
-        plt.close(plot_beam_ts(
-                plot_dict, title="%s rms" %
-                                 write_header.split("/")[-1],
-                pix_flag_list=pix_flag_list, reg_interest=reg_interest,
-                plot_show=plot_show, plot_save=plot_save,
-                write_header="%s_rms_ts" % write_header,
-                orientation=ORIENTATION))
+            if nep_flag:
+                plt.close(plot_beam_flux(
+                        beam_nep, title="%s NEP in data" %
+                                        write_header.split("/")[-1],
+                        pix_flag_list=pix_flag_list, plot_show=plot_show,
+                        plot_save=plot_save, write_header="%s_nep" %
+                                                          write_header,
+                        orientation=ORIENTATION))
         if plot_ts:
+            print("Plotting rms time series.")
+            plot_dict = {"rms": (beam_chop_rms, {"c": "k"})}
+            if np.prod(beam.shape_) < 3 * 10 * 10000:
+                plot_dict["raw data"] = (beam, {"twin_axes": True})
+            plt.close(plot_beam_ts(
+                    plot_dict, title="%s rms" %
+                                     write_header.split("/")[-1],
+                    pix_flag_list=pix_flag_list, reg_interest=reg_interest,
+                    plot_show=plot_show, plot_save=plot_save,
+                    write_header="%s_rms_ts" % write_header,
+                    orientation=ORIENTATION))
             plot_dict = {"raw_data": beam}
             if ("UTC" in beam.obs_info_.table_.colnames) and \
                     ("mm PWV" in beam.obs_info_.table_.colnames):
@@ -584,7 +611,9 @@ def proc_beam(beam, write_header=None, is_flat=False, is_bias_step=False,
                 freq_sigma=FREQ_SIGMA, edge_chunks_ncut=EDGE_CHUNKS_NCUT,
                 chunk_edges_ncut=CHUNK_EDGES_NCUT)
         beam_use = auto_flag_ts(desnaked_beam, is_flat=is_flat,
-                                mad_thre=MAD_THRE_BEAM,
+                                is_bias_step=is_bias_step,
+                                mad_thre=MAD_THRE_BEAM if not is_bias_step else
+                                MAD_THRE_BS_ERR,
                                 std_thre_flat=STD_THRE_FLAT)
         noise_beam += snake_beam
         plot_dict["snake"] = (noise_beam, {"c": "k"})
@@ -595,7 +624,9 @@ def proc_beam(beam, write_header=None, is_flat=False, is_bias_step=False,
                 chunk_edges_ncut=CHUNK_EDGES_NCUT if not is_bias_step else 0). \
             replace(chop=None)
         beam_use = auto_flag_ts(beam_use - smooth_beam, is_flat=is_flat,
-                                mad_thre=MAD_THRE_BEAM,
+                                is_bias_step=is_bias_step,
+                                mad_thre=MAD_THRE_BEAM if not is_bias_step else
+                                MAD_THRE_BS_ERR,
                                 std_thre_flat=STD_THRE_FLAT)
         noise_beam += smooth_beam
         plot_dict["smooth"] = (noise_beam, {"c": "y"})
@@ -616,7 +647,9 @@ def proc_beam(beam, write_header=None, is_flat=False, is_bias_step=False,
                                    edge_chunks_ncut=0, chunk_edges_ncut=0,
                                    truncate=3.0)) / 2
         beam_use = auto_flag_ts(beam_use - clean_beam, is_flat=is_flat,
-                                mad_thre=MAD_THRE_BEAM,
+                                is_bias_step=is_bias_step,
+                                mad_thre=MAD_THRE_BEAM if not is_bias_step else
+                                MAD_THRE_BS_ERR,
                                 std_thre_flat=STD_THRE_FLAT)
         noise_beam += clean_beam
         plot_dict["clean"] = (noise_beam, {"c": "c"}) if \
@@ -631,7 +664,9 @@ def proc_beam(beam, write_header=None, is_flat=False, is_bias_step=False,
                            n_components_max=N_COMPONENTS_MAX, max_iter=MAX_ITER,
                            random_state=RANDOM_STATE)
         beam_use = auto_flag_ts(ica_treated_beam, is_flat=is_flat,
-                                mad_thre=MAD_THRE_BEAM,
+                                is_bias_step=is_bias_step,
+                                mad_thre=MAD_THRE_BEAM if not is_bias_step else
+                                MAD_THRE_BS_ERR,
                                 std_thre_flat=STD_THRE_FLAT)
         noise_beam += ica_noise_beam
         plot_dict["ica"] = (noise_beam, {"c": "gray"})
@@ -658,17 +693,19 @@ def proc_beam(beam, write_header=None, is_flat=False, is_bias_step=False,
              (flat_err / flat_flux) ** 2).sqrt()
 
     if is_bias_step:
-        freq = beam_use.query_obs_info("freq")
-        freq = freq if is_meaningful(freq) else FREQ
-        ramp_step_size = beam_use.query_obs_info("RB_cc_ramp_step_size")
-        ramp_step_size = ramp_step_size if is_meaningful(ramp_step_size) else 50
-        data_mode = beam_use.query_obs_info("data_mode")
-        data_mode = data_mode if data_mode is not None else 1
-        data_rate = beam_use.query_obs_info("RB_cc_data_rate")
-        data_rate = data_rate if is_meaningful(data_rate) else DATA_RATE
-        ramp_step_period = beam_use.query_obs_info("RB_cc_ramp_step_period")
-        ramp_step_period = ramp_step_period if is_meaningful(ramp_step_period) \
-            else RAMP_STEP_PERIOD
+        freq = configure_helper(obs=beam_use, keyword="freq", var=FREQ,
+                                supersede=False)
+        ramp_step_size = configure_helper(
+                obs=beam_use, keyword="RB_cc_ramp_step_size", var=20,
+                supersede=False)
+        data_mode = configure_helper(obs=beam_use, keyword="data_mode", var=1,
+                                     supersede=False)
+        data_rate = configure_helper(
+                obs=beam_use, keyword=["RB_cc_data_rate", "data_rate"],
+                var=DATA_RATE, supersede=False)
+        ramp_step_period = configure_helper(
+                obs=beam_use, keyword="RB_cc_ramp_step_period",
+                var=RAMP_STEP_PERIOD, supersede=False)
         step_period = ramp_step_period / data_rate / freq * 2.
         butterworth = 1 if data_mode == 1 else BUTTERWORTH_CONSTANT
         di_bias = bias_to_i_bias(ramp_step_size)
@@ -1119,7 +1156,8 @@ def read_beam(file_header, array_map=None, obs_log=None, flag_ts=True,
             else:
                 beam = beam.to_obs_array(array_map=array_map)
         if flag_ts and (not beam.empty_flag_):
-            beam = auto_flag_ts(beam, is_flat=is_flat, mad_thre=MAD_THRE_BEAM,
+            beam = auto_flag_ts(beam, is_flat=is_flat, is_bias_step=is_bias_step,
+                                mad_thre=MAD_THRE_BEAM,
                                 std_thre_flat=STD_THRE_FLAT)
         if (obs_log is not None) and (len(obs_log) > 0) and (not beam.empty_flag_):
             with warnings.catch_warnings():
@@ -1211,7 +1249,7 @@ def read_total_power(file_header, array_map=None, obs_log=None, flag_ts=True,
                                   ("%s due to <class 'FileNotFoundError'>: " % file_header) +
                                   ("%s or %s.hk are not hk files." % (file_header, file_header)))
         beam = read_beam(file_header=file_header, array_map=array_map,
-                         obs_log=None, flag_ts=flag_ts, is_flat=True,
+                         obs_log=None, flag_ts=flag_ts, is_flat=is_flat,
                          auto_file_type=False)
 
     if beam.ts_.empty_flag_:
@@ -1226,12 +1264,8 @@ def read_total_power(file_header, array_map=None, obs_log=None, flag_ts=True,
                     warnings.warn("can not find CTIME, using default value.",
                                   UserWarning)
         if freq is None:
-            freq = 398.72408293460927
-            if "freq" in beam.obs_info_.colnames_:
-                freq = beam.obs_info_.table_["freq"][0]
-            else:
-                warnings.warn("can not find freq, using default value.",
-                              UserWarning)
+            freq = configure_helper(obs=beam, keyword="freq", var=FREQ,
+                                    supersede=False)
         ts = np.arange(beam.len_, dtype=np.double) / freq + t0
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", "Time = 0 exists in TimeStamp.")
@@ -1312,25 +1346,19 @@ def read_bias_step(file_header, array_map=None, flag_ts=True, is_flat=False,
         warnings.filterwarnings("ignore", "%s not found." % (file_header + ".chop"))
         beam = read_total_power(
                 file_header=file_header, array_map=array_map, obs_log=None,
-                flag_ts=flag_ts, is_flat=is_flat, t0=t0, freq=freq)
+                flag_ts=False, is_flat=is_flat, t0=t0, freq=freq)
     beam = beam.take_by_idx_along_time(idxs=range(1, beam.len_))
+    if flag_ts:
+        beam = auto_flag_ts(beam, is_flat=is_flat, is_bias_step=True)
 
     if data_rate is None:
-        data_rate = DATA_RATE
-        if "data_rate" in beam.obs_info_.colnames_:
-            data_rate = beam.obs_info_.table_["data_rate"][0]
-        elif "RB_cc_data_rate" in beam.obs_info_.colnames_:
-            data_rate = beam.obs_info_.table_["RB_cc_data_rate"][0]
-        else:
-            warnings.warn("can not find data_rate, using default value.",
-                          UserWarning)
+        data_rate = configure_helper(
+                obs=beam, keyword=["data_rate", "RB_cc_data_rate"],
+                var=DATA_RATE, supersede=False)
     if ramp_step_period is None:
-        ramp_step_period = RAMP_STEP_PERIOD
-        if "RB_cc_ramp_step_period" in beam.obs_info_.colnames_:
-            ramp_step_period = beam.obs_info_.table_["RB_cc_ramp_step_period"][0]
-        else:
-            warnings.warn("can not find ramp_step_period, using default value.",
-                          UserWarning)
+        ramp_step_period = configure_helper(
+                obs=beam, keyword="RB_cc_ramp_step_period", var=RAMP_STEP_PERIOD,
+                supersede=False)
     ramp_chop = ((np.arange(beam.len_) * data_rate // ramp_step_period) % 2)
     beam.update_chop(ramp_chop.astype(bool))
 
@@ -1575,20 +1603,42 @@ def reduce_beams(data_header, data_dir=None, write_dir=None, write_suffix="",
     if isinstance(flat_err, (Obs, ObsArray)) and flat_err.len_ > 1:
         flat_err_group_flag, flat_err_group = True, flat_err.copy()
     i = 0
-    for header in data_header:
-        for idxs in data_header[header]:
+    if isinstance(data_header, dict):
+        for header in data_header:
+            for idxs in data_header[header]:
+                if flat_flux_group_flag:
+                    flat_flux = flat_flux_group.take_by_idx_along_time(i)
+                if flat_err_group_flag:
+                    flat_err = flat_err_group.take_by_idx_along_time(i)
+                i += 1
+                for beam_idx in range(idxs[0], idxs[1] + 1):
+                    file_header = os.path.join(
+                            data_dir, "%s_%04d" % (header, beam_idx))
+                    args = ()
+                    for var_name in inspect.getfullargspec(reduce_beam)[0]:
+                        args += (locals()[var_name],)
+                    args_list.append(args)
+    elif isinstance(data_header, (list, tuple)):
+        for header in data_header:
             if flat_flux_group_flag:
                 flat_flux = flat_flux_group.take_by_idx_along_time(i)
             if flat_err_group_flag:
                 flat_err = flat_err_group.take_by_idx_along_time(i)
             i += 1
-            for beam_idx in range(idxs[0], idxs[1] + 1):
-                file_header = os.path.join(
-                        data_dir, "%s_%04d" % (header, beam_idx))
-                args = ()
-                for var_name in inspect.getfullargspec(reduce_beam)[0]:
-                    args += (locals()[var_name],)
-                args_list.append(args)
+            file_header = os.path.join(data_dir, header)
+            args = ()
+            for var_name in inspect.getfullargspec(reduce_beam)[0]:
+                args += (locals()[var_name],)
+            args_list.append(args)
+    elif isinstance(data_header, str):
+        file_header = os.path.join(data_dir, data_header)
+        args = ()
+        for var_name in inspect.getfullargspec(reduce_beam)[0]:
+            args += (locals()[var_name],)
+        args_list.append(args)
+    else:
+        raise TypeError("Input data_header type not supported: ",
+                        type(data_header))
 
     if parallel and check_parallel() and len(args_list) > 1:
         results = parallel_run(func=reduce_beam, args_list=args_list)
@@ -1802,24 +1852,34 @@ def reduce_skychop(flat_header, data_dir=None, write_dir=None, write_suffix="",
         flat_beams_ts = result[3]
     pix_flag_list = result[-1]
 
-    beam_num_list = [idxs[1] - idxs[0] + 1 for header in flat_header
-                     for idxs in flat_header[header]]
+    if isinstance(flat_header, dict):
+        beam_num_list = [idxs[1] - idxs[0] + 1 for header in flat_header
+                         for idxs in flat_header[header]]
 
-    type_result = Obs if array_map is None else ObsArray
-    flat_flux, flat_err, flat_wt = type_result(), type_result(), type_result()
-    for idx_i, idx_e in zip(np.cumsum([0] + beam_num_list[:-1]),
-                            np.cumsum(beam_num_list)):
-        group_flux, group_err_ex, group_wt = weighted_proc_along_axis(
-                flat_beams_flux.take_by_idx_along_time(range(idx_i, idx_e)),
-                weight=None)
-        group_err_in = ((flat_beams_err ** 2).proc_along_time(
+        type_result = Obs if array_map is None else ObsArray
+        flat_flux, flat_err, flat_wt = type_result(), type_result(), type_result()
+        for idx_i, idx_e in zip(np.cumsum([0] + beam_num_list[:-1]),
+                                np.cumsum(beam_num_list)):
+            group_flux, group_err_ex, group_wt = weighted_proc_along_axis(
+                    flat_beams_flux.take_by_idx_along_time(range(idx_i, idx_e)),
+                    weight=None)
+            group_err_in = ((flat_beams_err.take_by_idx_along_time(
+                    range(idx_i, idx_e)) ** 2).proc_along_time(
+                    method="nanmean")).sqrt()
+            group_err = group_err_ex.replace(
+                    arr_in=np.choose(group_err_ex.data_ < group_err_in.data_,
+                                     [group_err_ex.data_, group_err_in.data_]))
+            flat_flux.append(group_flux)
+            flat_err.append(group_err)
+            flat_wt.append(group_wt)
+    else:
+        flat_flux, flat_err_ex, flat_wt = weighted_proc_along_axis(
+                flat_beams_flux, weight=None)
+        flat_err_in = ((flat_beams_err ** 2).proc_along_time(
                 method="nanmean")).sqrt()
-        group_err = group_err_ex.replace(
-                arr_in=np.choose(group_err_ex.data_ < group_err_in.data_,
-                                 [group_err_ex.data_, group_err_in.data_]))
-        flat_flux.append(group_flux)
-        flat_err.append(group_err)
-        flat_wt.append(group_wt)
+        flat_err = flat_err_ex.replace(
+                arr_in=np.choose(flat_err_ex.data_ < flat_err_in.data_,
+                                 [flat_err_ex.data_, flat_err_in.data_]))
 
     flat_file_header = build_header(flat_header)
     if table_save:  # save to csv
@@ -1897,24 +1957,34 @@ def reduce_bias_step(data_header, data_dir=None, write_dir=None, write_suffix=""
         beams_ts = result[3] * sign
     pix_flag_list = result[-1]
 
-    beam_num_list = [idxs[1] - idxs[0] + 1 for header in data_header
-                     for idxs in data_header[header]]
+    if isinstance(data_header, dict):
+        beam_num_list = [idxs[1] - idxs[0] + 1 for header in data_header
+                         for idxs in data_header[header]]
 
-    type_result = Obs if array_map is None else ObsArray
-    beam_flux, beam_err, beam_wt = type_result(), type_result(), type_result()
-    for idx_i, idx_e in zip(np.cumsum([0] + beam_num_list[:-1]),
-                            np.cumsum(beam_num_list)):
-        group_flux, group_err_ex, group_wt = weighted_proc_along_axis(
-                beams_flux.take_by_idx_along_time(range(idx_i, idx_e)),
-                weight=None)
-        group_err_in = ((beams_err ** 2).proc_along_time(
+        type_result = Obs if array_map is None else ObsArray
+        beam_flux, beam_err, beam_wt = type_result(), type_result(), type_result()
+        for idx_i, idx_e in zip(np.cumsum([0] + beam_num_list[:-1]),
+                                np.cumsum(beam_num_list)):
+            group_flux, group_err_ex, group_wt = weighted_proc_along_axis(
+                    beams_flux.take_by_idx_along_time(range(idx_i, idx_e)),
+                    weight=None)
+            group_err_in = ((beams_err.take_by_idx_along_time(
+                    range(idx_i, idx_e)) ** 2).proc_along_time(
+                    method="nanmean")).sqrt()
+            group_err = group_err_ex.replace(
+                    arr_in=np.choose(group_err_ex.data_ < group_err_in.data_,
+                                     [group_err_ex.data_, group_err_in.data_]))
+            beam_flux.append(group_flux)
+            beam_err.append(group_err)
+            beam_wt.append(group_wt)
+    else:
+        beam_flux, beam_err_ex, beam_wt = weighted_proc_along_axis(
+                beams_flux, weight=None)
+        beam_err_in = ((beams_err ** 2).proc_along_time(
                 method="nanmean")).sqrt()
-        group_err = group_err_ex.replace(
-                arr_in=np.choose(group_err_ex.data_ < group_err_in.data_,
-                                 [group_err_ex.data_, group_err_in.data_]))
-        beam_flux.append(group_flux)
-        beam_err.append(group_err)
-        beam_wt.append(group_wt)
+        beam_err = beam_err_ex.replace(
+                arr_in=np.choose(beam_err_ex.data_ < beam_err_in.data_,
+                                 [beam_err_ex.data_, beam_err_in.data_]))
 
     data_file_header = build_header(data_header) + write_suffix
     if table_save:  # save to csv
@@ -1963,8 +2033,36 @@ def reduce_bias_step(data_header, data_dir=None, write_dir=None, write_suffix=""
                     orientation=ORIENTATION, array_type=beams_rms).write(
                     os.path.join(write_dir, "%s_rms.csv" % data_file_header),
                     overwrite=True)
+        beams_rms_on = analyze_performance(
+                beams_ts.take_by_flag_along_time(
+                        ~beams_ts.chop_.get_flag_chunk_edges(
+                                ncut=0.03 / step_period * 2, beginning=True,
+                                end=False)).take_by_flag_along_time(chop=True),
+                write_header=os.path.join(write_dir, data_file_header + "_on"),
+                pix_flag_list=pix_flag_list, plot=False)
+        beams_rms_off = analyze_performance(
+                beams_ts.take_by_flag_along_time(
+                        ~beams_ts.chop_.get_flag_chunk_edges(
+                                ncut=0.03 / step_period * 2, beginning=True,
+                                end=False)).take_by_flag_along_time(chop=False),
+                write_header=os.path.join(write_dir, data_file_header + "_off"),
+                pix_flag_list=pix_flag_list, plot=False)
+        if table_save:
+            ObsArray(beams_rms_off / beams_rms_on).to_table(
+                    orientation=ORIENTATION, array_type=beams_rms_off).write(
+                    os.path.join(write_dir, "%s_off_on_rms_ratio.csv" %
+                                 data_file_header),
+                    overwrite=True)
+        if plot and plot_flux:
+            plt.close(plot_beam_flux(
+                    beams_rms_off / beams_rms_on,
+                    title="%s off/on rms ratio" % data_file_header.split("/")[-1],
+                    pix_flag_list=pix_flag_list, plot_show=plot_show,
+                    plot_save=plot_save, write_header=os.path.join(
+                            write_dir, "%s_off_on_rms_ratio" % data_file_header),
+                    orientation=ORIENTATION, ran=(0.5, 1.5)))
 
-    result = (beams_flux, beams_err, beams_wt)
+    result = (beam_flux, beam_err, beam_wt)
     if return_ts:
         result += (beams_ts,)
     if return_pix_flag_list:
@@ -2353,7 +2451,7 @@ def reduce_calibration(data_header, data_dir=None, write_dir=None,
         beams_flux.obs_info_.table_.write(os.path.join(
                 write_dir, "%s_beams_info.csv" % data_file_header),
                 overwrite=True)
-    if plot:  # plot beam flux
+    if plot and (plot_ts or len(beams_flux) > 1):  # plot beam flux
         plot_dict = {"beam flux": [beams_flux, beams_err,
                                    {"c": "y", "ls": ":", "lw": 0.5}]}
         # plot PWV over beam flux
@@ -2386,11 +2484,26 @@ def reduce_calibration(data_header, data_dir=None, write_dir=None,
                 pix_flag_list=pix_flag_list, plot=plot, plot_rms=plot_flux,
                 plot_ts=False, reg_interest=reg_interest, plot_psd=plot_ts,
                 plot_specgram=False, plot_show=plot_show, plot_save=plot_save)
+        nep_flag = False
+        try:
+            data_mode = beams_rms.query_obs_info("data_mode")
+            freq = beams_rms.query_obs_info("freq")
+            freq = freq if is_meaningful(freq) else FREQ
+            beams_nep = get_power_obs(beams_rms)
+            beams_nep *= 1 / np.sqrt(freq) * (1 if data_mode == 1 else np.sqrt(3))
+            nep_flag = True
+        except Exception as err:
+            pass
         if table_save:
             ObsArray(beams_rms).to_table(
                     orientation=ORIENTATION, array_type=beams_rms).write(
                     os.path.join(write_dir, "%s_rms.csv" % data_file_header),
                     overwrite=True)
+            if nep_flag:
+                ObsArray(beams_nep).to_table(
+                        orientation=ORIENTATION, array_type=beams_rms).write(
+                        os.path.join(write_dir, "%s_nep.csv" % data_file_header),
+                        overwrite=True)
 
     result = (beams_flux, beams_err, beams_wt)
     if return_ts:
@@ -2576,10 +2689,18 @@ def eval_performance(data_header, data_dir=None, write_dir=None, write_suffix=""
 
     print("Reading data.")
     data_file_header = build_header(data_header) + write_suffix
-    file_header_list = [os.path.join(data_dir, "%s_%04d" % (header, beam_num))
-                        for header in data_header
-                        for beam_ran in data_header[header]
-                        for beam_num in range(beam_ran[0], beam_ran[1] + 1)]
+    if isinstance(data_header, dict):
+        file_header_list = [os.path.join(data_dir, "%s_%04d" % (header, beam_num))
+                            for header in data_header
+                            for beam_ran in data_header[header]
+                            for beam_num in range(beam_ran[0], beam_ran[1] + 1)]
+    elif isinstance(data_header, dict):
+        file_header_list = [os.path.join(data_dir, header) for header in
+                            data_header]
+    elif isinstance(data_header, str):
+        file_header_list = [os.path.join(data_dir, data_header)]
+    else:
+        raise TypeError("Input data_header type not supported.")
     beams = read_beams(file_header_list, array_map=array_map if
     (array_map is None) or (reg_interest is None) else
     array_map.take_where(**reg_interest), obs_log=obs_log,
@@ -2591,6 +2712,18 @@ def eval_performance(data_header, data_dir=None, write_dir=None, write_suffix=""
             plot_ts=plot_ts, reg_interest=reg_interest, plot_psd=plot_psd,
             plot_specgram=plot_specgram, plot_show=plot_show,
             plot_save=plot_save)
+
+    nep_flag = False
+    try:
+        data_mode = beams_rms.query_obs_info("data_mode")
+        freq = beams_rms.query_obs_info("freq")
+        freq = freq if is_meaningful(freq) else FREQ
+        beams_nep = get_power_obs(beams_rms)
+        nep_flag = True
+        beams_nep *= 1 / np.sqrt(freq) * (1 if data_mode == 1 else np.sqrt(3))
+    except Exception as err:
+        pass
+
     if table_save:
         ObsArray(beams_rms).to_table(
                 orientation=ORIENTATION, array_type=beams_rms).write(
@@ -2598,6 +2731,11 @@ def eval_performance(data_header, data_dir=None, write_dir=None, write_suffix=""
                 overwrite=True)
         beams_rms.obs_info_.table_.write(os.path.join(
                 write_dir, "%s_info.csv" % data_file_header), overwrite=True)
+        if nep_flag:
+            ObsArray(beams_nep).to_table(
+                    orientation=ORIENTATION, array_type=beams_nep).write(
+                    os.path.join(write_dir, "%s_nep.csv" % data_file_header),
+                    overwrite=True)
 
     result = (beams_rms,)
     if return_ts:

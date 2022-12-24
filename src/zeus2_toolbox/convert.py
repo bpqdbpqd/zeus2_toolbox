@@ -90,6 +90,47 @@ def bias_to_i_bias(bias, mce_bias_r=MCE_BIAS_R, dewar_bias_r=DEWAR_BIAS_R,
     return i_bias
 
 
+def v_bias_to_bias(v_bias, max_bias_voltage=MAX_BIAS_VOLTAGE,
+                   bias_dac_bits=BIAS_DAC_BITS):
+    """
+    reverse of bias_to_v_bias(), converting bias voltage to bias DAC value
+
+    :param v_bias: scalar or array, tes bias voltage in V
+    :type v_bias: int or float or numpy.ndarray
+    :param int or float max_bias_voltage: scalar, maximum bias voltage in V
+    :param int bias_dac_bits: int, bias DAC bit number
+    :return: bias value(s) in DAC unit, in the same shape as input v_bias
+    :rtype: int or float or numpy.ndarray
+    """
+
+    bias = v_bias * 2 ** bias_dac_bits / max_bias_voltage / 2
+
+    return bias
+
+
+def i_bias_to_bias(i_bias, mce_bias_r=MCE_BIAS_R, dewar_bias_r=DEWAR_BIAS_R,
+                   max_bias_voltage=MAX_BIAS_VOLTAGE,
+                   bias_dac_bits=BIAS_DAC_BITS):
+    """
+    reverse of bias_to_i_bias(), converting bias current to bias DAC value
+
+    :param i_bias: scalar or array, tes bias current in A
+    :type i_bias: int or float or numpy.ndarray
+    :param int or float mce_bias_r: scalar, MCE bias resistance in ohm
+    :param int or float dewar_bias_r: scalar, dewar bias resistance in ohm
+    :param int or float max_bias_voltage: scalar, maximum bias voltage in V
+    :param int bias_dac_bits: int, bias DAC bit number
+    :return: bias value(s) in DAC unit, in the same shape as input i_bias
+    :rtype: int or float or numpy.ndarray
+    """
+
+    v_bias = i_bias * (dewar_bias_r + mce_bias_r)
+    bias = v_bias_to_bias(v_bias, max_bias_voltage=max_bias_voltage,
+                          bias_dac_bits=bias_dac_bits)
+
+    return bias
+
+
 def fb_to_i_tes(fb, dewar_fb_r=DEWAR_FB_R, max_fb_voltage=MAX_FB_VOLTAGE,
                 fb_dac_bits=FB_DAC_BITS,
                 butterworth_constant=BUTTERWORTH_CONSTANT,
@@ -173,10 +214,37 @@ def fb_to_v_tes(bias, fb, mce_col=-1, mce_bias_r=MCE_BIAS_R,
             fb_dac_bits=fb_dac_bits, butterworth_constant=butterworth_constant,
             rel_fb_inductance=rel_fb_inductance)
 
-    i_shunt = i_bias - i_tes
+    i_shunt = - i_tes + i_bias
     v_tes = i_shunt * shunt_r_use
 
     return v_tes
+
+
+def i_tes_to_fb(i_tes, dewar_fb_r=DEWAR_FB_R, max_fb_voltage=MAX_FB_VOLTAGE,
+                fb_dac_bits=FB_DAC_BITS,
+                butterworth_constant=BUTTERWORTH_CONSTANT,
+                rel_fb_inductance=REL_FB_INDUCTANCE):
+    """
+    reverse of fb_to_i_tes(), converting TES current to feedback DAC values
+
+    :param i_tes: scalar or array, sq1 feedback current in A
+    :type i_tes: int or float or numpy.ndarray
+    :param int or float dewar_fb_r: scalar, dewar feedback resistance in ohm
+    :param int or float max_fb_voltage: scalar, maximum feedback voltage in V
+    :param int fb_dac_bits: int, feedback DAC bit number
+    :param int or float butterworth_constant: scalar, accounting for the low pass
+        filter
+    :param int or float rel_fb_inductance: scalar, feedback inductance ratio
+    :return: fb value(s) in DAC unit, in the same shape as input fb
+    :rtype: int or float or numpy.ndarray
+    """
+
+    i_fb = i_tes * rel_fb_inductance
+    v_fb = i_fb * dewar_fb_r
+    fb_real_dac = v_fb * 2 ** fb_dac_bits * max_fb_voltage / 2
+    fb = fb_real_dac * butterworth_constant
+
+    return fb
 
 
 def freq_to_wl(freq, freq_unit="GHz", wl_unit="um"):

@@ -475,17 +475,28 @@ def build_header(header_dict):
     :rtype: str
     """
 
-    if len(header_dict) == 1:
-        header_str = "%s_%04d-%04d" % \
-                     (list(header_dict.items())[0][0],
-                      list(header_dict.items())[0][1][0][0],
-                      list(header_dict.items())[0][1][-1][-1])
+    if isinstance(header_dict, dict):
+        if len(header_dict) == 1:
+            header_str = "%s_%04d-%04d" % \
+                         (list(header_dict.items())[0][0],
+                          list(header_dict.items())[0][1][0][0],
+                          list(header_dict.items())[0][1][-1][-1])
+        else:
+            header_str = "%s_%04d-%s_%04d" % \
+                         (list(header_dict.items())[0][0],
+                          list(header_dict.items())[0][1][0][0],
+                          list(header_dict.items())[-1][0],
+                          list(header_dict.items())[-1][1][-1][-1])
+    elif isinstance(header_dict, (list, tuple)):
+        if len(header_dict) == 1:
+            header_str = header_dict[0]
+        else:
+            header_str = "%s-%s" % (header_dict[0], header_dict[-1])
+    elif isinstance(header_dict, str):
+        header_str = header_dict
     else:
-        header_str = "%s_%04d-%s_%04d" % \
-                     (list(header_dict.items())[0][0],
-                      list(header_dict.items())[0][1][0][0],
-                      list(header_dict.items())[-1][0],
-                      list(header_dict.items())[-1][1][-1][-1])
+        raise TypeError("Input header_dict type not supported: ",
+                        type(header_dict))
 
     return header_str
 

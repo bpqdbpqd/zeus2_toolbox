@@ -251,11 +251,9 @@ class FigFlux(Figure):
                 row_idxs, col_idxs = flag_pix_arr[:, 0], flag_pix_arr[:, 1]
                 for row, col in zip(row_idxs, col_idxs):
                     arr_mask[row, col] = True
-            if np.any(~arr_mask):
-                min, max = np.min(arr_plot[~arr_mask & np.isfinite(arr_plot)],
-                                  initial=0), \
-                           np.max(arr_plot[~arr_mask & np.isfinite(arr_plot)],
-                                  initial=0)
+            if np.any(~arr_mask & np.isfinite(arr_plot)):
+                min, max = np.min(arr_plot[~arr_mask & np.isfinite(arr_plot)]), \
+                           np.max(arr_plot[~arr_mask & np.isfinite(arr_plot)])
             else:
                 warnings.warn("All the data are masked.")
                 min = max = 0
