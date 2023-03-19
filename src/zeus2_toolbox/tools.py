@@ -507,7 +507,7 @@ def is_meaningful(var):
     sufficing all the following conditions:
         - var is not None
         - var != 0 for bool or scalar
-        - var is masked for bool or scalar
+        - var is not masked for bool or scalar
         - var finite for bool or scalar
         - len(var) > 0 for str or any iterable type
 

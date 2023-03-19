@@ -9,6 +9,7 @@ A module to carry out many low level analysis of zeus2 data
 import gc
 import multiprocessing
 
+import numpy as np
 from scipy.optimize import curve_fit
 
 try:
@@ -1352,13 +1353,24 @@ def stack_best_pixels(obs, ref_pixel=None, corr_thre=0.6, min_pix_num=10,
     else:
         ref_pix_data = np.ma.masked_invalid(ref_pix_data)
         corr_best_pix = lambda arr: np.ma.corrcoef(arr, ref_pix_data)[0, 1]
-        corr_arr = abs(np.ma.apply_along_axis(
-                corr_best_pix, axis=-1, arr=masked_data))
-        pixel_idx_list = np.flatnonzero(corr_arr > corr_thre)
+        corr_arr = np.ma.apply_along_axis(
+                corr_best_pix, axis=-1, arr=masked_data)
+        abs_corr_arr = abs(corr_arr).filled(fill_value=0)
+        pixel_idx_list = np.flatnonzero(abs_corr_arr > corr_thre)
         if len(pixel_idx_list) < min_pix_num + 1:
-            corr_arr.fill_value = 0
-            pixel_idx_list = corr_arr.filled().argsort()[-min_pix_num - 1:]
-        best_pix_data = flattened_data[np.array(pixel_idx_list)]
+            warnings.warn(("Best correlated pixel number %i < min_pix_num %i, " +
+                           "consider decrease corr_thre or min_pix_num.") %
+                          (len(pixel_idx_list), min_pix_num), UserWarning)
+            if np.count_nonzero(abs_corr_arr) >= min_pix_num:
+                pixel_idx_list = \
+                    abs_corr_arr.argsort()[-min_pix_num - 1:]
+            else:
+                warnings.warn(("Valid pixel number %i < min_pix_num %i, " +
+                               "fallback to use all valid pixels.") %
+                              (len(pixel_idx_list), min_pix_num), UserWarning)
+                pixel_idx_list = np.nonzero(abs_corr_arr)[0]
+        best_pix_data = flattened_data[np.array(pixel_idx_list)] / \
+                        np.sign(corr_arr)[np.array(pixel_idx_list)]
 
     best_pix_obs = Obs(arr_in=best_pix_data,
                        chop=obs.chop_, ts=obs.ts_, obs_info=obs.obs_info_,
@@ -1589,7 +1601,7 @@ def auto_flag_pix_by_flux(obs_flux, obs_err, pix_flag_list=None, is_flat=False,
     if is_bias_step:
         pix_flag = pix_flag | (obs_flux_array.data_ == 0) | \
                    (obs_err_array.data_ == 0)
-        ramp_step_size = obs_err_array.query_obs_info("RB_cc_ramp_step_size")
+        ramp_step_size = obs_flux_array.query_obs_info("RB_cc_ramp_step_size")
         if is_meaningful(ramp_step_size):
             pix_flag = pix_flag | (abs(obs_flux_array.data_) >
                                    10 * abs(ramp_step_size))

@@ -26,6 +26,7 @@ converting data to physical unit.
 - Add the ability for pipeline.reduce_zobs() to plot atm transmission
 - Add more logical operators to DataObj class
 - Add an example script array_sky.py to save array wavelength, transmission and sky power to table
+- Fix a bug in analyze.stack_best_pixels(), now desnaking uses correct sign in stacking time series
 - Fix a bug in zeus2_io.proc_along_axis()
 - Fix a bug in FigSpec with twin_axes
 - Fix many bugs in tools
